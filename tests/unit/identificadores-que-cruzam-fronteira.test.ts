@@ -176,6 +176,7 @@ const SITES: { arquivo: string; fronteira: string; papel?: "gerador" | "validado
   // Chave de idempotência: os geradores (manda UUID) e os validadores (exige UUID).
   { arquivo: "app/onboarding/connect-whatsapp/_client.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
   { arquivo: "components/extensions/ExtensionsManager.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
+  { arquivo: "components/modulos/ModulosManager.tsx", fronteira: "api.idempotency-key", papel: "gerador" },
   { arquivo: "hooks/ai/useSkills.ts", fronteira: "api.idempotency-key", papel: "gerador" },
   { arquivo: "hooks/contacts/useImportContacts.ts", fronteira: "api.idempotency-key", papel: "gerador" },
   { arquivo: "lib/api/client.ts", fronteira: "api.idempotency-key", papel: "gerador" },

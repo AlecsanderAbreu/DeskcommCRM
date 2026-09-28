@@ -201,6 +201,11 @@ const DECISOES: Record<string, Decisao> = {
     caminho: "cascata",
     razao: "0379: a cauda do número sai, mas a linha é o 'não me mande mais' — apagá-la faria a pessoa voltar a receber campanha.",
   },
+  channel_session_groups: {
+    decidida: "redigir",
+    caminho: "cascata",
+    razao: "0482 (grupos na inbox, #1647): subject é o NOME do grupo e vira null; contact_id aponta para o placeholder do grupo (contacts.kind = 'whatsapp_group'), e número, conversa e liga/desliga ficam. O que o TITULAR escreveu em grupo é redigido pelo gatilho fn_redigir_conversas_ao_anonimizar, em messages.",
+  },
   // ── redigir pela virada de is_anonymized (gatilho) ────────────────────────
   ai_reply_drafts: {
     decidida: "redigir",

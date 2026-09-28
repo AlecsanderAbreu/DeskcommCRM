@@ -1248,6 +1248,7 @@ export const DICIONARIO: Traducoes = {
   "Todas as tags": { es: "Todas las etiquetas" },
   "Apenas não lidos": { es: "Solo no leídos" },
   "Não lidos": { es: "No leídos" },
+  Grupo: { es: "Grupo" },
   Fila: { es: "Cola" },
   Minhas: { es: "Mías" },
   Todas: { es: "Todas" },
@@ -5396,6 +5397,60 @@ export const DICIONARIO: Traducoes = {
   "Proteção de envio": { es: "Protección de envío" },
   "indisponível enquanto o serviço do WhatsApp não estiver ativo": {
     es: "no disponible mientras el servicio de WhatsApp no esté activo",
+  },
+  Grupos: { es: "Grupos" },
+  "Não consegui ler os grupos deste número.": {
+    es: "No pude leer los grupos de este número.",
+  },
+  "O WhatsApp deste número não respondeu. Confira se ele está conectado e tente de novo.": {
+    es: "WhatsApp de este número no respondió. Verifica que esté conectado e inténtalo de nuevo.",
+  },
+  "O WhatsApp não confirmou a mudança. Nada foi alterado; tente de novo.": {
+    es: "WhatsApp no confirmó el cambio. No se alteró nada; inténtalo de nuevo.",
+  },
+  "Grupos ligados aparecem no chat para os atendentes responderem. A IA nunca responde em grupo.": {
+    es: "Los grupos activados aparecen en el chat para que los agentes respondan. La IA nunca responde en un grupo.",
+  },
+  "Atualizar lista": { es: "Actualizar lista" },
+  "Ligar mesmo assim": { es: "Activar de todos modos" },
+  "Grupo sem nome": { es: "Grupo sin nombre" },
+  "O número saiu deste grupo. Desligue a chave se não precisar mais dela.": {
+    es: "El número salió de este grupo. Desactiva la llave si ya no la necesitas.",
+  },
+  "Este número não está em nenhum grupo.": {
+    es: "Este número no está en ningún grupo.",
+  },
+  "Buscar grupo": { es: "Buscar grupo" },
+  "Nenhum grupo encontrado": { es: "No se encontró ningún grupo" },
+  ligados: { es: "activados" },
+  "Desligar todos": { es: "Desactivar todos" },
+  Desligando: { es: "Desactivando" },
+  "Desligar todos mesmo assim": { es: "Desactivar todos de todos modos" },
+  "Não foi possível desligar todos os grupos.": {
+    es: "No se pudieron desactivar todos los grupos.",
+  },
+  "Falhou em": { es: "Falló en" },
+  "depois de desligar": { es: "después de desactivar" },
+  "Todos os grupos ligados deste número vão parar de aparecer no chat, e o número vai parar de receber mensagens de grupo.": {
+    es: "Todos los grupos activados de este número van a dejar de aparecer en el chat, y el número va a dejar de recibir mensajes de grupo.",
+  },
+  "A partir de agora, o WhatsApp deste número passa a enviar mensagens de todos os grupos para o sistema. Só os grupos ligados aparecem no chat; os outros são descartados.": {
+    es: "A partir de ahora, el WhatsApp de este número empieza a enviar mensajes de todos los grupos al sistema. Solo los grupos activados aparecen en el chat; los demás se descartan.",
+  },
+  "Ligar todos": { es: "Activar todos" },
+  "Ligar os": { es: "Activar los" },
+  "do filtro": { es: "del filtro" },
+  "Ligar todos mesmo assim": { es: "Activar todos de todos modos" },
+  Ligando: { es: "Activando" },
+  "Não foi possível ligar todos os grupos.": {
+    es: "No se pudieron activar todos los grupos.",
+  },
+  "depois de ligar": { es: "después de activar" },
+  "grupos vão ligar e aparecer no chat.": {
+    es: "grupos se van a activar y aparecerán en el chat.",
+  },
+  "Grupos pessoais e de família desta lista também vão aparecer no chat. Use a busca para selecionar só os grupos de cliente antes de confirmar.": {
+    es: "Los grupos personales y familiares de esta lista también van a aparecer en el chat. Usa la búsqueda para seleccionar solo los grupos de cliente antes de confirmar.",
   },
   "Este número não tem conversa, mensagem nem configuração ligada a ele.": {
     es: "Este número no tiene conversaciones, mensajes ni configuración asociados.",
@@ -12911,6 +12966,37 @@ export const DICIONARIO: Traducoes = {
   "Conecte um banco de dados de outro sistema para o agente consultar em tempo real.": {
     es: "Conecta una base de datos de otro sistema para que el agente la consulte en tiempo real.",
   },
+  "Módulos da instalação": { es: "Módulos de la instalación" },
+  "Instalado": { es: "Instalado" },
+  "Honorários (advocacia)": { es: "Honorarios (abogacía)" },
+  "Contrato de honorários (fixo, êxito ou misto) e o calendário de parcelas, ligado ao caixa do núcleo. Para escritórios de advocacia que cobram por caso.": {
+    es: "Contrato de honorarios (fijo, éxito o mixto) y el calendario de cuotas, vinculado a la caja del núcleo. Para despachos de abogados que cobran por caso.",
+  },
+  "Módulos opcionais com tabela própria, criados quando você instala — quem não instala não carrega as tabelas dele. Instalar aqui vale para todas as organizações desta instalação.": {
+    es: "Módulos opcionales con tabla propia, creados cuando los instalas — quien no instala no carga sus tablas. Instalar aquí vale para todas las organizaciones de esta instalación.",
+  },
+  "Honorários": { es: "Honorarios" },
+  "O modelo de cobrança de cada caso e o calendário de parcelas.": {
+    es: "El modelo de cobro de cada caso y el calendario de cuotas.",
+  },
+  "Fixo": { es: "Fijo" },
+  "Êxito": { es: "Éxito" },
+  "Misto": { es: "Mixto" },
+  "de êxito": { es: "de éxito" },
+  "Não foi possível carregar os contratos.": { es: "No se pudieron cargar los contratos." },
+  "Contratos": { es: "Contratos" },
+  "Nenhum contrato ainda.": { es: "Todavía no hay contratos." },
+  "Valor fixo": { es: "Valor fijo" },
+  "% de êxito": { es: "% de éxito" },
+  "Repasse ao advogado (%)": { es: "Traspaso al abogado (%)" },
+  "ID do lead (opcional)": { es: "ID del lead (opcional)" },
+  "cole o ID do lead": { es: "pega el ID del lead" },
+  "Criar contrato": { es: "Crear contrato" },
+  "Parcelas": { es: "Cuotas" },
+  "Conta para receber o pagamento": { es: "Cuenta para recibir el pago" },
+  "Nenhuma parcela ainda.": { es: "Todavía no hay cuotas." },
+  "Adicionar parcela": { es: "Agregar cuota" },
+  "Módulos": { es: "Módulos" },
   // ─── Editor de skill, histórico e restauração (recorte do #1130, @vgamkt) ───
   "Informe pelo menos uma palavra-chave de ativação.": { es: "Indica al menos una palabra clave de activación." },
   "A descrição é obrigatória.": { es: "La descripción es obligatoria." },

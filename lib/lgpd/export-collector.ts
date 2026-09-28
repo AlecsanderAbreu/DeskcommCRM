@@ -11,6 +11,7 @@ import { citacaoDaLei, perfilDoPais } from "@/lib/legal/perfil-do-pais";
 import { logger } from "@/lib/logger";
 import { camposLegiveis, perguntasDosGrafos, type CampoLegivel } from "@/lib/lgpd/campos-personalizados";
 import { maskPhone } from "@/lib/lgpd/mask";
+import { phoneLookupVariants } from "@/lib/channels/phone-variants";
 import type { Json } from "@/lib/database.types";
 
 // ---------------------------------------------------------------------------
@@ -118,6 +119,26 @@ export interface CheckpointRow {
   commitments: unknown;
   objections: unknown;
   next_action: string | null;
+  created_at: string;
+}
+
+/**
+ * Vínculo do titular com um grupo de WhatsApp (migration 0482).
+ *
+ * A FK `channel_session_groups.contact_id` só aponta para o CONTATO PLACEHOLDER
+ * do grupo (`contacts.kind = 'whatsapp_group'`), nunca para uma pessoa real — é
+ * por isso que a redação (`fn_lgpd_cascade_redact_contact`) nulifica `subject`
+ * comentando explicitamente que "nulificar não perde nada operacional: número,
+ * conversa e liga/desliga ficam". Este bloco espelha a mesma chave
+ * (`contact_id = p_contact_id`): quando o titular do pedido É o placeholder do
+ * grupo, o Art. 18 II entrega o mesmo `subject` que a anonimização apagaria.
+ */
+export interface ChannelSessionGroupRow {
+  id: string;
+  group_chat_id: string;
+  subject: string | null;
+  enabled: boolean;
+  enabled_at: string | null;
   created_at: string;
 }
 
@@ -254,6 +275,36 @@ export interface CaptureRow {
   remote_ip: string | null;
   user_agent: string | null;
   received_at: string;
+}
+
+/**
+ * Contrato de honorários (advocacia) — módulo opcional, ADR-0002 D8: todo
+ * módulo com dados declara sua seção de export, mesmo sem estar na cascata de
+ * redação (achado da revisão do PR #1578). O vínculo é `lead_id`, não
+ * `contact_id` direto — o contrato pertence ao CASO, não à pessoa em geral —
+ * por isso deriva dos ids de `leads` já coletados acima, e não de uma consulta
+ * própria por contato.
+ */
+export interface HonorariosContratoRow {
+  id: string;
+  lead_id: string | null;
+  modelo: string;
+  valor_fixo_cents: number | null;
+  percentual_exito: number | null;
+  repasse_advogado_pct: number | null;
+  created_at: string;
+}
+
+/** O calendário de parcelas do contrato acima — o titular tem direito de ver
+ * o que foi combinado e o que já foi pago, do mesmo jeito que vê `sales`. */
+export interface HonorariosParcelaRow {
+  id: string;
+  contrato_id: string;
+  numero: number;
+  vencimento: string;
+  valor_cents: number;
+  status: string;
+  financial_entry_id: string | null;
 }
 
 export interface AuditRow {
@@ -501,6 +552,14 @@ export interface ExportPayload {
   messages_count_total: number;
   messages_recent: MessageRow[];
   leads: LeadRow[];
+  /**
+   * Módulo opcional de honorários (advocacia, ADR-0002). Vazio nas instalações
+   * que não o instalaram, ou quando o titular não tem contrato — nunca ausente:
+   * campo obrigatório é o que faz um caminho de export novo não compilar se
+   * esquecer, a mesma razão de `case_chat_messages`.
+   */
+  honorarios_contratos: HonorariosContratoRow[];
+  honorarios_parcelas: HonorariosParcelaRow[];
   orders: OrderRow[];
   activities: ActivityRow[];
   checkpoints: CheckpointRow[];
@@ -570,6 +629,22 @@ export interface ExportPayload {
    * se entrega a pedido dele (Art. 18 II).
    */
   campaign_suppressions: CampaignSuppressionRow[];
+  /**
+   * Grupos de WhatsApp vinculados ao titular (migration 0482) — ver o
+   * docstring de `ChannelSessionGroupRow`. Obrigatório, não opcional, pela
+   * mesma razão de `case_chat_messages`: campo obrigatório faz um caminho de
+   * export novo NÃO COMPILAR se esquecer.
+   */
+  channel_session_groups: ChannelSessionGroupRow[];
+  /**
+   * Mensagens que o titular escreveu em GRUPOS de WhatsApp (migration 0482).
+   * Moram na conversa do placeholder do grupo, não na dele, então
+   * `messages_recent` não as vê. Casadas pelo autor em `metadata.group_sender`
+   * — telefone (grafias com e sem o nono dígito) ou lid (`contacts.wa_lid`) —,
+   * a mesma chave que a anonimização usa em `fn_redigir_conversas_ao_anonimizar`.
+   * Só alcança quem JÁ É contato: o participante sem ficha não tem titular.
+   */
+  group_messages_authored: MessageRow[];
   /** Rascunhos escritos PARA o titular por outro sistema (0419), apagados na
    *  anonimização. Opcional como `reply_drafts`: o tipo é montado à mão nos testes de PDF. */
   conversation_drafts?: Array<{
@@ -753,11 +828,12 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
   // Contact snapshot (PII intentionally retained — this report is the data
   // owner's right of access; only logs/metadata stay sanitized).
   let contact: ContactSnapshot | null = null;
+  let contactLid: string | null = null;
   if (contactId) {
     const { data, error } = await admin
       .from("contacts")
       .select(
-        "id, name, display_name, email, phone_number, cpf_encrypted, birthdate, is_blocked, is_anonymized, consent, tags, source, source_metadata, custom_fields, created_at, last_activity_at, first_service_at",
+        "id, name, display_name, email, phone_number, wa_lid, cpf_encrypted, birthdate, is_blocked, is_anonymized, consent, tags, source, source_metadata, custom_fields, created_at, last_activity_at, first_service_at",
       )
       .eq("organization_id", organizationId)
       .eq("id", contactId)
@@ -806,6 +882,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         });
       }
       const legiveis = camposLegiveis(customFields, perguntasDosGrafos(grafos));
+      contactLid = data.wa_lid ?? null;
       contact = {
         id: data.id,
         name: data.name ?? null,
@@ -942,6 +1019,49 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
       });
     } else if (data) {
       leads = data;
+    }
+  }
+
+  // Honorários — módulo opcional (ADR-0002/D8). Deriva dos ids de `leads` já
+  // coletados: o contrato é `lead_id`, não `contact_id` direto.
+  //
+  // Módulo pode não estar instalado nesta instalação — a tabela então não
+  // existe (42P01) — e o bloco sai vazio nesse caso, sem falhar o export
+  // inteiro por causa de um módulo que a organização nem ligou.
+  let honorarios_contratos: HonorariosContratoRow[] = [];
+  let honorarios_parcelas: HonorariosParcelaRow[] = [];
+  const leadIds = leads.map((l) => l.id);
+  if (leadIds.length > 0) {
+    const { data, error } = await admin
+      .from("honorarios_contratos")
+      .select(
+        "id, lead_id, modelo, valor_fixo_cents, percentual_exito, repasse_advogado_pct, created_at",
+      )
+      .eq("organization_id", organizationId)
+      .in("lead_id", leadIds);
+    // Qualquer OUTRO erro lança: o worker marca a tentativa como falha e tenta de
+    // novo, em vez de entregar ao titular um export sem o contrato como se fosse
+    // completo (ADR-0002 D8 — seção de módulo ilegível nunca sai como completa).
+    if (error) {
+      if (error.code !== "42P01") {
+        throw new Error(`honorarios_contratos_load_failed: ${error.message}`);
+      }
+    } else if (data) {
+      honorarios_contratos = data;
+      const contratoIds = data.map((c) => c.id);
+      if (contratoIds.length > 0) {
+        const { data: parcelas, error: erroParcelas } = await admin
+          .from("honorarios_parcelas")
+          .select("id, contrato_id, numero, vencimento, valor_cents, status, financial_entry_id")
+          .eq("organization_id", organizationId)
+          .in("contrato_id", contratoIds)
+          .order("numero", { ascending: true });
+        if (erroParcelas) {
+          throw new Error(`honorarios_parcelas_load_failed: ${erroParcelas.message}`);
+        } else if (parcelas) {
+          honorarios_parcelas = parcelas;
+        }
+      }
     }
   }
 
@@ -1241,6 +1361,71 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
       campaign_suppressions = data as unknown as CampaignSuppressionRow[];
     }
   }
+
+  // Grupos de WhatsApp — `contact_id` direto em `channel_session_groups`
+  // (migration 0482). Ver o docstring de `ChannelSessionGroupRow`: a FK só
+  // aponta para o CONTATO PLACEHOLDER do grupo, então este bloco só devolve
+  // linha quando o titular do pedido é esse placeholder — o mesmo escopo que a
+  // redação usa (`fn_lgpd_cascade_redact_contact`, `contact_id = p_contact_id`).
+  let channel_session_groups: ChannelSessionGroupRow[] = [];
+  if (contactId) {
+    const { data, error } = await admin
+      .from("channel_session_groups")
+      .select("id, group_chat_id, subject, enabled, enabled_at, created_at")
+      .eq("organization_id", organizationId)
+      .eq("contact_id", contactId)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    if (error) {
+      logger.warn("[lgpd-export-worker] channel session groups load failed", {
+        request_id: requestId,
+        error: error.message,
+      });
+    } else if (data) {
+      channel_session_groups = data;
+    }
+  }
+
+  // Mensagens de grupo escritas pelo titular — ver `group_messages_authored`.
+  // Duas consultas (telefone, lid) em vez de um `or` sobre caminho JSON: cada
+  // uma é um filtro simples, e a união por id desfaz a mensagem que casa as duas.
+  const porId = new Map<string, MessageRow>();
+  const telefones = contact?.phone_number ? phoneLookupVariants(contact.phone_number) : [];
+  const buscas = [
+    telefones.length > 0 ? { campo: "metadata->group_sender->>phone", valores: telefones } : null,
+    contactLid ? { campo: "metadata->group_sender->>lid", valores: [contactLid] } : null,
+  ];
+  for (const busca of buscas) {
+    if (!busca) continue;
+    const { data, error } = await admin
+      .from("messages")
+      .select("id, conversation_id, direction, type, status, body, media_url, sent_at, created_at")
+      .eq("organization_id", organizationId)
+      .in(busca.campo, busca.valores)
+      .order("created_at", { ascending: false })
+      .limit(RECENT_MESSAGES_LIMIT);
+    if (error) {
+      logger.warn("[lgpd-export-worker] group messages load failed", {
+        request_id: requestId,
+        error: error.message,
+      });
+      continue;
+    }
+    for (const m of data ?? []) {
+      porId.set(m.id, {
+        id: m.id,
+        conversation_id: m.conversation_id,
+        direction: m.direction,
+        type: m.type,
+        status: m.status,
+        body: m.body,
+        has_media: Boolean(m.media_url),
+        sent_at: m.sent_at,
+        created_at: m.created_at,
+      });
+    }
+  }
+  const group_messages_authored = [...porId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
 
   // Captação por webhook — a MESMA classe do bloco acima, achada pelo gate.
   let webhook_captures: CaptureRow[] = [];
@@ -1659,6 +1844,8 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     messages_count_total,
     messages_recent,
     leads,
+    honorarios_contratos,
+    honorarios_parcelas,
     orders,
     activities,
     checkpoints,
@@ -1681,6 +1868,8 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     avisos_de_caso,
     campaign_recipients,
     campaign_suppressions,
+    channel_session_groups,
+    group_messages_authored,
     conversation_drafts,
     contact_field_proposals,
     b2b,
@@ -1708,6 +1897,8 @@ function emptyPayload(
     messages_count_total: 0,
     messages_recent: [],
     leads: [],
+    honorarios_contratos: [],
+    honorarios_parcelas: [],
     orders: [],
     activities: [],
     checkpoints: [],
@@ -1729,5 +1920,7 @@ function emptyPayload(
     avisos_de_caso: [],
     campaign_recipients: [],
     campaign_suppressions: [],
+    channel_session_groups: [],
+    group_messages_authored: [],
   };
 }
