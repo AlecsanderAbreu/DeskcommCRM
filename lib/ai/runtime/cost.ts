@@ -77,7 +77,7 @@ export interface ComputeCostInput {
  */
 export function normalizarModeloId(model: string): string[] {
   // `:free`, `:beta`, `:beta:free` — o OpenRouter anexa variantes ao id.
-  const comPrefixo = model.split(":")[0].trim();
+  const comPrefixo = (model.split(":")[0] ?? "").trim();
   const nome = comPrefixo.includes("/")
     ? comPrefixo.slice(comPrefixo.indexOf("/") + 1)
     : comPrefixo;
