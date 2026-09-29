@@ -58,6 +58,13 @@ import {
 import { fusoDaOrganizacao } from "@/lib/agent-engine/agent/fuso-da-org";
 import { loadOrgMemory, renderOrgMemory } from "@/lib/agent-engine/agent/org-memory";
 import { requestTurnDeps } from "@/lib/agent-engine/agent/request-deps";
+import {
+  LIMIAR_PADRAO_BUSCA,
+  buscarConhecimento,
+  resolverAcervoDoAgente,
+  type TrechoEncontrado,
+} from "@/lib/ai/knowledge/busca";
+import type { Citation } from "@/lib/ai/citations/types";
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
 import { parseServiceBoundary, assertCurrentServiceBoundary } from "@/lib/atendimento/fronteira";
 import { readCurrentServiceBoundary } from "@/lib/atendimento/fronteira-server";
@@ -76,7 +83,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type Ctx = { params: Promise<{ id: string }> };
+type Ctx = {
+  params: Promise<{ id: string }>;
+  /** Seam de teste (F3): injeta os resolvedores do acervo sem depender do mock de módulo. */
+  citacoes?: { resolverAcervo?: typeof resolverAcervoDoAgente; buscar?: typeof buscarConhecimento };
+};
 
 /** Teto por PESSOA. Cada pergunta é uma chamada paga — o custo é externo. */
 const TETO_POR_USUARIO = 12;
@@ -276,6 +287,56 @@ async function casoEstaObsoleto(
     // atendimento mudou; a conversa continua valendo como leitura.
     return true;
   }
+}
+
+/** Quantos trechos do acervo a resposta pode citar — mesmo teto da F1 (#1869). */
+const QUANTIDADE_DE_CITACOES = 6;
+
+/**
+ * F3 da #1869: consulta o acervo e devolve as citações da resposta.
+ *
+ * Espelha o padrão que a F1 já fixou (`app/api/v1/ai/knowledge/busca`): o MESMO
+ * `resolverAcervoDoAgente` + `buscarConhecimento` + `LIMIAR_PADRAO_BUSCA`. Não
+ * existe segunda régua — o operador perguntando ao caso lê o mesmo material que
+ * a IA usaria.
+ *
+ * É um AUMENTO, nunca uma trava do POST: qualquer falha (acervo, embedding,
+ * banco) devolve `[]`, e a resposta de IA sai sem citação — nunca 500. "Sem
+ * acervo" (fonte nenhuma) E "nada acima do limiar" (`melhorSimilaridade`) caem
+ * no mesmo `[]`: o chat não alucina uma fonte que a busca não achou.
+ */
+async function buscarCitacoes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  agentId: string | null,
+  pergunta: string,
+  deps: { resolverAcervo?: typeof resolverAcervoDoAgente; buscar?: typeof buscarConhecimento } = {},
+): Promise<Citation[]> {
+  if (agentId === null) return [];
+  const resolver = deps.resolverAcervo ?? resolverAcervoDoAgente;
+  const buscar = deps.buscar ?? buscarConhecimento;
+  const fontes = await resolver(supabase, orgId, agentId);
+  if (fontes.length === 0) return [];
+  const resultado = await buscar(supabase, {
+    organizationId: orgId,
+    knowledgeSourceIds: fontes,
+    pergunta,
+    topK: QUANTIDADE_DE_CITACOES,
+    limiar: LIMIAR_PADRAO_BUSCA,
+  });
+  return resultado.trechos.map(trechoParaCitacao);
+}
+
+/** Trecho do acervo → `Citation` que `CitationsPanel` já sabe renderizar. */
+function trechoParaCitacao(t: TrechoEncontrado): Citation {
+  return {
+    chunk_id: t.chunk_id,
+    knowledge_source_id: t.knowledge_source_id,
+    // `source_name` é o nome do material; vira a âncora que o painel mostra.
+    source_anchor: t.source_name ?? null,
+    score: t.similarity,
+    snippet: t.content.slice(0, 200),
+  };
 }
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
@@ -552,6 +613,23 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     },
   });
 
+  // ─── F3 (#1869): a citação do acervo ─────────────────────────────────────
+  // A busca acontece SÓ se a resposta saiu (resposta != null). Não mede o que
+  // não aconteceu. E nunca derruba o POST: falha vira `[]`, e a resposta segue
+  // sem citação — sem erro, sem alucinar uma fonte.
+  let citacoes: Citation[] = [];
+  if (resposta !== null) {
+    try {
+      citacoes = await buscarCitacoes(c.db, c.orgId, caso.agent_id, pergunta, ctx.citacoes);
+    } catch (erro) {
+      logger.warn("[conversa-do-caso] o acervo não foi consultado — a resposta sai sem citação", {
+        requestId,
+        organizationId: c.orgId,
+        erro: erro instanceof Error ? erro.message : String(erro),
+      });
+    }
+  }
+
   if (motivo !== null) {
     // A linha FICA gravada e a rota devolve 422 — os dois juntos de propósito:
     // o status honra o monitoramento, a linha honra quem abrir o caso depois.
@@ -565,6 +643,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
       persona: personaParaTela(persona),
       service_stale: obsoleto === true,
       contato_bloqueado: bloqueado,
+      // F3 (#1869): os materiais do acervo que sustentaram a resposta. `[]`
+      // quando não há acervo, nada passou no limiar, ou a busca falhou.
+      citacoes,
     },
     { requestId },
   );
