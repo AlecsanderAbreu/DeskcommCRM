@@ -22,7 +22,7 @@ export interface FinalizeRunInput {
   status: RunStatus;
   tokensIn?: number;
   tokensOut?: number;
-  costCents?: number;
+  costCents?: number | null;
   latencyMs?: number;
   stepsCount?: number;
   toolCalls?: SerializedStep[];
