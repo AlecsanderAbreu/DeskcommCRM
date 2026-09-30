@@ -24,7 +24,7 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
  *     "tipo de mídia não suportado".
  *  6. **`farejarTipo` (415)** — a decisão de tipo sai dos BYTES. `file.type` não
  *     decide nada e entra só no `details`, para o log mostrar a mentira.
- *  7. **prefixo de fonte confiável** — `resolveActiveOrg` (cookie validado contra
+ *  7. **prefixo de fonte confiável** — `orgAtivaDaApi` (cookie validado contra
  *     memberships), NUNCA do body.
  *  8. **lê o caminho antigo DO BANCO** — não do cliente.
  *  9. **sobe → grava → só então apaga.** Inverter troca "sobra um arquivo" por
@@ -58,7 +58,8 @@ import { z } from "zod";
 import { fail, ok } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
 import { EscritaDePlatformAdminNegada, requirePlatformAdminEscrita } from "@/lib/auth/requirePlatformAdmin";
-import { loadAuthUser, mfaEmDivida, resolveActiveOrg } from "@/lib/auth/server";
+import { loadAuthUser, mfaEmDivida } from "@/lib/auth/server";
+import { orgAtivaDaApi } from "@/lib/auth/require-role";
 import { escreveComoPlatformAdmin, roleAtLeast } from "@/lib/auth/types";
 import { checkRateLimit } from "@/lib/ai/dispatcher/rate-limit";
 import { invalidarMarcaDaInstalacao } from "@/lib/branding/instalacao";
@@ -73,6 +74,7 @@ import {
 } from "@/lib/branding/logo";
 import { extensaoDe, farejarTipo, pareceSvg, podeApagar } from "@/lib/branding/logo-arquivo";
 import { marcaDaOrganizacaoDeSettings } from "@/lib/branding/organizacao";
+import { traduzir } from "@/lib/i18n/dicionario";
 import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -184,7 +186,17 @@ async function abrirContexto(escopo: Escopo): Promise<{ ctx: Contexto } | { recu
     return { ctx: { escopo, userId: user.id, prefixo: PREFIXO_DA_INSTALACAO } };
   }
 
-  const org = await resolveActiveOrg(user);
+  const ativa = await orgAtivaDaApi(user);
+  if (!ativa.ok) {
+    return {
+      recusa: {
+        codigo: "org_suspended",
+        mensagem: traduzir("A conta desta empresa está suspensa.", user.idioma),
+        status: 403,
+      },
+    };
+  }
+  const org = ativa.org;
   if (!org) {
     return {
       recusa: { codigo: "forbidden_tenant", mensagem: "Sem organização ativa.", status: 403 },

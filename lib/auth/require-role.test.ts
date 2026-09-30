@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { requireRole } from "@/lib/auth/require-role";
+import { orgAtivaDaApi, requireRole } from "@/lib/auth/require-role";
 import { loadAuthUser, mfaEmDivida, orgAtivaSemPortao } from "@/lib/auth/server";
 import { audit } from "@/lib/audit";
 import { createClient } from "@/lib/supabase/server";
@@ -273,5 +273,36 @@ describe("org não operante e scope do platform admin (spec cobrança §4 item 4
     expect(barrado.ok).toBe(false);
     if (!barrado.ok) expect((await barrado.response.json()).error.code).toBe("org_suspended");
     expect((await requireRole("admin", { organizationId: OUTRA, permiteOrgSuspensa: true })).ok).toBe(true);
+  });
+});
+
+/**
+ * `orgAtivaDaApi` — a org ativa das rotas que não passam por `requireRole`
+ * (acabamentos do PR 1, itens 6 e 23). Org suspensa responde o MESMO 403 JSON
+ * de `requireRole`, nunca o redirect de `resolveActiveOrg`.
+ */
+describe("orgAtivaDaApi", () => {
+  it("org suspensa → 403 org_suspended em JSON, com o requestId", async () => {
+    session("admin", { orgStatus: "suspended" });
+    const res = await orgAtivaDaApi(authUserFixture("admin"), "req-1");
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error("unreachable");
+    expect(res.response.status).toBe(403);
+    expect(res.response.headers.get("location")).toBeNull();
+    const body = await res.response.json();
+    expect(body.error.code).toBe("org_suspended");
+    expect(body.error.message).toBe("A conta desta empresa está suspensa.");
+  });
+
+  it("org operante → devolve a org", async () => {
+    session("agent");
+    const res = await orgAtivaDaApi(authUserFixture("agent"));
+    expect(res).toEqual({ ok: true, org: expect.objectContaining({ orgId: ORG_ID }) });
+  });
+
+  it("sem org, ou sem usuário → org nula, e a rota responde o seu próprio 'sem org'", async () => {
+    session(null);
+    expect(await orgAtivaDaApi(authUserFixture(null))).toEqual({ ok: true, org: null });
+    expect(await orgAtivaDaApi(null)).toEqual({ ok: true, org: null });
   });
 });

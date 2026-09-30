@@ -26,7 +26,7 @@
     { "id": "itemCentral", "lane": "db", "col": 4, "type": "table", "label": "agent_inbox_items kind org_reativada", "sublabel": "sem referência; severity warn" },
     { "id": "postgrest", "lane": "app", "col": 3, "type": "api", "label": "PostgREST com JWT de sessão", "sublabel": "inclusive platform admin support_readonly" },
     { "id": "operante", "lane": "app", "col": 4, "type": "lib", "label": "lib/organizacao/operante.ts · fn_org_operante", "sublabel": "opera ⇔ status = 'active'" },
-    { "id": "sessao", "lane": "app", "col": 5, "type": "service", "label": "resolveActiveOrg · requireRole · resolveApiToken", "sublabel": "redirect /account-suspended · 403 org_suspended" },
+    { "id": "sessao", "lane": "app", "col": 5, "type": "service", "label": "resolveActiveOrg · orgAtivaDaApi · requireRole · resolveApiToken", "sublabel": "tela: redirect /account-suspended · API: 403 org_suspended" },
     { "id": "lgpd", "lane": "app", "col": 6, "type": "api", "label": "/api/v1/lgpd/**", "sublabel": "permiteOrgSuspensa: a LGPD nunca para" },
     { "id": "motor", "lane": "motor", "col": 5, "type": "service", "label": "gate de elegibilidade · dispatcher naOrgParada", "sublabel": "veto org_nao_operante; handler 'pula' → skipped" },
     { "id": "hub", "lane": "pessoa", "col": 6, "type": "ui", "label": "/account-suspended (hub)", "sublabel": "suporte ou 'avise o administrador'; LGPD; voltar para outra empresa" },
