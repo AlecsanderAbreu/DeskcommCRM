@@ -14,6 +14,7 @@ import { createSupabaseAdminClient, type FollowupJobRequest } from "@/lib/follow
 import type { EnrollmentRow } from "@/lib/followup/node-handlers";
 import { completeTurnForEnrollment, type TurnBridgeAdminClient } from "@/lib/followup/turn-bridge";
 import { logger } from "@/lib/logger";
+import { OrgNaoOperanteError } from "@/lib/organizacao/operante";
 
 function ponteSupabase(admin: SupabaseClient): TurnBridgeAdminClient {
   const base = createSupabaseAdminClient(admin);
@@ -150,7 +151,7 @@ export async function enviarTextoFixoPendente(
     } catch (err) {
       const message = err instanceof ApiError ? err.message : err instanceof Error ? err.message : String(err);
       logger.warn("[dev.pipeline] envio inline falhou", { error: message });
-      await settle(job.organization_id,job.id,jobClaim.acquired_at,err instanceof StaleServiceBoundaryError,message,err instanceof AgendaDeferredError?err:undefined);
+      await settle(job.organization_id,job.id,jobClaim.acquired_at,err instanceof StaleServiceBoundaryError||err instanceof OrgNaoOperanteError,message,err instanceof AgendaDeferredError?err:undefined);
     }
   }
   return enviados;

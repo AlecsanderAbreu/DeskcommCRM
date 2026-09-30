@@ -26,6 +26,7 @@ vi.mock("@/lib/followup/engine", () => ({ createSupabaseAdminClient: () => ({}) 
 vi.mock("@/lib/logger", () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 import { enviarTextoFixoPendente } from "./enviar-texto-fixo";
+import { OrgNaoOperanteError } from "@/lib/organizacao/operante";
 
 const boundary = { organization_id: "org-1", contact_id: "contact-1", conversation_id: "conv-1", service_revision: 1, demanda_id: null, demanda_revision: null };
 const JOB = {
@@ -116,6 +117,15 @@ it.each(["queued","failed"])("%s não conta envio nem avança o fluxo",async sta
  decidir.mockResolvedValue({permite:true});sendMessageHandler.mockResolvedValueOnce({id:"msg-1",status});
  expect(await enviarTextoFixoPendente(admin())).toBe(0);
  expect(completeTurnForEnrollment).not.toHaveBeenCalled();expect(statusUpdates).toContain("pending");
+});
+
+it("org suspensa entre o gate e o envio → job encerrado (done), sem reenvio nem avanço do fluxo", async () => {
+  decidir.mockResolvedValue({ permite: true, motivo: "gate_aberto", bloqueioPorAllowlist: false });
+  sendMessageHandler.mockRejectedValueOnce(new OrgNaoOperanteError("org-1"));
+  expect(await enviarTextoFixoPendente(admin())).toBe(0);
+  expect(completeTurnForEnrollment).not.toHaveBeenCalled();
+  expect(statusUpdates).toContain("done");
+  expect(statusUpdates).not.toContain("pending");
 });
 
 // O banco grava run_after em µs; o JS lê o relógio em ms. Job gravado com
