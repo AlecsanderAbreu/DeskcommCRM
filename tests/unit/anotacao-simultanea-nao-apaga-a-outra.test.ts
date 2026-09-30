@@ -1,5 +1,5 @@
 /**
- * Duas anotações ao mesmo tempo no mesmo negócio NÃO se apagam (migration 0498).
+ * Duas anotações ao mesmo tempo no mesmo negócio NÃO se apagam (migration 0501).
  *
  * O defeito: `updateLeadHandler` mesclava `custom_fields` no aplicativo
  * (`{ ...prev, ...novo }`, com `prev` de uma leitura anterior). Duas escritas

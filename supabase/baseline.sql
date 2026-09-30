@@ -43766,8 +43766,8 @@ where body = '[mensagem anonimizada]'
   and media_derived_text is not null;
 
 notify pgrst, 'reload schema';
--- ---- a anotação simultânea não apaga a outra (migration 0498) ----
--- 0498 — duas anotações ao mesmo tempo não apagam uma à outra.
+-- ---- a anotação simultânea não apaga a outra (migration 0501) ----
+-- 0501 — duas anotações ao mesmo tempo não apagam uma à outra.
 --
 -- ─── O defeito, medido na main de 2026-09-30 ────────────────────────────────
 --

@@ -1,4 +1,4 @@
--- 0498 — duas anotações ao mesmo tempo não apagam uma à outra.
+-- 0501 — duas anotações ao mesmo tempo não apagam uma à outra.
 --
 -- ─── O defeito, medido na main de 2026-09-30 ────────────────────────────────
 --

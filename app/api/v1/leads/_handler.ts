@@ -688,7 +688,7 @@ export async function updateLeadHandler(
   // O PostgREST não sabe dizer `custom_fields = custom_fields || $1` — só sabe
   // mandar um valor pronto, que é justamente o valor calculado da leitura
   // velha. Então o merge foi para onde a trava de linha existe: a migration
-  // 0498 (`fn_lead_anotar_campos`), chamada LOGO APÓS o `update` abaixo.
+  // 0501 (`fn_lead_anotar_campos`), chamada LOGO APÓS o `update` abaixo.
   //
   // ⚠️ POR QUE DEPOIS, E NÃO ANTES: o `update` é quem prova que o lead existe e
   // é desta organização (o 404). Anotar antes gravaria campo num lead que a
