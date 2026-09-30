@@ -120,7 +120,7 @@ export interface PausaPorAtendimentoManualInput {
    */
   duravel?: boolean;
   /**
-   * O instante da fala humana. INJECTADO para o teste não depender do relógio
+   * O instante da fala humana. INJETADO para o teste não depender do relógio
    * real: o `now()` do banco e o `Date.now()` do processo são dois relógios, e
    * comparar um com o outro produz falha intermitente. Default = agora.
    */
