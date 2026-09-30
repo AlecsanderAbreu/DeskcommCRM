@@ -291,7 +291,6 @@ $$;
 revoke execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) to service_role;
 
-
 -- ── D. agent_inbox_items.kind ganha 'org_reativada' ──────────────────────────
 -- Lista COMPLETA do bloco único do baseline (kind-check-migration-x-baseline):
 -- esta passa a ser a última migration que reconstrói a constraint.

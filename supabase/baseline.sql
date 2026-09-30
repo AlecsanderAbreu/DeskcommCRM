@@ -43026,8 +43026,6 @@ $$;
 revoke execute on function public.fn_org_operante(uuid) from public, anon, authenticated;
 grant execute on function public.fn_org_operante(uuid) to service_role;
 
-
-
 -- ── B. o estado da organização só muda pelo servidor ─────────────────────────
 -- `orgs_write_platform_admin` aceita qualquer `fn_is_platform_admin()`, que
 -- ignora o scope, e `authenticated` tem GRANT ALL: sem isto um support_readonly
