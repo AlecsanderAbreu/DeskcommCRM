@@ -118,7 +118,7 @@ function reiniciar(): void {
   sql(`
     update public.organizations
        set status = 'active', suspended_kind = null, suspended_at = null,
-           suspended_reason = null, suspended_by = null
+           suspended_reason = null, suspended_by = null, redacted_at = null
      where id in ('${ORG_A}', '${ORG_B}', '${ORG_C}');
     update public.job_queue set status = 'pending', last_error = null
      where id in ('${JOB_A}', '${JOB_B}', '${JOB_RASCUNHO}', '${JOB_ENTREGA}');
@@ -276,6 +276,13 @@ describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
       expect(estado(ORG_C)).toBe("active/-");
     });
 
+    it(`⭐ platform admin ${scope} não grava a data de anonimização pelo PostgREST`, () => {
+      const e = erroDe(comoUsuario(usuario, `update public.organizations set redacted_at = now() where id = '${ORG_C}'`));
+      expect(e).toContain("42501");
+      expect(e).toContain("estado_da_organizacao_so_pelo_servidor");
+      expect(valor(`select coalesce(redacted_at::text, '-') from public.organizations where id = '${ORG_C}';`)).toBe("-");
+    });
+
     it(`⭐ platform admin ${scope} não cria organização pelo PostgREST`, () => {
       const e = erroDe(
         comoUsuario(
@@ -304,6 +311,9 @@ describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
   it("controle: service_role (rota de servidor, worker de LGPD) escreve o status", () => {
     sql(`set role service_role;\nupdate public.organizations set status = 'redacted' where id = '${ORG_C}';`);
     expect(estado(ORG_C)).toBe("redacted/-");
+    // A escrita real do lgpd-redact-worker leva a data junto.
+    sql(`set role service_role;\nupdate public.organizations set redacted_at = now() where id = '${ORG_C}';`);
+    expect(valor(`select (redacted_at is not null)::text from public.organizations where id = '${ORG_C}';`)).toBe("true");
   });
 });
 

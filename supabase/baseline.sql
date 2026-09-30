@@ -43031,8 +43031,9 @@ grant execute on function public.fn_org_operante(uuid) to service_role;
 -- ── B. o estado da organização só muda pelo servidor ─────────────────────────
 -- `orgs_write_platform_admin` aceita qualquer `fn_is_platform_admin()`, que
 -- ignora o scope, e `authenticated` tem GRANT ALL: sem isto um support_readonly
--- reativaria uma suspensa, trocaria o tipo da suspensão ou criaria org isenta
--- pelo PostgREST. Todo escritor legítimo é service_role ou função definer, onde
+-- reativaria uma suspensa, trocaria o tipo da suspensão, gravaria uma data de
+-- anonimização (`redacted_at`, escrita só pelo lgpd-redact-worker) ou criaria
+-- org isenta pelo PostgREST. Todo escritor legítimo é service_role ou função definer, onde
 -- `current_user` é o dono da função. Molde: `fn_meet_stamp`.
 create or replace function public.fn_organizacao_estado_so_pelo_servidor()
 returns trigger
@@ -43054,10 +43055,11 @@ begin
      or new.suspended_at is distinct from old.suspended_at
      or new.suspended_reason is distinct from old.suspended_reason
      or new.suspended_by is distinct from old.suspended_by
+     or new.redacted_at is distinct from old.redacted_at
      or new.created_by is distinct from old.created_by then
     raise exception 'estado_da_organizacao_so_pelo_servidor'
       using errcode = '42501',
-            detail = 'Status, suspensão e autoria mudam só por fn_suspender_organizacao, fn_reativar_organizacao ou rota de servidor.';
+            detail = 'Status, suspensão, anonimização e autoria mudam só por fn_suspender_organizacao, fn_reativar_organizacao ou rota de servidor.';
   end if;
   return new;
 end;
