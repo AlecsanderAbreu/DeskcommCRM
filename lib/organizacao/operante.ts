@@ -68,6 +68,21 @@ export async function idsDeOrgsParadas(admin: SupabaseClient): Promise<string[]>
   return ((data ?? []) as Array<{ id: string }>).map((linha) => linha.id);
 }
 
+/**
+ * O status embutido por `organizations:organization_id(status)` — o PostgREST
+ * devolve objeto ou array conforme a cardinalidade inferida, e quem lê não deve
+ * se prender a um dos dois. É o par da régua SQL `fn_org_operante`: em vez de
+ * buscar a lista de ids das orgs paradas e negar `in (...)` na URL (que cresce
+ * sem teto e corta em `max_rows` sem aviso), as varreduras embutem o status no
+ * próprio `select` e decidem com `ehOperante` linha a linha.
+ */
+export function statusDaOrgEmbutida(
+  embutida: { status?: string | null } | Array<{ status?: string | null }> | null | undefined,
+): string | null | undefined {
+  if (!embutida) return undefined;
+  return Array.isArray(embutida) ? embutida[0]?.status : embutida.status;
+}
+
 /** Lança `OrgNaoOperanteError` se a org não opera (inclusive se não aparece). Erro de leitura lança erro comum. */
 export async function assertOrgOperante(db: SupabaseClient, orgId: string): Promise<void> {
   const { data, error } = await db.from("organizations").select("status").eq("id", orgId).maybeSingle();

@@ -16,7 +16,7 @@ import { enviarTextoFixoPendente } from "@/lib/followup/enviar-texto-fixo";
 import type { EnrollmentRow } from "@/lib/followup/node-handlers";
 import { createSupabaseSilenceSweepDb, runSilenceSweep } from "@/lib/followup/silence-sweep";
 import { logger } from "@/lib/logger";
-import { idsDeOrgsParadas } from "@/lib/organizacao/operante";
+import { ehOperante, statusDaOrgEmbutida } from "@/lib/organizacao/operante";
 import { runRoutingWorker } from "@/lib/routing/worker";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -46,13 +46,25 @@ async function enfileirarFollowup(job: FollowupJobRequest): Promise<void> {
  */
 export async function aplicarRespostasQueChegaram(admin: SupabaseClient, deps: TickDeps): Promise<number> {
   // Org parada não avança fluxo (migration 0496 — o claim do motor também a pula).
-  const paradas = await idsDeOrgsParadas(admin);
-  let consulta = admin.from("followup_enrollments").select("*").in("status", ["waiting_reply"]);
-  if (paradas.length > 0) consulta = consulta.not("organization_id", "in", `(${paradas.join(",")})`);
-  const { data, error } = await consulta.limit(40);
+  // O status da org vem embutido no `select` e quem decide é `ehOperante` — nunca
+  // uma lista de ids negada na URL, que cortaria em `max_rows` sem aviso e faria
+  // a org parada voltar a avançar fluxo.
+  const { data, error } = await admin
+    .from("followup_enrollments")
+    .select("*, organizations:organization_id(status)")
+    .in("status", ["waiting_reply"])
+    .limit(40);
   if (error) throw new Error(error.message);
   let n = 0;
-  for (const row of data ?? []) {
+  const linhas = (data ?? []).filter((row) =>
+    ehOperante(
+      statusDaOrgEmbutida(
+        (row as { organizations?: { status?: string | null } | Array<{ status?: string | null }> | null })
+          .organizations,
+      ),
+    ),
+  );
+  for (const row of linhas) {
     const enrollment = row as EnrollmentRow;
     const ids = await idsDoContatoEGemeos(admin, enrollment.organization_id, enrollment.contact_id);
     const { data: msg, error: msgErr } = await admin

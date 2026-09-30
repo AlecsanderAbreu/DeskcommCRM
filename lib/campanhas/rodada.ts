@@ -42,7 +42,7 @@ import { decidePacing, dayStartInTz } from "@/lib/agent-engine/pacing/engine";
 import { loadChannelKnobs, loadPacingState, recordSend } from "@/lib/agent-engine/pacing/store";
 import { beginServiceAtOrigin } from "@/lib/atendimento/origem";
 import { logger } from "@/lib/logger";
-import { OrgNaoOperanteError, idsDeOrgsParadas } from "@/lib/organizacao/operante";
+import { OrgNaoOperanteError, STATUS_OPERANTE, ehOperante, statusDaOrgEmbutida } from "@/lib/organizacao/operante";
 
 import { motivoParaExcluir, recusouMarketing } from "./elegibilidade";
 import { hashDoEndereco } from "./exclusoes";
@@ -94,6 +94,14 @@ const COLUNAS_DA_CAMPANHA =
   "id, organization_id, channel_session_id, name, message_body, content_version, " +
   "intervalo_segundos, janela_inicio_hora, janela_fim_hora, teto_diario, teto_horario";
 
+/**
+ * O status da organização embutido no `select`: é no banco que o join sai, e em
+ * memória que `ehOperante` decide. Nunca se trafega a lista de ids das orgs
+ * paradas numa `in (...)` da URL — ela cresce sem teto e corta em `max_rows`
+ * sem aviso (issue #2015).
+ */
+const COLUNAS_DA_CAMPANHA_COM_EMBED = `${COLUNAS_DA_CAMPANHA}, organizations:organization_id(status)`;
+
 export async function rodarUmaRodadaDeCampanha(
   admin: SupabaseClient,
   agora: Date = new Date(),
@@ -105,24 +113,21 @@ export async function rodarUmaRodadaDeCampanha(
   // agente"; a fila nunca filtrou status (o `CLAIM_SQL` de
   // `lib/agent-engine/queue/queue.ts` não olha `organizations`), e quem fecha a
   // fila é `fn_suspender_organizacao`, que falha os jobs pendentes.
-  const idsParadas = await idsDeOrgsParadas(admin);
-
-  const promovidas = await promoverAgendadas(admin, idsParadas, agora);
+  const promovidas = await promoverAgendadas(admin, agora);
 
   let consulta = admin
     .from("campaigns")
-    .select(COLUNAS_DA_CAMPANHA)
+    .select(COLUNAS_DA_CAMPANHA_COM_EMBED)
     .eq("status", "running")
     .order("started_at", { ascending: true })
     .limit(NUMEROS_POR_RODADA * 3);
-  if (idsParadas.length > 0) {
-    consulta = consulta.not("organization_id", "in", `(${idsParadas.join(",")})`);
-  }
   const { data: campanhas } = await consulta;
   // `as unknown as`: a lista de colunas é montada por concatenação, e o tipo
   // gerado do PostgREST só sabe inferir literal — o mesmo caminho que
   // `lib/asaas/*` já usa para tabela que ainda não está em `database.types.ts`.
-  const emExecucao = (campanhas ?? []) as unknown as CampanhaRow[];
+  const emExecucao = ((campanhas ?? []) as unknown as Array<
+    CampanhaRow & { organizations?: { status?: string | null } | Array<{ status?: string | null }> | null }
+  >).filter((campanha) => ehOperante(statusDaOrgEmbutida(campanha.organizations)));
   if (emExecucao.length === 0) {
     return promovidas > 0 ? { ...VAZIA, promovidas, detalhe: "promovidas" } : VAZIA;
   }
@@ -161,21 +166,20 @@ export async function rodarUmaRodadaDeCampanha(
   return total;
 }
 
-/** `scheduled` cuja hora chegou vira `running`. */
+/** `scheduled` cuja hora chegou vira `running`. O corte por org parada é no
+ * banco, no próprio `update` (`organizations.status` embutido = a régua SQL):
+ * nunca se nega uma lista de ids na URL — ela cortaria em `max_rows` sem aviso. */
 async function promoverAgendadas(
   admin: SupabaseClient,
-  idsParadas: string[],
   agora: Date,
 ): Promise<number> {
-  let consulta = admin
+  const { data, error } = await admin
     .from("campaigns")
     .update({ status: "running", started_at: agora.toISOString() })
     .eq("status", "scheduled")
-    .lte("scheduled_at", agora.toISOString());
-  if (idsParadas.length > 0) {
-    consulta = consulta.not("organization_id", "in", `(${idsParadas.join(",")})`);
-  }
-  const { data, error } = await consulta.select("id");
+    .lte("scheduled_at", agora.toISOString())
+    .eq("organizations.status", STATUS_OPERANTE)
+    .select("id");
   if (error) {
     logger.warn("[campanha] promoção de agendadas falhou", { motivo: error.message });
     return 0;
