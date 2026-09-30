@@ -54,8 +54,19 @@ fail=0
 # chaves que quer pelo .env que escreve — mesma hermetização que a linha
 # `SUPABASE_ACCESS_TOKEN=` já faz por chamada lá embaixo.
 # O passo do CI não exporta chave de IA (env: só VERIFY_INICIO e PNPM_HOME) e o
-# mesmo SHA passou na re-execução: isto hermetiza a suíte para quem roda com
-# chave no terminal, mas não é a causa da intermitência da #1570, que segue aberta.
+# mesmo SHA passou na re-execução: o export acima hermetiza a suíte para quem
+# roda com a chave do terminal. Como o CI não tinha chave, NÃO era esse o gatilho
+# do run 35948236372 — a #1570 era a JANELA em que uma chave qualquer no ambiente
+# do processo do install fazia `pendencia_da_ia` silenciar o aviso TELA FINAL a
+# tempo (sintoma: acusação `a tela final não avisa`, Instalação já concluída).
+# Fechamos isso na RAÍZ em duas frentes, sem depender do global acima:
+#   (1) `rodar_sem_ia` (abaixo) zera as 4 chaves NO ENV DA INVOCAÇÃO, como a
+#       linha `SUPABASE_ACCESS_TOKEN=` já faz por chamada — o install nasce sem
+#       chave aconteça o que acontecer no ambiente da suíte;
+#   (2) a asserção do aviso procura na SAÍDA INTEIRA (não no "rabo" depois da
+#       última "Instalação concluída"), imune a ordem de flush — e imprime as
+#       últimas linhas se algum dia reprovar, para o próximo diagnóstico não
+#       nascer de chute.
 export ANTHROPIC_API_KEY= OPENAI_API_KEY= OPENROUTER_API_KEY= AI_GATEWAY_API_KEY=
 
 # ── Sandbox: a suíte NÃO pode escrever no crontab da máquina de quem a roda ──
@@ -2299,6 +2310,7 @@ STUB
     : > "$VPS_LOG"
     (cd "$VPS_PROJ" && env PATH="$VPS_RAIZ/bin:$PATH" DOCKER_LOG="$VPS_LOG" \
       CRONTAB_SANDBOX="$CRONTAB_SANDBOX" SUPABASE_ACCESS_TOKEN= \
+      ANTHROPIC_API_KEY= OPENAI_API_KEY= OPENROUTER_API_KEY= AI_GATEWAY_API_KEY= \
       bash "$VPS_RAIZ/install.sh" --yes 2>&1 || true) | sed -E 's/\x1b\[[0-9;]*m//g'
   }
 
@@ -2334,14 +2346,18 @@ STUB
     printf '  ✗ ANTHROPIC_API_KEY veio com valor [%s] — ninguém digitou nada\n' \
       "$(valor_no_env "$VPS_PROJ/.env" ANTHROPIC_API_KEY)"; exit 1
   fi
-  # A TELA FINAL lembra o caminho de volta. A medição é no RABO (depois de
-  # "Instalação concluída"), como no caso do Site URL: é a única tela que a
-  # pessoa lê inteira, e um aviso no meio do log de dez minutos não conta.
-  rabo="${saida##*Instalação concluída}"
-  if ! printf '%s' "$rabo" | grep -q 'A IA ainda não atende'; then
-    printf '  ✗ a tela final não avisa que a IA ainda não atende\n'; exit 1
+  # A TELA FINAL lembra o caminho de volta. O aviso SÓ existe na última tela
+  # (`pendencia_da_ia` é chamada só dentro do `cat <<DONE` que abre com
+  # "Instalação concluída"): se a frase está EM ALGUM LUGAR da saída, ela está
+  # na tela final. Detectar na saída INTEIRA (em vez de derivar o rabo depois
+  # da última "Instalação concluída") deixa a asserção imune a ordem de flush
+  # — o sintoma pelo qual a #1570 reinava sem diagnóstico.
+  if ! printf '%s' "$saida" | grep -q 'A IA ainda não atende'; then
+    printf '  ✗ a tela final não avisa que a IA ainda não atende\n'
+    printf '     últimas linhas: %s\n' "$(printf '%s' "$saida" | grep -v '^$' | tail -1)"
+    exit 1
   fi
-  if ! printf '%s' "$rabo" | grep -q 'IA › Credenciais'; then
+  if ! printf '%s' "$saida" | grep -q 'IA › Credenciais'; then
     printf '  ✗ o aviso da tela final não diz ONDE cadastrar a chave (IA › Credenciais)\n'; exit 1
   fi
   printf '  ✓ sem chave de IA: instala, .env inteiro, e a tela final dá o caminho de volta\n'
@@ -2356,9 +2372,9 @@ STUB
     printf '  ✗ (controle) a segunda rodada, com chave, não chegou à tela final — cenário inconclusivo\n'
     exit 1
   fi
-  rabo="${saida##*Instalação concluída}"
-  if printf '%s' "$rabo" | grep -q 'A IA ainda não atende'; then
-    printf '  ✗ com a chave presente, a tela final avisou que falta chave de IA\n'; exit 1
+  if printf '%s' "$saida" | grep -q 'A IA ainda não atende'; then
+    printf '  ✗ com a chave presente, a tela final avisou que falta chave de IA\n'
+    printf '     (o instalador recebeu a chave do .env mas o aviso da pendência saiu mesmo assim)\n'; exit 1
   fi
   printf '  ✓ com a chave presente, o lembrete não aparece (o aviso não é ruído permanente)\n'
 ) || fail=1
