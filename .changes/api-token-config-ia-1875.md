@@ -31,4 +31,4 @@ Não é preciso fazer nada na instalação para receber a capacidade; quem já
 automatiza por banco pode substituir a escrita direta pelas rotas e ganhar as
 validações de volta.
 
-Refs #1875.
+Contribuição de @webtecnica (#2028), fechando a #1875.
