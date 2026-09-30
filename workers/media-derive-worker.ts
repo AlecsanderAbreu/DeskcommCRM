@@ -30,6 +30,28 @@ import { DETALHE_TECNICO } from "@/lib/event-log/aviso-de-evento-morto";
 export const MEDIA_DERIVE_CONSUMER_KEY = "media_derive_v1";
 const DRAIN_MAX_ATTEMPTS = 5; // espelho de lib/event-log/drain.ts
 
+/**
+ * O corpo que a cascata de anonimização (LGPD) grava numa mensagem redigida —
+ * o mesmo sentinela que `fn_redigir_conversas_ao_anonimizar` e
+ * `fn_lgpd_cascade_redact_contact` escrevem no body. É ele que marca a mensagem
+ * como já anonimizada DO LADO da escrita: quem a redação zerou `body`, mídia e
+ * metadata. Guardamos contra ele no UPDATE final para o worker nunca gravar a
+ * transcrição (media_derived_text — o token mais sensível, texto de áudio/OCR da
+ * imagem) numa mensagem que a anonimização alcançou entre a leitura e a gravação.
+ */
+export const BODY_ANONIMIZADO = "[mensagem anonimizada]";
+
+/**
+ * O corpo de uma mensagem já redigida pela anonimização LGPD — o espelho do
+ * sentinela que `fn_redigir_conversas_ao_anonimizar` grava em `messages.body`.
+ *
+ * É o marcador honesto de "já anonimizada": a redação também zera a mídia
+ * (`media_storage_path` vira nulo), mas mídia nula é também o estado legítimo
+ * de mensagem que nunca teve anexo — usar o caminho como régua confundiria a
+ * mensagem redigida com a que nunca teve mídia. O corpo sentinela não engana.
+ */
+export const MENSAGEM_ANONIMIZADA = "[mensagem anonimizada]";
+
 // Lista compartilhada com o drain do turno — ver lib/messaging/media/derivable.ts.
 
 // ponytail: singleton lazy — o drain só nos dá o admin client; resolveOrgLlmConfig
@@ -249,9 +271,27 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
     const deps = buildDeriveDeps(llm, openaiKey, row.organization_id, admin, baseUrlDaVisao, chaveEhDaInstalacao);
 
     const text = await deriveMediaText(msg.type, buffer, msg.media_mime ?? "application/octet-stream", deps);
-    await admin.from("messages")
+
+    // ─── LGPD: nunca gravar transcrição em mensagem já redigida (#1991) ────
+    //
+    // A anonimização apaga o body (vira `'[mensagem anonimizada]'`) e zera a
+    // mídia. Se a virada acontece ENTRE a leitura desta mensagem e esta
+    // gravação, a linha já está redigida — e este UPDATE regravaria o
+    // `media_derived_text` que a cascata LGPD mandou zerar (a varredura diária
+    // do passo 9 só alcança em D+1). A guarda `body <> '[...]'` no WHERE faz o
+    // PostgREST casar ZERO linhas; conferimos o resultado para não devolver
+    // "ok" sobre uma escrita que o banco recusou.
+    const { data: gravados, error: erroDaGravacao } = await admin
+      .from("messages")
       .update({ media_derived_text: text, media_derived_status: "ready" })
-      .eq("id", msg.id).eq("organization_id", msg.organization_id);
+      .eq("id", msg.id)
+      .eq("organization_id", msg.organization_id)
+      .neq("body", MENSAGEM_ANONIMIZADA)
+      .select("id");
+    if (erroDaGravacao) return { consumer_key, status: "error", detail: erroDaGravacao.message };
+    if (!gravados || gravados.length === 0) {
+      return { consumer_key, status: "skipped", detail: "message_redacted" };
+    }
     return { consumer_key, status: "ok" };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
