@@ -214,3 +214,64 @@ describe("suspender e reativar com a inscrição parada num nó action", () => {
     expect(mortos[0].n).toBe(0);
   });
 });
+
+describe("o evento turn_discarded é só do servidor", () => {
+  const MANAGER = "c0de0496-f011-4000-8000-0000000000aa";
+
+  /** Roda o INSERT do evento como a sessão (PostgREST) ou como o servidor. */
+  async function inserirDescarte(
+    papel: "authenticated" | "service_role",
+    inscricao: string,
+    chave: string,
+  ): Promise<void> {
+    const cliente = await pool.connect();
+    try {
+      await cliente.query("begin");
+      await cliente.query(`set local role ${papel}`);
+      if (papel === "authenticated") {
+        await cliente.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: MANAGER })]);
+      }
+      await cliente.query(
+        `insert into public.followup_enrollment_events
+           (organization_id, enrollment_id, node_id, event_type, payload, idempotency_key)
+         values ($1, $2, 'a1', 'turn_discarded', '{}', $3)`,
+        [ORG_SUSPENSA, inscricao, chave],
+      );
+      await cliente.query("commit");
+    } catch (err) {
+      await cliente.query("rollback");
+      throw err;
+    } finally {
+      cliente.release();
+    }
+  }
+
+  it("⭐ manager pela sessão é recusado pelo gatilho (42501 followup_step_internal); service_role grava", async () => {
+    await seedOrg(ORG_SUSPENSA);
+    await pool.query(`insert into auth.users (id, email) values ($1, 'manager-0496@invariant.test') on conflict do nothing`, [
+      MANAGER,
+    ]);
+    await pool.query(
+      `insert into user_organizations (user_id, organization_id, role, accepted_at) values ($1, $2, 'manager', now())
+       on conflict (user_id, organization_id) do update set role = 'manager', accepted_at = now()`,
+      [MANAGER, ORG_SUSPENSA],
+    );
+    const inscricao = await seedEnrollment(ORG_SUSPENSA, ACTION_END, "a1");
+
+    // Sem o gatilho, a policy de INSERT (manager) deixa passar e o motor enfileira
+    // um 2º turno de envio. A chave não termina em `:<n>`: a recusa tem de vir da
+    // regra do evento, não da do passo.
+    const recusa = await inserirDescarte("authenticated", inscricao, "a1:1:descartado").then(
+      () => null,
+      (err: { code?: string; message?: string }) => err,
+    );
+    expect(recusa).toMatchObject({ code: "42501", message: "followup_step_internal" });
+
+    await inserirDescarte("service_role", inscricao, "a1:1:descartado");
+    const { rows } = await pool.query(
+      `select count(*)::int as n from followup_enrollment_events where enrollment_id = $1 and event_type = 'turn_discarded'`,
+      [inscricao],
+    );
+    expect(rows[0].n).toBe(1);
+  });
+});
