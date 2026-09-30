@@ -18,4 +18,4 @@ janela de resposta aberta e a de disparo fechada, provando que a resposta sai.
 
 Refs #1985.
 
-Contribuição de @webtecnica.
+Contribuição de @webtecnica (#2031).
