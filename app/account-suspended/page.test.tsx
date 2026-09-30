@@ -90,6 +90,19 @@ describe("/account-suspended: o hub de quem está numa empresa suspensa", () => 
     await expect(montar()).rejects.toThrow("NEXT_REDIRECT:/app");
   });
 
+  // Acabamento 7: o e-mail de prazo mandado com a empresa parada aponta para
+  // cá; se ela voltou a operar antes do clique, o pedido não pode se perder.
+  it("empresa que opera com ?pedido= volta direto ao pedido, não à home", async () => {
+    cena.status[cena.B] = "active";
+    const id = "22222222-2222-4222-8222-222222222222";
+    await expect(montar(id)).rejects.toThrow(`NEXT_REDIRECT:/app/lgpd/requests/${id}`);
+  });
+
+  it("empresa que opera com ?pedido= que não é uuid volta para /app", async () => {
+    cena.status[cena.B] = "active";
+    await expect(montar("../admin")).rejects.toThrow(/^NEXT_REDIRECT:\/app$/);
+  });
+
   // Review Focus 2: o layout de /app manda para cá se QUALQUER das duas réguas
   // (sessão ou leitura do banco) diz parada; o hub só devolve para /app quando
   // AS DUAS dizem que opera. Sem isso, a divergência vira laço de 307.

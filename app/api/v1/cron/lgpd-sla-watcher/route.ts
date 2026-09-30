@@ -35,6 +35,7 @@ const SCAN_LIMIT = 500;
 interface OrgRow {
   dpo_email: string | null;
   display_name: string | null;
+  status: string | null;
 }
 
 type RequestWithOrg = LgpdRequest & OrgRow;
@@ -64,7 +65,8 @@ export async function GET(req: NextRequest): Promise<Response> {
       *,
       organizations!inner(
         dpo_email,
-        display_name
+        display_name,
+        status
       )
     `,
     )
@@ -117,6 +119,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     const orgData = (row as unknown as { organizations: OrgRow }).organizations;
     const dpoEmail = orgData?.dpo_email ?? null;
     const orgName = orgData?.display_name ?? null;
+    const orgStatus = orgData?.status ?? null;
 
     // Build a clean LgpdRequest (strip joined columns)
     const lgpdRequest: LgpdRequest = {
@@ -147,6 +150,7 @@ export async function GET(req: NextRequest): Promise<Response> {
         threshold,
         organizationDpoEmail: dpoEmail,
         organizationName: orgName,
+        organizationStatus: orgStatus,
         marca: await marcaDe(row.organization_id),
       });
 

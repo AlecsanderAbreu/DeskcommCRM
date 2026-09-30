@@ -12,6 +12,7 @@ import { ROLE_RANK } from "@/lib/auth/types";
 import { emailDeSuporte } from "@/lib/branding/saida";
 import { IdiomaProvider } from "@/lib/i18n/IdiomaProvider";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { caminhoDoPedido } from "@/lib/lgpd/caminho-do-pedido";
 import { ehOperante } from "@/lib/organizacao/operante";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -66,7 +67,13 @@ export default async function AccountSuspendedPage({
   // banco (a leitura por service role, a do `orgRow.status` do layout). O layout
   // manda para cá quando QUALQUER uma diz parada; olhar só uma aqui faria da
   // divergência um laço de 307.
-  if (ehOperante(ativa.org_status) && ehOperante(statusDe.get(ativa.orgId))) redirect("/app");
+  // Com `?pedido=` (o link do e-mail de prazo da LGPD), volta ao PEDIDO: a
+  // empresa pode ter voltado a operar entre o envio e o clique.
+  const { pedido } = await searchParams;
+  const pedidoValido = PEDIDO.safeParse(pedido).success ? pedido : undefined;
+  if (ehOperante(ativa.org_status) && ehOperante(statusDe.get(ativa.orgId))) {
+    redirect(pedidoValido ? caminhoDoPedido(statusDe.get(ativa.orgId), pedidoValido) : "/app");
+  }
 
   const idioma = user.idioma;
   const t = (texto: string) => traduzir(texto, idioma);
@@ -77,8 +84,7 @@ export default async function AccountSuspendedPage({
   const outras = user.organizations
     .filter((o) => o.organization_id !== ativa.orgId && ehOperante(statusDe.get(o.organization_id)))
     .map((o) => ({ id: o.organization_id, nome: o.organization_name }));
-  const { pedido } = await searchParams;
-  const pedidoAberto = administra && PEDIDO.safeParse(pedido).success ? pedido : undefined;
+  const pedidoAberto = administra ? pedidoValido : undefined;
 
   return (
     <IdiomaProvider locale={idioma}>
