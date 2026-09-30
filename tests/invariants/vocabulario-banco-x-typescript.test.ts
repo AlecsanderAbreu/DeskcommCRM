@@ -426,7 +426,7 @@ const PARES: Array<{
     tabela: "organizations",
     coluna: "suspended_kind",
     // lib/organizacao/operante.ts → TIPOS_DE_SUSPENSAO (tupla `as const`). Nasce
-    // no MESMO commit da migration 0496 — a lição desta lista. O tipo decide qual
+    // no MESMO commit da migration 0501 — a lição desta lista. O tipo decide qual
     // porta reativa: `/reactivate` só a administrativa; a de cobrança só por
     // pagamento, prazo ou isenção. Um tipo só no CHECK deixaria a org presa numa
     // suspensão que nenhuma porta reconhece; só no TypeScript viraria `23514`

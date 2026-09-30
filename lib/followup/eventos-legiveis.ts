@@ -399,7 +399,7 @@ export function descreveEvento(
     }
     case "turn_discarded":
       // A suspensão da conta tirou o turno da fila antes de ele rodar
-      // (migration 0496). Sem esta linha o dossiê mostrava um código cru logo
+      // (migration 0501). Sem esta linha o dossiê mostrava um código cru logo
       // antes de um segundo "Pediu ao agente para escrever a mensagem".
       return {
         titulo: "O envio deste passo foi descartado porque a conta foi suspensa",

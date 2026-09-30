@@ -1,4 +1,4 @@
--- 0496 — A SUSPENSÃO QUE SUSPENDE: org operante, suspensão tipada e estado só pelo servidor
+-- 0501 — A SUSPENSÃO QUE SUSPENDE: org operante, suspensão tipada e estado só pelo servidor
 --        (spec docs/superpowers/specs/2026-09-29-cobranca-do-revendedor-design.md §2.1, §2.5, §2.6, §3.1)
 --
 -- ── A causa ───────────────────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ alter table public.organizations
   add constraint organizations_suspended_kind_check check (suspended_kind in ('administrativa', 'cobranca'));
 
 comment on column public.organizations.suspended_kind is
-  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0496).';
+  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0501).';
 
 create or replace function public.fn_org_operante(p_org uuid)
 returns boolean
@@ -194,7 +194,7 @@ revoke execute on function public.fn_org_parada_descarta_fila(uuid) from public,
 -- `failed` e não `dead` nos jobs: é o terminal de veto (queue.ts); `dead` abre
 -- aviso `job_dead`. A mensagem `queued` vira `failed` para o redrive não a
 -- mandar quando alguém olhar de novo. Suspensão com tipo NULO (imagem anterior
--- à 0496, depois de rollback) vale como administrativa.
+-- à 0501, depois de rollback) vale como administrativa.
 create or replace function public.fn_suspender_organizacao(
   p_org uuid, p_kind text, p_motivo text, p_ator uuid
 ) returns jsonb
@@ -389,7 +389,7 @@ as $$
      where status in ('active','waiting_reply','dormente')
        and next_eval_at <= now()
        -- Organização parada (suspensa, redigida, arquivada) não roda follow-up
-       -- (migration 0496).
+       -- (migration 0501).
        and exists (select 1 from public.organizations o
                     where o.id = followup_enrollments.organization_id
                       and o.status = 'active')

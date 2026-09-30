@@ -10106,7 +10106,7 @@ alter table public.agent_inbox_items
     -- sugerido (plano N1) ou falta preço de catálogo — a Central acompanha
     -- até as duas pendências sumirem, ou até a proposta ser enviada/descartada.
     'proposta_pronta_para_revisao',
-    -- (migration 0496) a organização voltou de uma suspensão e há conversas que
+    -- (migration 0501) a organização voltou de uma suspensão e há conversas que
     -- receberam mensagem enquanto ela estava parada: a IA não respondeu nem vai
     -- responder sozinha. Um item por reativação, aberto por fn_reativar_organizacao.
     'org_reativada',
@@ -42991,9 +42991,9 @@ create policy followup_flow_versions_delete on public.followup_flow_versions
   using (organization_id in (select public.fn_user_org_ids())
          and public.fn_role_at_least(organization_id, 'manager'));
 
--- ---- org operante e suspensão tipada (migration 0496) ----
+-- ---- org operante e suspensão tipada (migration 0501) ----
 -- A suspensão que suspende (spec cobrança do revendedor §2.1, §3.1). Corpo e
--- porquê: a migration 0496. Cópia byte a byte das seções A, B, C0, C, E, F e G dela; a
+-- porquê: a migration 0501. Cópia byte a byte das seções A, B, C0, C, E, F e G dela; a
 -- seção D (kind 'org_reativada') entra NO LUGAR, no bloco único de
 -- agent_inbox_items_kind_check. Entra ANTES da VARREDURA anon porque cria função.
 
@@ -43011,7 +43011,7 @@ alter table public.organizations
   add constraint organizations_suspended_kind_check check (suspended_kind in ('administrativa', 'cobranca'));
 
 comment on column public.organizations.suspended_kind is
-  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0496).';
+  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0501).';
 
 create or replace function public.fn_org_operante(p_org uuid)
 returns boolean
@@ -43149,7 +43149,7 @@ revoke execute on function public.fn_org_parada_descarta_fila(uuid) from public,
 -- `failed` e não `dead` nos jobs: é o terminal de veto (queue.ts); `dead` abre
 -- aviso `job_dead`. A mensagem `queued` vira `failed` para o redrive não a
 -- mandar quando alguém olhar de novo. Suspensão com tipo NULO (imagem anterior
--- à 0496, depois de rollback) vale como administrativa.
+-- à 0501, depois de rollback) vale como administrativa.
 create or replace function public.fn_suspender_organizacao(
   p_org uuid, p_kind text, p_motivo text, p_ator uuid
 ) returns jsonb
@@ -43321,7 +43321,7 @@ as $$
      where status in ('active','waiting_reply','dormente')
        and next_eval_at <= now()
        -- Organização parada (suspensa, redigida, arquivada) não roda follow-up
-       -- (migration 0496).
+       -- (migration 0501).
        and exists (select 1 from public.organizations o
                     where o.id = followup_enrollments.organization_id
                       and o.status = 'active')

@@ -221,7 +221,7 @@ export function rechecksOciososDaAcao(events: EnrollmentEventRef[], nodeId: stri
 
 /**
  * O turno de envio desta estadia saiu da fila SEM rodar: a organização foi
- * suspensa e `fn_org_parada_descarta_fila` (migration 0496) o falhou, gravando
+ * suspensa e `fn_org_parada_descarta_fila` (migration 0501) o falhou, gravando
  * este evento. Não é defeito do worker, então não conta para o dead-man (ver
  * `rechecksOciososDaAcao`), e o motor enfileira um turno novo na reativação —
  * o claim não entrega a inscrição enquanto a org está parada.

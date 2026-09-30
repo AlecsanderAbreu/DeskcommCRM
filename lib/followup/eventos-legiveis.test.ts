@@ -154,7 +154,7 @@ describe("descreveEvento", () => {
     expect(r.autor).toBe("motor");
   });
 
-  it("o turno descartado pela suspensão diz o motivo e que o envio volta (migration 0496)", () => {
+  it("o turno descartado pela suspensão diz o motivo e que o envio volta (migration 0501)", () => {
     const r = descreveEvento(
       evento({ node_id: "action-1", event_type: EVENTO_TURNO_DESCARTADO, payload: { motivo: "org_nao_operante" } }),
       nos,

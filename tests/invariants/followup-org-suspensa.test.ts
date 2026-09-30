@@ -11,7 +11,7 @@ import { relogioAncoradoNoBanco } from "./followup-relogio";
 import { criarOrigemDeFollowup } from "./followup-service-origin";
 
 /**
- * O MOTOR DE FOLLOW-UP COM A ORGANIZAÇÃO SUSPENSA (migration 0496; spec cobrança
+ * O MOTOR DE FOLLOW-UP COM A ORGANIZAÇÃO SUSPENSA (migration 0501; spec cobrança
  * do revendedor §1.3 — nada que custe ou saia roda com a org suspensa, e a
  * reativação não é rajada).
  *
@@ -145,7 +145,7 @@ async function turnos(enrollmentId: string): Promise<string[]> {
 }
 
 const suspender = (org: string) =>
-  pool.query(`select public.fn_suspender_organizacao($1, 'administrativa', 'invariante 0496', null)`, [org]);
+  pool.query(`select public.fn_suspender_organizacao($1, 'administrativa', 'invariante 0501', null)`, [org]);
 const reativar = (org: string) =>
   pool.query(`select public.fn_reativar_organizacao($1, 'administrativa', null)`, [org]);
 
@@ -248,7 +248,7 @@ describe("o evento turn_discarded é só do servidor", () => {
 
   it("⭐ manager pela sessão é recusado pelo gatilho (42501 followup_step_internal); service_role grava", async () => {
     await seedOrg(ORG_SUSPENSA);
-    await pool.query(`insert into auth.users (id, email) values ($1, 'manager-0496@invariant.test') on conflict do nothing`, [
+    await pool.query(`insert into auth.users (id, email) values ($1, 'manager-0501@invariant.test') on conflict do nothing`, [
       MANAGER,
     ]);
     await pool.query(

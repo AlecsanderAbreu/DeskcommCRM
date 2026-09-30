@@ -1174,7 +1174,7 @@ describe("processNode — repeat", () => {
   });
 });
 
-describe("turno descartado pela suspensão (migration 0496)", () => {
+describe("turno descartado pela suspensão (migration 0501)", () => {
   const ev = (event_type: string, node_id = "a1") => ({ node_id, event_type, idempotency_key: null, payload: {} });
 
   it("o último turno descartado e não substituído pede um turno novo", () => {

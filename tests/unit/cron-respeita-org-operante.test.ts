@@ -39,7 +39,7 @@ const SIMBOLOS_DE_FILTRO = new Set(["idsDeOrgsParadas", "ehOperante"]);
 /**
  * Saltos de import a partir da rota: no followup-flow-worker, o símbolo mais perto mora a 2
  * (silence-sweep → gate). Esse gate filtra só a VARREDURA de silêncio; o tick do motor é
- * filtrado no SQL do claim (`fn_claim_due_followup_enrollments`, migration 0496), que esta
+ * filtrado no SQL do claim (`fn_claim_due_followup_enrollments`, migration 0501), que esta
  * cerca não enxerga — quem o prova é tests/invariants/followup-org-suspensa.test.ts.
  */
 const PROFUNDIDADE_MAXIMA = 4;

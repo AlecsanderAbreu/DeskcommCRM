@@ -45,7 +45,7 @@ async function enfileirarFollowup(job: FollowupJobRequest): Promise<void> {
  * avançamos quem já respondeu.
  */
 export async function aplicarRespostasQueChegaram(admin: SupabaseClient, deps: TickDeps): Promise<number> {
-  // Org parada não avança fluxo (migration 0496 — o claim do motor também a pula).
+  // Org parada não avança fluxo (migration 0501 — o claim do motor também a pula).
   const paradas = await idsDeOrgsParadas(admin);
   let consulta = admin.from("followup_enrollments").select("*").in("status", ["waiting_reply"]);
   if (paradas.length > 0) consulta = consulta.not("organization_id", "in", `(${paradas.join(",")})`);
