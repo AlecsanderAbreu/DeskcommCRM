@@ -18,7 +18,7 @@
  * volta na conversa afirmando que "os dados do PIX estão sendo confirmados" —
  * algo que ela não tem nenhuma ferramenta para saber.
  *
- * ## O prazo, e por que ele é 60 minutos
+ * ## O prazo, e por que o padrão é 60 minutos
  *
  * O silêncio EXPIRA sozinho. Não é `'infinity'`: `'infinity'` é o handoff
  * FORMAL, aquele em que alguém clicou "assumir" na tela e assumiu junto a
@@ -34,55 +34,65 @@
  * digitar dentro do CRM) e é curto o bastante para que um engano se pague
  * sozinho no mesmo turno de trabalho, em vez de virar uma conversa morta.
  *
+ * ## O prazo é configurável por instalação — `ATENDIMENTO_MANUAL_SILENCIO_MIN`
+ *
+ * O raciocínio acima vale para o caso que ele mediu, mas ele mediu UM caso: o
+ * dono que responde pelo celular de vez em quando e fecha o assunto. Quem
+ * atende o dia INTEIRO pelo celular tem um outro shape — e é o caso mais comum
+ * de consultório e clínica, onde uma pessoa atende, atende e atende.
+ *
+ * Medido numa instalação real (2026-09-30): com 60 min, a IA não respondia
+ * NENHUMA mensagem de paciente ao longo do expediente. Não era falha do agente,
+ * do funil nem do modelo — a atendente renovava o prazo a cada fala, e o dia
+ * inteiro de atendimento manual é, na prática, silêncio de 60 min sem fim. O
+ * sintoma é o pior possível de diagnosticar: o agente está publicado, o canal
+ * está de pé, e os logs dizem "turno pulado (sem gasto)", `motivo:
+ * "conversa_silenciada"` — que parece exatamente uma pausa correta.
+ *
+ * Por isso o prazo virou env, com o 60 de antes como PADRÃO: quem não setar
+ * nada continua com o comportamento medido e documentado acima, sem nenhuma
+ * mudança. Quem atende o dia inteiro pelo celular reduz o prazo para a janela
+ * em que quer devolver a conversa à IA (15 min, no caso medido, dão para
+ * fechar uma resposta e devolver antes de a conversa esfriar).
+ *
+ * `ATENDIMENTO_MANUAL_SILENCIO_MIN` em MINUTOS, para quem opera não fazer
+ * conta de milissegundo. Aceita inteiro ou decimal. Ausente, vazio, zero,
+ * negativo ou não-número cai no padrão de 60 — o mesmo desenho de "campo
+ * vazio mantém o ritmo de antes" que a proteção de envio ganhou no #1996.
+ *
  * ⚠️ Quem quiser outro prazo mexe AQUI, num lugar só: a constante é lida por
  * TODO canal cuja ingestão reconhece saída feita fora do CRM, e pelo teste.
- *
- * ## Cada mensagem nova do humano RENOVA o prazo
- *
- * O relógio conta a partir da ÚLTIMA fala humana, não da primeira. Sem isso, um
- * atendimento de uma hora e meia veria a IA voltar a falar no meio — que é o
- * pior desfecho possível, porque é justamente quando há uma pessoa na conversa.
- * Na prática: cada chamada propõe `agora + PRAZO` e grava se isso for MAIS
- * TARDE que o silêncio em vigor.
- *
- * ## O que NUNCA encurta
- *
- * Um silêncio maior já em vigor fica: handoff formal (`'infinity'`, que
- * `normalizarInstante` devolve como `Infinity`) e qualquer janela mais longa
- * que a nossa. A pausa por resposta manual é o silêncio mais FRACO da casa —
- * ela estende, nunca regride.
- *
- * ## O que grava, e o que NÃO grava
- *
- *   - `bot_silenced_until = agora + PRAZO_DO_SILENCIO_MS`
- *   - `last_handoff_at` / `last_handoff_reason` — rastro visível de que uma
- *     pessoa assumiu por fora.
- *
- * **NÃO toca `contacts.ai_authorized_at`.** A origem/autorização do lead é
- * estado SEPARADO (elegibilidade), não handoff. Uma resposta manual pausa a
- * conversa; não apaga que o lead veio do Respondi. Quando o prazo vence, a
- * autorização ainda está lá.
- *
- * **NÃO toca `contacts.force_human`** (trava do CONTATO inteiro — pausar uma
- * conversa não é bloquear o cliente) nem `assignee_kind` (exige um
- * `assigned_to_user_id`, e o celular do dono não é necessariamente um usuário do
- * CRM) nem `status` (mandar para `pending` diria "na fila esperando atendente",
- * o oposto de "estou atendendo").
- *
- * Fire-and-forget: a ingestão da mensagem do cliente não pode cair porque a
- * pausa falhou.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { logger } from "@/lib/logger";
 import { normalizarInstante } from "@/lib/ai/elegibilidade/gate";
 
+/** O prazo documentado acima, e o que volta quando o knob não diz nada. */
+const PRAZO_PADRAO_MIN = 60;
+
 /**
  * Quanto tempo a IA fica calada depois de uma resposta manual pelo canal.
- * Ver "O prazo, e por que ele é 60 minutos" na docstring do módulo — o número
- * tem motivo, e mudá-lo é uma decisão de produto, não de implementação.
+ * Ver "O prazo, e por que o padrão é 60 minutos" na docstring do módulo.
+ *
+ * Lê `ATENDIMENTO_MANUAL_SILENCIO_MIN` (minutos). O fallback é o PRIMEIRO
+ * motivo de nunca quebrar quem não configurou: `prazoDoSilencioMs()` é
+ * chamado dentro do caminho de ingestão, e uma instalação com env inválido
+ * precisa silenciar a IA do mesmo jeito que silenciava antes — um
+ * `Number.parseInt` que devolvesse `NaN` faria `bot_silenced_until` virar uma
+ * data inválida, ou pior, `NaN` de volta para o banco, e o efeito seria a IA
+ * falando por cima do humano, que é o defeito que este módulo existe para
+ * não ter. Então: valor não_numérico, vazio, zero ou negativo é o padrão.
  */
-export const PRAZO_DO_SILENCIO_MS = 60 * 60 * 1000;
+function prazoDoSilencioMs(): number {
+  const bruto = process.env.ATENDIMENTO_MANUAL_SILENCIO_MIN;
+  if (bruto == null || bruto.trim() === "") return PRAZO_PADRAO_MIN * 60_000;
+  const min = Number(bruto);
+  if (!Number.isFinite(min) || min <= 0) return PRAZO_PADRAO_MIN * 60_000;
+  return min * 60_000;
+}
+
+export const PRAZO_DO_SILENCIO_MS = prazoDoSilencioMs();
 
 /** Motivo gravado quando uma pessoa responde pelo canal, fora do CRM. */
 export const MOTIVO_ATENDIMENTO_MANUAL = "Atendimento manual pelo canal (resposta fora do CRM)";
@@ -110,7 +120,7 @@ export interface PausaPorAtendimentoManualInput {
    */
   duravel?: boolean;
   /**
-   * O instante da fala humana. INJETADO para o teste não depender do relógio
+   * O instante da fala humana. INJECTADO para o teste não depender do relógio
    * real: o `now()` do banco e o `Date.now()` do processo são dois relógios, e
    * comparar um com o outro produz falha intermitente. Default = agora.
    */
@@ -211,7 +221,7 @@ export async function pausarIaPorAtendimentoManual(
  */
 export async function pausarIaDuravelmente(
   admin: SupabaseClient,
-  input: Omit<PausaPorAtendimentoManualInput, "duravel">,
+  input: Omit<PausarIaPorAtendimentoManualInput, "duravel">,
 ): Promise<boolean> {
   return pausarIaPorAtendimentoManual(admin, { ...input, duravel: true });
 }
