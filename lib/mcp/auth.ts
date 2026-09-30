@@ -19,6 +19,7 @@ import type { Actor } from "@/lib/api/handlers/types";
 import { registrarFalhaDeToken, tokenFailureLimited } from "@/lib/auth/rate-limit";
 import type { Role } from "@/lib/auth/types";
 import { ROLE_RANK } from "@/lib/auth/types";
+import { ehOperante } from "@/lib/organizacao/operante";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface McpAuthResult {
@@ -34,6 +35,8 @@ export class McpAuthError extends Error {
     public readonly mcpCode: number,
     public readonly httpStatus: number,
     message: string,
+    /** Código de `lib/api/errors.ts` quando a recusa tem nome próprio na API REST (ex.: `org_suspended`). */
+    public readonly codigo?: string,
   ) {
     super(message);
     this.name = "McpAuthError";
@@ -87,7 +90,7 @@ export function extractBearer(authHeader: string | null): string | null {
 /** Por que um `dsk_...` não validou — neutro, sem código MCP nem HTTP status. */
 export class ApiTokenError extends Error {
   constructor(
-    public readonly reason: "malformed" | "not_found" | "revoked" | "expired" | "lookup_failed",
+    public readonly reason: "malformed" | "not_found" | "revoked" | "expired" | "lookup_failed" | "org_suspended",
     message: string,
   ) {
     super(message);
@@ -130,7 +133,7 @@ export async function resolveApiToken(plaintext: string): Promise<ResolvedApiTok
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("api_tokens")
-    .select("id, organization_id, scopes, revoked_at, expires_at, created_by")
+    .select("id, organization_id, scopes, revoked_at, expires_at, created_by, organizations!inner(status)")
     .eq("token_hash", hashLiteral)
     .maybeSingle();
 
@@ -145,6 +148,12 @@ export async function resolveApiToken(plaintext: string): Promise<ResolvedApiTok
   }
   if (data.expires_at && new Date(data.expires_at) < new Date()) {
     throw new ApiTokenError("expired", "Token expired.");
+  }
+  // Token vivo de empresa parada: a integração não opera enquanto a conta está
+  // suspensa (spec da cobrança §4 item 6). Antes do `last_used_at`: recusa não é uso.
+  const orgDoToken = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
+  if (!ehOperante(orgDoToken?.status)) {
+    throw new ApiTokenError("org_suspended", "Organization suspended.");
   }
 
   supabase
@@ -194,6 +203,11 @@ export async function validateBearerToken(
     resolved = await resolveApiToken(plaintext);
   } catch (err) {
     if (err instanceof ApiTokenError) {
+      if (err.reason === "org_suspended") {
+        // Token VÁLIDO: nem chute nem token morto. Debitar o balde trancaria a
+        // integração do cliente por minutos depois da reativação.
+        throw new McpAuthError(-32002, 403, err.message, "org_suspended");
+      }
       if (err.reason !== "lookup_failed") {
         // Chute (malformado/desconhecido) debita o balde por ORIGEM; token real
         // e morto (revogado/expirado) debita só o do valor apresentado — ver
