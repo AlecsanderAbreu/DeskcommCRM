@@ -42993,7 +42993,7 @@ create policy followup_flow_versions_delete on public.followup_flow_versions
 
 -- ---- org operante e suspensão tipada (migration 0496) ----
 -- A suspensão que suspende (spec cobrança do revendedor §2.1, §3.1). Corpo e
--- porquê: a migration 0496. Cópia byte a byte das seções A, B, C e E dela; a
+-- porquê: a migration 0496. Cópia byte a byte das seções A, B, C0, C, E, F e G dela; a
 -- seção D (kind 'org_reativada') entra NO LUGAR, no bloco único de
 -- agent_inbox_items_kind_check. Entra ANTES da VARREDURA anon porque cria função.
 

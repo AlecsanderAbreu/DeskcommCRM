@@ -201,9 +201,10 @@ describe("drainEventLog lê o status das orgs do lote", () => {
     expect(resumo.pulados).toContain(`${EVENTO_DE_TESTE}/${PREFIXO_DE_TESTE}-pula: org_nao_operante`);
   });
 
-  // Controle do lado que mais pesa: sem este caso, inverter a régua do dreno
-  // (`!ehOperante`) calaria a IA e as automações de TODAS as empresas ativas
-  // com a suíte verde — os demais casos só olham a org parada.
+  // Controle do lado que mais pesa. Medido por sabotagem: inverter a régua
+  // (`!ehOperante`) já deixa o caso acima vermelho; o que passava com a suíte
+  // verde era tratar TODA org como parada (`ehOperante(o.status) && false`), que
+  // calaria a IA e as automações de todas as empresas ativas. Só este caso pega.
   it("org operante: o handler 'pula' roda e o evento fecha done com a chave em consumed_by, sem org_nao_operante", async () => {
     handlePula.mockClear();
     const { admin, updates } = dublarAdmin({ linhas: [linha()], orgs: [{ id: "org-1", status: "active" }] });
