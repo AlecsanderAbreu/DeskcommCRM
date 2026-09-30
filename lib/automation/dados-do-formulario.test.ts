@@ -11,7 +11,10 @@ const PIPELINE = "00000000-0000-4000-8000-0000000000aa";
  * (`eq`, `order`, `limit`) é indiferente — o que se mede é o que a função FAZ com
  * o que o banco devolve, e que `organization_id` foi filtrado.
  */
-function adminFalso(tabelas: Record<string, unknown>, filtros: Array<[string, string, unknown]> = []) {
+function adminFalso(
+  tabelas: Record<string, unknown>,
+  filtros: Array<[string, string, unknown]> = [],
+) {
   return {
     from(tabela: string) {
       const cadeia: Record<string, unknown> = {};
@@ -87,7 +90,9 @@ describe("dadosDoFormularioDoContexto — rótulo do funil no lugar da chave cru
   });
 
   it("lead sem funil no contexto não consulta o banco de funis nem quebra", async () => {
-    const admin = adminFalso({ webhook_lead_captures: { fields: { servico: "x" }, utm: {}, source_name: "Site" } });
+    const admin = adminFalso({
+      webhook_lead_captures: { fields: { servico: "x" }, utm: {}, source_name: "Site" },
+    });
     const r = await dadosDoFormularioDoContexto(ctx(admin, { id: "l1" }));
     expect(r.dados.servico).toBe("x");
   });
@@ -103,7 +108,9 @@ describe("dadosDoFormularioDoContexto — rótulo do funil no lugar da chave cru
   it("rótulo que colide com dado do contato não o sobrescreve", async () => {
     const admin = adminFalso({
       webhook_lead_captures: { fields: { nome_do_cliente: "Outro" }, utm: {}, source_name: "Site" },
-      crm_pipelines: { settings: { fields: [{ key: "nome_do_cliente", label: "Nome", type: "text" }] } },
+      crm_pipelines: {
+        settings: { fields: [{ key: "nome_do_cliente", label: "Nome", type: "text" }] },
+      },
     });
     const r = await dadosDoFormularioDoContexto(ctx(admin, { id: "l1", pipeline_id: PIPELINE }));
     expect(r.dados.Nome).toBe("Maria Teste");
