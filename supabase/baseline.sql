@@ -42987,6 +42987,42 @@ create policy followup_flow_versions_delete on public.followup_flow_versions
   using (organization_id in (select public.fn_user_org_ids())
          and public.fn_role_at_least(organization_id, 'manager'));
 
+-- ---- org operante e suspensão tipada (migration 0492) ----
+-- A suspensão que suspende (spec cobrança do revendedor §2.1, §3.1). Corpo e
+-- porquê: a migration 0492. Cópia byte a byte das seções A, B, C e E dela; a
+-- seção D (kind 'org_reativada') entra NO LUGAR, no bloco único de
+-- agent_inbox_items_kind_check. Entra ANTES da VARREDURA anon porque cria função.
+
+-- ── A. suspended_kind + fn_org_operante ──────────────────────────────────────
+alter table public.organizations add column if not exists suspended_kind text;
+
+update public.organizations
+   set suspended_kind = 'administrativa'
+ where status = 'suspended'
+   and suspended_kind is null;
+
+alter table public.organizations
+  drop constraint if exists organizations_suspended_kind_check;
+alter table public.organizations
+  add constraint organizations_suspended_kind_check check (suspended_kind in ('administrativa', 'cobranca'));
+
+comment on column public.organizations.suspended_kind is
+  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0492).';
+
+create or replace function public.fn_org_operante(p_org uuid)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce((select o.status = 'active' from public.organizations o where o.id = p_org), false);
+$$;
+
+revoke execute on function public.fn_org_operante(uuid) from public, anon, authenticated;
+grant execute on function public.fn_org_operante(uuid) to service_role;
+
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria
