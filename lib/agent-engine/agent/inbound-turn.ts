@@ -145,7 +145,7 @@ import {
 } from './entrega-de-capacidade';
 import { composeSystemPrompt, loadOrgMemory, renderOrgMemory } from './org-memory';
 import { matchesHandoffKeyword, type PublishedAgentConfig } from './agent-config';
-import { garantirPerguntaDoRoteiro, prepararRoteiroDoTurno } from './roteiro-no-turno';
+import { garantirPerguntaDoRoteiro, perguntaDoRoteiroPodeSair, prepararRoteiroDoTurno } from './roteiro-no-turno';
 import { validarRespostaDoFluxo } from './flow-validate';
 import { moduloLigadoComMemo } from '@/lib/instalacao/modulos';
 import { msAteAJanelaAbrir } from './janela-de-atendimento';
@@ -2543,6 +2543,11 @@ async function executarTurnoDoAgente(
   // O que o modelo de fato mandou neste turno (depois da cadeia). A trava "a
   // pergunta saiu?" do roteiro de atendimento lê daqui.
   const corposEnviados: string[] = [];
+  // #1943: o turno foi DESCARTADO como obsoleto (guard `resposta_obsoleta`, #1940)
+  // ainda no run — o cliente escreveu de novo enquanto o modelo pensava. Quando
+  // ligada, NADA mais sai dele, nem a pergunta pendente do roteiro (que segue
+  // feita para o turno da mensagem nova). Ver `perguntaDoRoteiroPodeSair`.
+  let turnoDescartado = false;
   // Teto de mensagens físicas por turno (F2-15b) — `seq` JÁ é a contagem certa: ele só
   // avança quando o envio de fato sai pro canal (send_message + send_template, bolhas
   // incluídas), nunca em veto de gate. Checar `seq` antes de tentar o próximo envio
@@ -3000,6 +3005,10 @@ async function executarTurnoDoAgente(
             job_id: liveJob().id,
             conversation_id: input.conversationId,
           });
+          // #1943: marca o turno como descartado. NADA mais sai dele, nem a
+          // pergunta pendente do roteiro — ela segue feita para o turno da
+          // mensagem nova. Ver `perguntaDoRoteiroPodeSair` no `enviar`.
+          turnoDescartado = true;
           return {
             ok: false,
             error: {
@@ -4235,7 +4244,10 @@ async function executarTurnoDoAgente(
           roteiro,
           corposEnviados,
           enviar: async (texto) => {
-            if (seq >= maxSendsPerTurn) return false;
+            // #1943: turno descartado como obsoleto → a pergunta do roteiro NÃO
+            // sai (segue pendente para o turno seguinte). Também vigia o teto
+            // de mensagens físicas do turno (F2-15b).
+            if (!perguntaDoRoteiroPodeSair({ turnoDescartado, seq, maxSendsPerTurn })) return false;
             const chain = await runBeforeSend({
               pool,
               log: runLog,

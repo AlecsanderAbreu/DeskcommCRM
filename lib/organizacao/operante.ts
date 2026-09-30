@@ -3,7 +3,7 @@
  * (docs/superpowers/specs/2026-09-29-cobranca-do-revendedor-design.md §4).
  *
  * operante ⇔ organizations.status = 'active'. Espelho SQL:
- * `public.fn_org_operante(uuid)` (migration 0492). Mesma régua dos porteiros SQL
+ * `public.fn_org_operante(uuid)` (migration 0495). Mesma régua dos porteiros SQL
  * que já existiam (fn_accept_team_invite, fn_reply_delivery_policy,
  * fn_meet_delivery_current). `suspended`, `redacted`, `archived` e qualquer
  * status futuro ficam NÃO operantes: falha fechada.
@@ -12,7 +12,7 @@
  * Só significa algo com status='suspended'. O lgpd-redact-worker troca o status
  * para 'redacted' sem limpar o tipo, e por isso o banco NÃO tem CHECK de
  * coerência entre as duas colunas: quem lê o tipo confere antes que a org está
- * parada. Suspensão com tipo NULO (gravada por uma imagem anterior à 0492,
+ * parada. Suspensão com tipo NULO (gravada por uma imagem anterior à 0495,
  * depois de um rollback) vale como `administrativa`, como nas funções de estado.
  *
  * ── Deliberadamente NÃO gatilhados (spec §4, decisões D-11 e D-12) ───────────
@@ -35,7 +35,7 @@ import { ApiError } from "@/lib/api/types";
 
 export const STATUS_OPERANTE = "active" as const;
 
-/** Por que a organização está suspensa. Par de `organizations_suspended_kind_check` (0492). */
+/** Por que a organização está suspensa. Par de `organizations_suspended_kind_check` (0495). */
 export const TIPOS_DE_SUSPENSAO = ["administrativa", "cobranca"] as const;
 export type TipoDeSuspensao = (typeof TIPOS_DE_SUSPENSAO)[number];
 

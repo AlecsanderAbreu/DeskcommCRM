@@ -5,7 +5,7 @@ import { tickCron } from "@/lib/agent-engine/cron/scheduler";
 import { createLogger } from "@/lib/agent-engine/obs/logger";
 
 /**
- * O SQL REAL do agendador com a régua (migration 0492).
+ * O SQL REAL do agendador com a régua (migration 0495).
  *
  * `fireOneDue` chama `public.fn_org_operante(organization_id)` dentro do
  * `select … for update skip locked`, pelo pool `pg` do worker. O teste unitário
