@@ -1574,5 +1574,3 @@ describe("CartaoDoJev — a tarefa do follow-up, que só observa", () => {
     expect(screen.getByTestId("jev-so-observa-followup")).toHaveTextContent(/^En esta versión, Jev solo observa esta tarea/);
     expect(screen.getByTestId("jev-sem-fluxo-followup_2")).toHaveTextContent(/^No se ejecuta ahora: ningún seguimiento publicado/);
     expect(screen.getByTestId("jev-concordancia-followup")).toHaveTextContent(/pusieron la respuesta del cliente en la misma salida del flujo en 3 de 4 mensajes\./);
-  });
-});
