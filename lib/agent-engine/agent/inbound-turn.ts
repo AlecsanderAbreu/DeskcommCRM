@@ -1793,6 +1793,20 @@ export async function runAgentTurn(
  *     planejamento: não abrem o WhatsApp de ninguém.
  *   * `operator_turn` — retaguarda (mexe no funil), nunca fala com o lead.
  */
+/**
+ * ═══ RESPOSTA vs RETOMADA — a distinção que a janela da 0495 faz ═══
+ *
+ * `turnoVaiFalarComOLead` admite `followup_turn`, que RETOMA conversa parada — e
+ * retomar NÃO é responder: abrir `followup_turn` junto faria o número mandar
+ * "e aí, tudo certo?" às 4h para quem dormiu.
+ *
+ * Só a REAÇÃO a uma mensagem recebida lê a janela de resposta. `case_reply_turn`
+ * entra porque responde a um caso em aberto: ninguém "chama" um caso, o caso chama.
+ */
+export function eTurnoDeResposta(job: Pick<JobRow, 'kind'>): boolean {
+  return job.kind === 'inbound_turn' || job.kind === 'case_reply_turn';
+}
+
 function turnoVaiFalarComOLead(job: JobRow): boolean {
   if (job.kind === 'inbound_turn' || job.kind === 'case_reply_turn') return true;
   if (job.kind !== 'followup_turn') return false;
@@ -1933,15 +1947,19 @@ async function executarTurnoDoAgente(
   if (!preview && turnoVaiFalarComOLead(liveJob())) {
     const { knobs } = await loadChannelKnobs(pool, tenantId, input.channelSessionId, runLog);
     const agora = clock();
-    if (!janelaDeEnvioAberta(agora, knobs)) {
-      const abertura = proximaAberturaDaJanela(agora, knobs);
+    const resposta = eTurnoDeResposta(liveJob());
+    // `resposta` separa as janelas: reação a quem escreveu lê `resposta*` (0495,
+    // que herda `window*` quando vazia); retomada e disparo leem `window*`.
+    if (!janelaDeEnvioAberta(agora, knobs, resposta)) {
+      const abertura = proximaAberturaDaJanela(agora, knobs, resposta);
       await rescheduleJob(pool, liveJob().id, ctx.workerId, {
         acquiredAt: claimOfJob(liveJob())?.acquired_at,
         delayMs: Math.max(abertura.getTime() - agora.getTime(), 1_000),
         reason: 'fora da janela anti-ban de envio — turno adiado para a abertura',
       });
       runLog.info('turno adiado — fora da janela anti-ban de envio', {
-        janela: `${knobs.windowStartHour}h-${knobs.windowEndHour}h`,
+        janela: `${resposta ? knobs.respostaStartHour : knobs.windowStartHour}h-${resposta ? knobs.respostaEndHour : knobs.windowEndHour}h`,
+        tipo: resposta ? 'resposta' : 'retomada',
         timezone: knobs.timezone,
         abertura: abertura.toISOString(),
       });
@@ -1958,7 +1976,7 @@ async function executarTurnoDoAgente(
           tenantId,
           channelSessionId: input.channelSessionId,
           abertura,
-          janela: `${knobs.windowStartHour}h-${knobs.windowEndHour}h`,
+          janela: `${resposta ? knobs.respostaStartHour : knobs.windowStartHour}h-${resposta ? knobs.respostaEndHour : knobs.windowEndHour}h`,
           timezone: knobs.timezone,
           domingoDesligado: !knobs.allowSunday,
         });
@@ -2858,6 +2876,8 @@ async function executarTurnoDoAgente(
           // Só ESTE gate muda; stop, LGPD e pacing continuam valendo integralmente.
           isTemplate: true,
           optedOutThisTurn,
+          // Resposta do turno, mesmo sendo template: lê a janela de resposta (0495).
+          resposta: eTurnoDeResposta(liveJob()),
           crmDailyLimit: null,
           now: clock(),
           sleep: deps.sleep,
@@ -3072,6 +3092,10 @@ async function executarTurnoDoAgente(
             channelSessionId: input.channelSessionId,
             body,
             optedOutThisTurn,
+            // `inbound_turn`/`case_reply_turn` respondem a quem escreveu e leem a
+            // janela de RESPOSTA (0495). `followup_turn` retoma conversa parada e
+            // continua na janela de DISPARO.
+            resposta: eTurnoDeResposta(liveJob()),
             // ponytail: channel_sessions.daily_message_limit do CRM ainda não é lido
             // no runtime — null cai nos degraus de warm-up (conservadores). Injetar
             // aqui quando o drain expuser o limite da sessão.
@@ -4258,6 +4282,9 @@ async function executarTurnoDoAgente(
               channelSessionId: input.channelSessionId,
               body: texto,
               optedOutThisTurn,
+              // Sai no MESMO turno da resposta: sem isto, às 3h com a janela de
+              // resposta aberta, o agente responde e a pergunta do roteiro é vetada.
+              resposta: eTurnoDeResposta(liveJob()),
               crmDailyLimit: null,
               // A pergunta repete por design (foi feita e não respondida); o
               // anti-blast vetaria justamente o que esta trava garante. Mesmo
