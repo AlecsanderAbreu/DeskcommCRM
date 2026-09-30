@@ -45255,8 +45255,8 @@ create unique index if not exists agent_inbox_event_dead_aberto_unico
   on public.agent_inbox_items (organization_id, kind, title)
   where status = 'open' and kind = 'event_dead';
 
--- ---- a anotação simultânea não apaga a outra (migration 0497) ----
--- 0497 — duas anotações ao mesmo tempo não apagam uma à outra.
+-- ---- a anotação simultânea não apaga a outra (migration 0498) ----
+-- 0498 — duas anotações ao mesmo tempo não apagam uma à outra.
 --
 -- ─── O defeito, medido na main de 2026-09-30 ────────────────────────────────
 --

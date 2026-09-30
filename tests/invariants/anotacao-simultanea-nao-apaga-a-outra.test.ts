@@ -1,5 +1,5 @@
 /**
- * Duas anotações ao mesmo tempo no mesmo negócio NÃO se apagam (migration 0497).
+ * Duas anotações ao mesmo tempo no mesmo negócio NÃO se apagam (migration 0498).
  *
  * O teste unitário do handler reproduz a corrida com um banco falso. Este é o
  * que prova a TRAVA DE VERDADE, num Postgres real: duas transações abertas, a
