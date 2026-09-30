@@ -245,6 +245,14 @@ const PROVA_PROPRIA: readonly Excecao[] = [
       "orçamento, criativo e performance de quem anuncia.",
   },
   {
+    tabela: "map_provider_credentials",
+    razao:
+      "tests/invariants/credencial-de-mapas-e-server-side.test.ts — privilégio " +
+      "NENHUM para anon e authenticated, `permission denied` sob `set role`, RLS " +
+      "ligada, zero policies, `organization_id` NOT NULL com FK em cascata. Guarda " +
+      "a chave do Google da organização (0503), que só o servidor lê.",
+  },
+  {
     tabela: "ad_conversion_dispatches",
     razao:
       "tests/invariants/credencial-de-anuncios-e-server-side.test.ts — mesmo " +
