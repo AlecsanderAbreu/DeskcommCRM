@@ -1315,6 +1315,12 @@ spec não publica agente — quem prova o veto é `lib/ai/elegibilidade/gate.tes
 `tests/invariants/org-suspensa.test.ts` e o controle do gate na própria spec);
 APROVAR um pedido de LGPD pelo hub (a spec abre o pedido, não aprova).
 
+**Evidência:** `evidence/suspensao-administrativa/leitura-recusada.png`,
+`evidence/suspensao-administrativa/hub-admin.png`,
+`evidence/suspensao-administrativa/hub-pedido-lgpd.png`,
+`evidence/suspensao-administrativa/hub-atendente.png`,
+`evidence/suspensao-administrativa/central-apos-reativar.png`.
+
 ## Jornadas exercitadas (instalação final, virgem)
 
 | Jornada | Resultado |
