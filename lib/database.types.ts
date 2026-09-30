@@ -10199,6 +10199,7 @@ export type Database = {
       fn_followup_patch: { Args: { p_org: string; p_id: string; p_revision: number; p_patch: Json }; Returns: number }
       fn_followup_apply_step: { Args: { p_org: string; p_id: string; p_revision: number; p_patch: Json; p_event: Json }; Returns: number }
       fn_followup_inline_settle: { Args: { p_org: string; p_id: string; p_worker: string; p_done: boolean; p_error?: string | null; p_retry_at?: string | null; p_hold?: boolean; p_acquired_at?: string }; Returns: boolean }
+      fn_followup_turno_descartado: { Args: { p_org: string; p_job: string }; Returns: boolean }
       fn_service_observe_command: { Args: { p_org: string; p_contact: string }; Returns: Json }
       fn_service_event_origin: {
         Args: { p_org: string; p_event: string; p_contact: string; p_session?: string }

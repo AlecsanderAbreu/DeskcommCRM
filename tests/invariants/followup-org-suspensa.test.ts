@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import pg from "pg";
 
+import { cancelJob } from "@/lib/agent-engine/queue/queue";
 import { runFollowupTick, type FollowupJobRequest, type TickDeps } from "@/lib/followup/engine";
 import { flowGraphSchema, type FlowGraph } from "@/lib/followup/graph-schema";
 import { MAX_ACTION_RECHECKS } from "@/lib/followup/node-handlers";
@@ -273,5 +274,77 @@ describe("o evento turn_discarded é só do servidor", () => {
       [inscricao],
     );
     expect(rows[0].n).toBe(1);
+  });
+});
+
+describe("o turno de envio que já RODAVA no instante da suspensão", () => {
+  /**
+   * A C0 falha só o `pending`. O turno `running` segue, o envio é barrado com
+   * `OrgNaoOperanteError` e o worker o cancela (`terminal`). Sem `turn_discarded`,
+   * a reativação lê o cancelamento como worker morto e o dead-man mata a inscrição
+   * com `action_turn_never_completed` — motivo falso, aviso `followup_dead` na Central.
+   */
+  async function ateOTurnoRodarNaSuspensao(): Promise<{ inscricao: string; turno: string }> {
+    await seedOrg(ORG_SUSPENSA);
+    const inscricao = await seedEnrollment(ORG_SUSPENSA, ACTION_END, "a1");
+    await runFollowupTick(deps(), { limit: 5 });
+    for (let i = 0; i < MAX_ACTION_RECHECKS - 1; i++) {
+      await vencer(inscricao);
+      await runFollowupTick(deps(), { limit: 5 });
+    }
+    // O worker pega o turno; a suspensão chega com ele rodando.
+    const { rows } = await pool.query<{ id: string }>(
+      `update job_queue set status = 'running', locked_by = 'w1', locked_at = now()
+        where kind = 'followup_turn' and payload->>'followup_enrollment_id' = $1 returning id`,
+      [inscricao],
+    );
+    await suspender(ORG_SUSPENSA);
+    expect(await turnos(inscricao), "a C0 não toca o que está rodando").toEqual(["running"]);
+    return { inscricao, turno: rows[0]!.id };
+  }
+
+  const descartar = async (turno: string): Promise<boolean> =>
+    (await pool.query<{ gravou: boolean }>(`select public.fn_followup_turno_descartado($1, $2) as gravou`, [ORG_SUSPENSA, turno]))
+      .rows[0]!.gravou;
+
+  it("⭐ o worker grava turn_discarded antes de cancelar: a reativação enfileira um turno novo, sem followup_dead", async () => {
+    const { inscricao, turno } = await ateOTurnoRodarNaSuspensao();
+
+    expect(await descartar(turno)).toBe(true);
+    expect(await descartar(turno), "idempotente: o 2º registro não duplica o evento").toBe(false);
+    await cancelJob(pool, turno, "w1", "A conta desta empresa está suspensa.");
+
+    await reativar(ORG_SUSPENSA);
+    await vencer(inscricao);
+    const retomada = await runFollowupTick(deps(), { limit: 5 });
+    expect(retomada.dead).toBe(0);
+    expect(await turnos(inscricao)).toEqual(["failed|A conta desta empresa está suspensa.", "pending"]);
+    const { rows: mortos } = await pool.query(
+      `select count(*)::int as n from agent_inbox_items where organization_id = $1 and kind = 'followup_dead'`,
+      [ORG_SUSPENSA],
+    );
+    expect(mortos[0].n).toBe(0);
+  });
+
+  it("controle: sem o evento, a mesma sequência mata a inscrição (o defeito que o registro fecha)", async () => {
+    const { inscricao, turno } = await ateOTurnoRodarNaSuspensao();
+    await cancelJob(pool, turno, "w1", "A conta desta empresa está suspensa.");
+
+    await reativar(ORG_SUSPENSA);
+    await vencer(inscricao);
+    const retomada = await runFollowupTick(deps(), { limit: 5 });
+    expect(retomada.dead).toBe(1);
+  });
+
+  it("só o servidor executa fn_followup_turno_descartado", async () => {
+    const { rows } = await pool.query(
+      `select r as papel, has_function_privilege(r, 'public.fn_followup_turno_descartado(uuid, uuid)', 'execute') as pode
+         from unnest(array['anon', 'authenticated', 'service_role']) r order by r`,
+    );
+    expect(rows).toEqual([
+      { papel: "anon", pode: false },
+      { papel: "authenticated", pode: false },
+      { papel: "service_role", pode: true },
+    ]);
   });
 });

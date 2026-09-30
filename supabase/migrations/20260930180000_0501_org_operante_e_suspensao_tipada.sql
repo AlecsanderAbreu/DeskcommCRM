@@ -33,6 +33,8 @@
 --    motor de follow-up não avança, não enfileira e não paga LLM por ela. Na
 --    reativação a inscrição RETOMA: a de um nó `action` cujo turno a C0 descartou
 --    (evento `turn_discarded`) ganha um turno novo, em vez de esgotar o dead-man.
+--    O turno que JÁ RODAVA na suspensão grava o mesmo evento pelo worker, pela
+--    mesma regra (`fn_followup_turno_descartado`, seção C0a).
 -- G. `fn_followup_generation_write` recusa `turn_discarded` vindo da sessão
 --    (`auth.uid()`): só o servidor grava o evento que faz o motor enfileirar.
 --
@@ -117,6 +119,49 @@ create trigger trg_organizacao_estado_so_pelo_servidor
   before insert or update on public.organizations
   for each row execute function public.fn_organizacao_estado_so_pelo_servidor();
 
+-- ── C0a. o turno de envio que sai sem rodar ─────────────────────────────────
+-- O turno de envio de uma inscrição parada num nó `action` saiu sem ter rodado.
+-- O evento diz isso ao motor, que enfileira um turno novo quando a organização
+-- volta a operar (EVENTO_TURNO_DESCARTADO em lib/followup/node-handlers.ts).
+-- Sem ele, os rechecks da reativação esgotavam o dead-man e matavam a inscrição
+-- com `action_turn_never_completed` e um `followup_dead` de motivo falso. Duas
+-- origens, uma regra: a C0 (turno `pending` falhado pela suspensão) e o worker
+-- (turno que JÁ RODAVA na suspensão, com o envio barrado por
+-- `OrgNaoOperanteError` — a C0 não toca `running`). A chave não termina em
+-- `:<número>`: não conta como passo para fn_followup_job_current. Idempotente
+-- pela chave; devolve se gravou. Sem guarda de status da org: a reativação
+-- chama a C0 com a org já `active`.
+create or replace function public.fn_followup_turno_descartado(p_org uuid, p_job uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$
+  with gravado as (
+    insert into public.followup_enrollment_events
+      (organization_id, enrollment_id, node_id, event_type, payload, idempotency_key)
+    select p_org, e.id, e.current_node_id, 'turn_discarded',
+           jsonb_build_object('job_id', j.id, 'motivo', 'org_nao_operante'),
+           coalesce(j.payload->>'source_step_key', j.id::text) || ':descartado'
+      from public.job_queue j
+      join public.followup_enrollments e
+        on e.organization_id = p_org
+       and e.id::text = j.payload->>'followup_enrollment_id'
+       and e.current_node_id = j.payload->>'node_id'
+       and e.status in ('active', 'waiting_reply', 'dormente')
+     where j.id = p_job
+       and j.organization_id = p_org
+       and j.kind = 'followup_turn'
+       and j.payload->>'purpose' = 'send_message'
+    on conflict (enrollment_id, idempotency_key) where idempotency_key is not null do nothing
+    returning 1
+  )
+  select exists (select 1 from gravado);
+$$;
+
+revoke execute on function public.fn_followup_turno_descartado(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.fn_followup_turno_descartado(uuid, uuid) to service_role;
+
 -- ── C0. a fila que a organização parada descarta ────────────────────────────
 -- Falhar o job `pending` por fora não basta: o estado que dependia dele só é
 -- assentado pelo acerto normal (fn_reply_settle, fn_meet_delivery_settle), que
@@ -132,6 +177,7 @@ set search_path = ''
 as $$
 declare
   v_entregas    uuid[];
+  v_turnos      uuid[];
   v_compromisso uuid;
 begin
   with falhados as (
@@ -147,34 +193,14 @@ begin
      where d.organization_id = p_org and d.send_job_id = f.id
        and f.kind = 'approved_reply' and d.status = 'approved'
     returning d.id
-  ),
-  turnos as (
-    -- O turno de envio de uma inscrição parada num nó `action` sai da fila sem
-    -- ter rodado. O evento diz isso ao motor, que enfileira um turno novo quando
-    -- a organização volta a operar (EVENTO_TURNO_DESCARTADO em
-    -- lib/followup/node-handlers.ts). Sem ele, os rechecks da reativação
-    -- esgotavam o dead-man e matavam a inscrição com `action_turn_never_completed`
-    -- e um `followup_dead` de motivo falso. A chave não termina em `:<número>`:
-    -- não conta como passo para fn_followup_job_current.
-    insert into public.followup_enrollment_events
-      (organization_id, enrollment_id, node_id, event_type, payload, idempotency_key)
-    select p_org, e.id, e.current_node_id, 'turn_discarded',
-           jsonb_build_object('job_id', f.id, 'motivo', 'org_nao_operante'),
-           coalesce(f.payload->>'source_step_key', f.id::text) || ':descartado'
-      from falhados f
-      join public.followup_enrollments e
-        on e.organization_id = p_org
-       and e.id::text = f.payload->>'followup_enrollment_id'
-       and e.current_node_id = f.payload->>'node_id'
-       and e.status in ('active', 'waiting_reply', 'dormente')
-     where f.kind = 'followup_turn'
-       and f.payload->>'purpose' = 'send_message'
-    on conflict (enrollment_id, idempotency_key) where idempotency_key is not null do nothing
-    returning 1
   )
-  select coalesce(array_agg(f.id) filter (where f.kind = 'transactional_delivery'), '{}')
-    into v_entregas
+  select coalesce(array_agg(f.id) filter (where f.kind = 'transactional_delivery'), '{}'),
+         coalesce(array_agg(f.id) filter (where f.kind = 'followup_turn'), '{}')
+    into v_entregas, v_turnos
     from falhados f;
+
+  -- O turno de envio que saiu da fila sem rodar avisa o motor (C0a).
+  perform public.fn_followup_turno_descartado(p_org, t.id) from unnest(v_turnos) as t(id);
 
   for v_compromisso in
     update public.calendar_appointments a
