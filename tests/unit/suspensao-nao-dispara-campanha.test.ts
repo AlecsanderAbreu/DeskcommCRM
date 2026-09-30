@@ -23,13 +23,18 @@ interface Chamada {
   tabela: string;
   operacao: "select" | "update";
   not?: [string, string, string];
+  neq?: [string, string];
 }
 
 /** Supabase falso: registra o que foi perguntado e devolve o que o teste manda. */
 function fakeAdmin(opts: { suspensas: string[]; campanhas: unknown[] }) {
   const chamadas: Chamada[] = [];
   const builder = (tabela: string) => {
-    const estado: { not?: [string, string, string]; operacao: "select" | "update" } = {
+    const estado: {
+      not?: [string, string, string];
+      neq?: [string, string];
+      operacao: "select" | "update";
+    } = {
       operacao: "select",
     };
     const b: Record<string, unknown> = {
@@ -43,13 +48,17 @@ function fakeAdmin(opts: { suspensas: string[]; campanhas: unknown[] }) {
       or: () => b,
       order: () => b,
       limit: () => b,
+      neq: (coluna: string, valor: string) => {
+        estado.neq = [coluna, valor];
+        return b;
+      },
       not: (coluna: string, op: string, valor: string) => {
         estado.not = [coluna, op, valor];
         return b;
       },
       maybeSingle: async () => ({ data: null, error: null }),
       then: (resolve: (v: unknown) => unknown) => {
-        chamadas.push({ tabela, operacao: estado.operacao, not: estado.not });
+        chamadas.push({ tabela, operacao: estado.operacao, not: estado.not, neq: estado.neq });
         const data =
           tabela === "organizations"
             ? opts.suspensas.map((id) => ({ id }))
@@ -65,6 +74,12 @@ function fakeAdmin(opts: { suspensas: string[]; campanhas: unknown[] }) {
 }
 
 describe("suspensão × campanha", () => {
+  it("parada é tudo que não é 'active' — redigida e arquivada também não disparam", async () => {
+    const { admin, chamadas } = fakeAdmin({ suspensas: [ORG_SUSPENSA], campanhas: [] });
+    await rodarUmaRodadaDeCampanha(admin as never);
+    expect(chamadas[0]).toMatchObject({ tabela: "organizations", neq: ["status", "active"] });
+  });
+
   it("a rodada EXCLUI as campanhas de organização suspensa da escolha", async () => {
     const { admin, chamadas } = fakeAdmin({ suspensas: [ORG_SUSPENSA], campanhas: [] });
     const r = await rodarUmaRodadaDeCampanha(admin as never);
