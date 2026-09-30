@@ -98,6 +98,13 @@ export interface UserOrgMembership {
    */
   currency?: string | null;
   country?: string | null;
+  /**
+   * `organizations.status` da empresa. Quem decide se ela opera é `ehOperante`
+   * (`lib/organizacao/operante.ts`); ausente ou nulo = NÃO operante.
+   */
+  org_status?: string | null;
+  /** `organizations.suspended_kind` — só significa algo com status 'suspended'. */
+  suspended_kind?: string | null;
 }
 
 export interface AuthUser {
@@ -107,6 +114,11 @@ export interface AuthUser {
   full_name: string | null;
   avatar_url: string | null;
   is_platform_admin: boolean;
+  /**
+   * `platform_admins.scope` (`full` | `support_readonly`), nulo para quem não é
+   * platform admin. Escrita de platform admin exige `=== "full"`; ausente = sem escrita.
+   */
+  platform_admin_scope?: string | null;
   /**
    * Idioma da interface, de `user_metadata.locale`.
    *
@@ -164,6 +176,10 @@ export interface ActiveOrg {
   currency?: string | null;
   /** País da organização (ISO-3166 alpha-2); nulo = Brasil. */
   country?: string | null;
+  /** Status da org ativa (`orgAtivaSemPortao` sempre preenche). Ausente/nulo = não operante. */
+  org_status?: string | null;
+  /** Tipo da suspensão — só significa algo com status 'suspended'. */
+  suspended_kind?: string | null;
   orgId: string;
   /** Fuso IANA da organização — ver `UserOrgMembership.timezone`. */
   timezone?: string | null;
