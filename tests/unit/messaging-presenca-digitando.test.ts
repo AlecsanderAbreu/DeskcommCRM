@@ -36,6 +36,8 @@ let linha: LinhaDeConversa | null = null;
 let ultimaDoCliente: string | null | undefined = "wamid.DO-CLIENTE";
 /** Todo par (coluna, valor) que cada leitura filtrou, por tabela — a prova do escopo de tenant. */
 let filtros: Record<string, Array<[string, unknown]>> = {};
+/** Os argumentos de `not`, `order` e `limit`, por tabela: a ordem e o limite são o que escolhe "a última". */
+let modificadores: Record<string, unknown[][]> = {};
 
 function supabaseDeTeste(): never {
   const cadeia = (tabela: string) => {
@@ -46,8 +48,18 @@ function supabaseDeTeste(): never {
         filtros[tabela]!.push([col, val]);
         return chain;
       },
-      order: () => chain,
-      limit: () => chain,
+      not: (...args: unknown[]) => {
+        (modificadores[tabela] ??= []).push(["not", ...args]);
+        return chain;
+      },
+      order: (...args: unknown[]) => {
+        (modificadores[tabela] ??= []).push(["order", ...args]);
+        return chain;
+      },
+      limit: (...args: unknown[]) => {
+        (modificadores[tabela] ??= []).push(["limit", ...args]);
+        return chain;
+      },
       maybeSingle: async () =>
         tabela === "messages"
           ? { data: ultimaDoCliente === undefined ? null : { external_id: ultimaDoCliente }, error: null }
@@ -77,6 +89,7 @@ beforeEach(() => {
   linha = structuredClone(CONVERSA_NORMAL);
   ultimaDoCliente = "wamid.DO-CLIENTE";
   filtros = {};
+  modificadores = {};
   vi.restoreAllMocks();
 });
 
@@ -179,6 +192,20 @@ describe("sinalizarDigitando — a mensagem que se está respondendo", () => {
     expect(filtros.messages).toContainEqual(["organization_id", "org-1"]);
     expect(filtros.messages).toContainEqual(["conversation_id", "conv-1"]);
     expect(filtros.messages).toContainEqual(["direction", "inbound"]);
+  });
+
+  it("pega a MAIS RECENTE pela hora da mensagem, uma só, sem reação nem sistema", async () => {
+    // Crescente pegaria a primeira mensagem da conversa (a Meta recusa ler a de
+    // mais de 30 dias); sem o limite, `maybeSingle` erra em toda conversa com
+    // duas mensagens e o indicador morre calado. Reação não é mensagem a responder.
+    linha!.channel_sessions = { ...SESSAO_OFICIAL };
+    vi.spyOn(getAdapter("meta_cloud"), "signalTyping").mockResolvedValue(undefined);
+
+    await sinalizarDigitando(supabaseDeTeste(), { organizationId: "org-1", conversationId: "conv-1" });
+
+    expect(modificadores.messages?.[0]).toEqual(["not", "type", "in", "(reaction,system)"]);
+    expect(modificadores.messages?.[1]).toEqual(["order", "sent_at", { ascending: false, nullsFirst: false }]);
+    expect(modificadores.messages).toContainEqual(["limit", 1]);
   });
 
   it("conversa sem mensagem recebida chega ao canal com null — quem decide é o canal", async () => {

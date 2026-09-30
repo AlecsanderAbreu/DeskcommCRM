@@ -454,6 +454,21 @@ describe("adapter meta_cloud — digitando", () => {
     await expect(a().signalTyping!(SINAL)).rejects.toThrow(/meta_131009/);
   });
 
+  it("duas organizações: cada sinal sai com o token do SEU tenant", async () => {
+    const OUTRA = "00000000-0000-4000-8000-0000000000bb";
+    sessaoNoBanco.porOrg = {
+      [`${ORG}|pn-a`]: { cifrado: "\\xaa", token: "tok-A" },
+      [`${OUTRA}|pn-b`]: { cifrado: "\\xbb", token: "tok-B" },
+    };
+    const spy = stubFetch({ success: true });
+
+    await a().signalTyping!({ ...SINAL, organizationId: ORG, sessionRef: "pn-a" });
+    await a().signalTyping!({ ...SINAL, organizationId: OUTRA, sessionRef: "pn-b" });
+
+    const auth = spy.mock.calls.map((c) => (c[1].headers as Record<string, string>).Authorization);
+    expect(auth).toEqual(["Bearer tok-A", "Bearer tok-B"]);
+  });
+
   it("usa o token da SESSÃO quando ele existe, como o envio", async () => {
     configurar();
     sessaoNoBanco.token = "tok-da-sessao";

@@ -303,9 +303,11 @@ export const metaCloudAdapter: ChannelAdapter = {
         message_id: input.inboundExternalId,
         typing_indicator: { type: "text" },
       }),
-      // Ninguém espera por esta chamada (`acenderDigitando` não aguarda), mas
-      // uma conexão pendurada seguraria o turno vivo no worker sem motivo.
-      signal: AbortSignal.timeout(15_000),
+      // Teto curto de propósito: no início do turno ninguém espera esta chamada
+      // (`acenderDigitando`), mas antes da 1ª bolha `esperarComoHumano` a aguarda
+      // — uma Graph pendurada seguraria a mensagem, que é o produto, por causa
+      // do indicador, que é decoração.
+      signal: AbortSignal.timeout(5_000),
     });
     const body = (await res.json().catch(() => ({}))) as {
       error?: { code?: number; message?: string };
