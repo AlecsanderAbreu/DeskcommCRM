@@ -30,13 +30,16 @@ function arvore(fonte: string, arquivo: string): ts.SourceFile {
     arquivo.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
 }
 
+/** `permiteOrgSuspensa` e `"permiteOrgSuspensa"` são a mesma chave. */
+const eAChave = (nome: ts.PropertyName): boolean =>
+  (ts.isIdentifier(nome) || ts.isStringLiteral(nome)) && nome.text === "permiteOrgSuspensa";
+
 /** Linhas onde `permiteOrgSuspensa` aparece como propriedade de objeto. */
 export function usosDaPermissao(fonte: string, arquivo: string): number[] {
   const sf = arvore(fonte, arquivo);
   const linhas: number[] = [];
   const visitar = (n: ts.Node): void => {
-    if ((ts.isPropertyAssignment(n) || ts.isShorthandPropertyAssignment(n)) &&
-        ts.isIdentifier(n.name) && n.name.text === "permiteOrgSuspensa") {
+    if ((ts.isPropertyAssignment(n) || ts.isShorthandPropertyAssignment(n)) && eAChave(n.name)) {
       linhas.push(sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1);
     }
     ts.forEachChild(n, visitar);
@@ -53,7 +56,7 @@ export function requireRoleSemPermissao(fonte: string, arquivo: string): number[
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "requireRole") {
       const opts = n.arguments[1];
       const libera = !!opts && ts.isObjectLiteralExpression(opts) && opts.properties.some((p) =>
-        ts.isPropertyAssignment(p) && ts.isIdentifier(p.name) && p.name.text === "permiteOrgSuspensa" &&
+        ts.isPropertyAssignment(p) && eAChave(p.name) &&
         p.initializer.kind === ts.SyntaxKind.TrueKeyword);
       if (!libera) linhas.push(sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1);
     }
@@ -101,6 +104,10 @@ describe("controles do instrumento", () => {
     expect(usosDaPermissao(`requireRole("admin", { permiteOrgSuspensa: true });`, "x.ts")).toEqual([1]);
     expect(requireRoleSemPermissao(`requireRole("admin", { requestId });`, "x.ts")).toEqual([1]);
     expect(requireRoleSemPermissao(`requireRole("admin", { permiteOrgSuspensa: false });`, "x.ts")).toEqual([1]);
+  });
+  it("a chave entre aspas é a mesma chave, nas duas direções", () => {
+    expect(usosDaPermissao(`requireRole("admin", { "permiteOrgSuspensa": true });`, "x.ts")).toEqual([1]);
+    expect(requireRoleSemPermissao(`requireRole("admin", { 'permiteOrgSuspensa': true });`, "x.ts")).toEqual([]);
   });
   it("não confunde comentário com código", () => {
     expect(usosDaPermissao(`// requireRole(x, { permiteOrgSuspensa: true })\nexport const a = 1;`, "x.ts")).toEqual([]);
