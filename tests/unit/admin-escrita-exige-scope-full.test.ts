@@ -33,16 +33,6 @@ const EXCECOES: Record<string, string> = {
   "app/actions/auth/politicaDeMfa.ts#B:flag":
     "lê is_platform_admin só para saber se a política de MFA da PLATAFORMA vale para a própria conta; não é atalho de papel nem escrita em nome de outro",
   // ── temporárias: Task 15 ──
-  "app/actions/settings/updateDestinosInternos.ts#B:use-server": PENDENTE,
-  "app/actions/settings/smtp.ts#B:use-server": PENDENTE,
-  "app/actions/settings/updateMetaApp.ts#B:use-server": PENDENTE,
-  "app/actions/settings/updateComportamento.ts#B:use-server": PENDENTE,
-  "app/actions/settings/updateGoogleOAuth.ts#B:use-server": PENDENTE,
-  "app/actions/settings/updateSignupMode.ts#B:use-server": PENDENTE,
-  "app/actions/settings/updateModuloDaInstalacao.ts#B:use-server": PENDENTE,
-  "app/actions/settings/updateBranding.ts#B:use-server": PENDENTE,
-  "app/actions/registration/decide.ts#B:use-server": PENDENTE,
-  "app/actions/admin/salvarConfiguracaoDaInstalacao.ts#B:use-server": PENDENTE,
   // ── temporárias: Task 15b (atalho de papel por is_platform_admin) ──
   "app/actions/integrations/connectNuvemshop.ts#B:flag": PENDENTE,
   "app/actions/integrations/disconnectNuvemshop.ts#B:flag": PENDENTE,

@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const deps = vi.hoisted(() => ({ upsert: vi.fn(), audit: vi.fn() }));
 
-vi.mock("@/lib/auth/requirePlatformAdmin", () => ({ requirePlatformAdmin: async () => ({ user: { id: "eu" } }) }));
+vi.mock("@/lib/auth/requirePlatformAdmin", () => ({ requirePlatformAdminEscrita: async () => ({ user: { id: "eu" } }) }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 vi.mock("@/lib/audit", () => ({ audit: deps.audit }));

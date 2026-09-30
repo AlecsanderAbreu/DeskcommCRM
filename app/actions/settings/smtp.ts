@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { headers } from "next/headers";
 import { audit } from "@/lib/audit";
-import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
+import { requirePlatformAdminEscrita } from "@/lib/auth/requirePlatformAdmin";
 import { checkSmtpConfiguration } from "@/lib/email/smtp";
 import { saveSmtpConfig } from "@/lib/email/config";
 
@@ -17,7 +17,7 @@ const schema = z.object({
 });
 
 export async function updateSmtp(input: z.input<typeof schema>) {
-  const { user } = await requirePlatformAdmin();
+  const { user } = await requirePlatformAdminEscrita();
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
     const field = parsed.error.issues[0]?.path[0];
@@ -62,6 +62,6 @@ export async function updateSmtp(input: z.input<typeof schema>) {
 }
 
 export async function checkSmtp() {
-  await requirePlatformAdmin();
+  await requirePlatformAdminEscrita();
   return checkSmtpConfiguration();
 }
