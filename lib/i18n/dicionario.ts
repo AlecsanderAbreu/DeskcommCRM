@@ -11403,6 +11403,12 @@ export const DICIONARIO: Traducoes = {
   "Tenant reativado com sucesso": { es: "Tenant reactivado correctamente" },
   "Erro ao reativar tenant": { es: "Error al reactivar el tenant" },
   "Nada mudou": { es: "Nada cambió" },
+  "Seu acesso à administração da plataforma é somente leitura.": {
+    es: "Su acceso a la administración de la plataforma es de solo lectura.",
+  },
+  "Confirme a verificação em duas etapas nesta sessão.": {
+    es: "Confirme la verificación en dos pasos en esta sesión.",
+  },
   "Esta empresa já estava suspensa.": { es: "Esta empresa ya estaba suspendida." },
   "Esta empresa foi encerrada ou anonimizada e já não opera.": {
     es: "Esta empresa fue cerrada o anonimizada y ya no opera.",

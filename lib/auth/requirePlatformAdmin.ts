@@ -20,6 +20,7 @@ import { redirect } from "next/navigation";
 import type { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { fail, type ApiError } from "@/lib/api/wrappers";
+import { EscritaDePlatformAdminNegada } from "@/lib/auth/recusa-de-escrita-de-admin";
 import { mfaEmDivida } from "@/lib/auth/server";
 import { createClient } from "@/lib/supabase/server";
 
@@ -73,16 +74,8 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminContext> {
   };
 }
 
-/** Platform admin que existe mas não pode ESCREVER. `code` é o de `lib/api/errors.ts`. */
-export class EscritaDePlatformAdminNegada extends Error {
-  constructor(
-    readonly code: "forbidden_scope" | "mfa_required",
-    message: string,
-  ) {
-    super(message);
-    this.name = "EscritaDePlatformAdminNegada";
-  }
-}
+// A classe mora no módulo sem `next/*` para o formulário ler a mesma frase.
+export { EscritaDePlatformAdminNegada };
 
 /**
  * `requirePlatformAdmin()` + o que a ESCRITA exige e a leitura não:
@@ -99,13 +92,10 @@ export class EscritaDePlatformAdminNegada extends Error {
 export async function requirePlatformAdminEscrita(): Promise<PlatformAdminContext> {
   const ctx = await requirePlatformAdmin();
   if (ctx.platformAdmin.scope !== "full") {
-    throw new EscritaDePlatformAdminNegada(
-      "forbidden_scope",
-      "Seu acesso à administração da plataforma é somente leitura.",
-    );
+    throw new EscritaDePlatformAdminNegada("forbidden_scope");
   }
   if (await mfaEmDivida()) {
-    throw new EscritaDePlatformAdminNegada("mfa_required", "Confirme a verificação em duas etapas nesta sessão.");
+    throw new EscritaDePlatformAdminNegada("mfa_required");
   }
   return ctx;
 }
