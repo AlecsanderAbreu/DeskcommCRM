@@ -15,6 +15,15 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
+const avisos = vi.hoisted(() => [] as Array<[string, Record<string, unknown>]>);
+vi.mock("@/lib/logger", () => ({
+  logger: {
+    info: () => undefined,
+    error: () => undefined,
+    warn: (msg: string, meta: Record<string, unknown>) => avisos.push([msg, meta]),
+  },
+}));
+
 import { registrarExcecaoDoEnvio, rodarUmaRodadaDeCampanha } from "@/lib/campanhas/rodada";
 import { OrgNaoOperanteError } from "@/lib/organizacao/operante";
 
@@ -28,7 +37,7 @@ interface Chamada {
 }
 
 /** Supabase falso: registra o que foi perguntado e devolve o que o teste manda. */
-function fakeAdmin(opts: { suspensas: string[]; campanhas: unknown[] }) {
+function fakeAdmin(opts: { suspensas: string[]; campanhas: unknown[]; erroNaBusca?: string }) {
   const chamadas: Chamada[] = [];
   const builder = (tabela: string) => {
     const estado: {
@@ -66,6 +75,9 @@ function fakeAdmin(opts: { suspensas: string[]; campanhas: unknown[] }) {
             : estado.operacao === "update"
               ? []
               : opts.campanhas;
+        if (opts.erroNaBusca && tabela === "campaigns" && estado.operacao === "select") {
+          return Promise.resolve({ data: null, error: { message: opts.erroNaBusca } }).then(resolve);
+        }
         return Promise.resolve({ data, error: null }).then(resolve);
       },
     };
@@ -116,6 +128,18 @@ describe("suspensão × campanha", () => {
     await rodarUmaRodadaDeCampanha(admin as never);
     expect(chamadas[0]?.tabela).toBe("organizations");
     expect(chamadas.slice(1).every((c) => c.tabela === "campaigns")).toBe(true);
+  });
+});
+
+describe("a busca das campanhas em andamento falhou", () => {
+  it("⭐ registra o erro e não responde 'nada a fazer' — a falha não se disfarça de rodada vazia", async () => {
+    avisos.length = 0;
+    const { admin } = fakeAdmin({ suspensas: [], campanhas: [], erroNaBusca: "timeout do PostgREST" });
+    const r = await rodarUmaRodadaDeCampanha(admin as never);
+
+    expect(r.detalhe).toBe("busca_falhou");
+    expect(r.enviadas).toBe(0);
+    expect(avisos).toContainEqual(["[campanha] busca das campanhas em andamento falhou", { motivo: "timeout do PostgREST" }]);
   });
 });
 

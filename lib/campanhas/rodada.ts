@@ -118,7 +118,12 @@ export async function rodarUmaRodadaDeCampanha(
   if (idsParadas.length > 0) {
     consulta = consulta.not("organization_id", "in", `(${idsParadas.join(",")})`);
   }
-  const { data: campanhas } = await consulta;
+  const { data: campanhas, error: falhaDaBusca } = await consulta;
+  if (falhaDaBusca) {
+    // Sem isto a falha virava "nada_a_fazer": indistinguível de rodada vazia.
+    logger.warn("[campanha] busca das campanhas em andamento falhou", { motivo: falhaDaBusca.message });
+    return { ...VAZIA, promovidas, detalhe: "busca_falhou" };
+  }
   // `as unknown as`: a lista de colunas é montada por concatenação, e o tipo
   // gerado do PostgREST só sabe inferir literal — o mesmo caminho que
   // `lib/asaas/*` já usa para tabela que ainda não está em `database.types.ts`.
