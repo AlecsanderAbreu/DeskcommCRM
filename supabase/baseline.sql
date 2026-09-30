@@ -43011,7 +43011,7 @@ alter table public.organizations
   add constraint organizations_suspended_kind_check check (suspended_kind in ('administrativa', 'cobranca'));
 
 comment on column public.organizations.suspended_kind is
-  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0495).';
+  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0496).';
 
 create or replace function public.fn_org_operante(p_org uuid)
 returns boolean

@@ -221,6 +221,12 @@ describe("fn_org_operante — a régua SQL do predicado", () => {
     expect(operante(ORG_FORJADA)).toBe("false");
   });
 
+  it("o COMMENT da coluna que todo self-hoster grava cita a migration certa (0496; na main, 0495 é outra)", () => {
+    expect(
+      valor(`select col_description('public.organizations'::regclass, (select attnum from pg_attribute where attrelid = 'public.organizations'::regclass and attname = 'suspended_kind'));`),
+    ).toContain("(migration 0496)");
+  });
+
   it("⭐ o tipo da suspensão é vocabulário fechado", () => {
     const e = erroDe(`update public.organizations set suspended_kind = 'fraude' where id = '${ORG_A}';`);
     expect(e).toContain("23514");
