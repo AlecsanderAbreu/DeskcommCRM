@@ -49,6 +49,11 @@ const JOB_B = "c0de0496-5555-4000-8000-00000000000b";
 const MSG_A = "c0de0496-6666-4000-8000-00000000000a";
 const MSG_B = "c0de0496-6666-4000-8000-00000000000b";
 const PEDIDO_LGPD = "c0de0496-7777-4000-8000-000000000001";
+const AGENTE_A = "c0de0496-8888-4000-8000-00000000000a";
+const VERSAO_A = "c0de0496-8888-4000-8000-0000000000a1";
+const JOB_RASCUNHO = "c0de0496-5555-4000-8000-0000000000d1"; // approved_reply do rascunho aprovado
+const JOB_ENTREGA = "c0de0496-5555-4000-8000-0000000000e1"; // transactional_delivery do link do Meet
+const COMPROMISSO_A = "c0de0496-9999-4000-8000-0000000000a1";
 
 const MOTIVO = "motivo de teste do invariante 0496";
 
@@ -112,7 +117,11 @@ function reiniciar(): void {
        set status = 'active', suspended_kind = null, suspended_at = null,
            suspended_reason = null, suspended_by = null
      where id in ('${ORG_A}', '${ORG_B}', '${ORG_C}');
-    update public.job_queue set status = 'pending', last_error = null where id in ('${JOB_A}', '${JOB_B}');
+    update public.job_queue set status = 'pending', last_error = null
+     where id in ('${JOB_A}', '${JOB_B}', '${JOB_RASCUNHO}', '${JOB_ENTREGA}');
+    update public.ai_reply_drafts set status = 'approved', error_code = null where send_job_id = '${JOB_RASCUNHO}';
+    update public.calendar_appointments set meeting_delivery = '{"state":"queued","generation":"1"}' where id = '${COMPROMISSO_A}';
+    delete from public.agent_inbox_items where organization_id = '${ORG_A}' and ref_kind = 'appointment';
     update public.messages set status = 'queued', error_code = null where id in ('${MSG_A}', '${MSG_B}');
     update public.conversations set last_inbound_at = null where id in ('${CONVERSA_A1}', '${CONVERSA_A2}');
     delete from public.agent_inbox_items where organization_id = '${ORG_A}' and kind = 'org_reativada';
@@ -164,6 +173,28 @@ beforeAll(() => {
       ('${MSG_A}', '${ORG_A}', '${CONVERSA_A1}', '${SESSAO_A}', '${CONTATO_A1}', 'text', 'outbound', 'queued', 'user', 'resposta na fila'),
       ('${MSG_B}', '${ORG_B}', '${CONVERSA_B}', '${SESSAO_B}', '${CONTATO_B}', 'text', 'outbound', 'queued', 'user', 'resposta na fila')
       on conflict (id) do nothing;
+    -- Rascunho aprovado com o envio na fila, e link do Meet com a entrega na fila:
+    -- os dois estados que dependem de um job 'pending' e que o acerto normal
+    -- (fn_reply_settle / fn_meet_delivery_settle) nunca alcança se o job é
+    -- falhado por fora.
+    insert into public.ai_agents (id, organization_id, name, system_prompt)
+      values ('${AGENTE_A}', '${ORG_A}', 'Agente 0496', 'x') on conflict (id) do nothing;
+    insert into public.ai_agent_versions (id, organization_id, agent_id, version_number, system_prompt, provider, model)
+      values ('${VERSAO_A}', '${ORG_A}', '${AGENTE_A}', 1, 'x', 'anthropic', 'm') on conflict (id) do nothing;
+    insert into public.job_queue (id, organization_id, contact_id, kind, status) values
+      ('${JOB_RASCUNHO}', '${ORG_A}', '${CONTATO_A1}', 'approved_reply', 'pending'),
+      ('${JOB_ENTREGA}', '${ORG_A}', '${CONTATO_A1}', 'transactional_delivery', 'pending')
+      on conflict (id) do nothing;
+    insert into public.ai_reply_drafts
+      (organization_id, conversation_id, contact_id, agent_id, agent_version_id, channel_session_id,
+       service_boundary, context_revision, operation_revision, status, send_job_id)
+      values ('${ORG_A}', '${CONVERSA_A1}', '${CONTATO_A1}', '${AGENTE_A}', '${VERSAO_A}', '${SESSAO_A}',
+              '{}', 1, 1, 'approved', '${JOB_RASCUNHO}')
+      on conflict do nothing;
+    insert into public.calendar_appointments (id, organization_id, title, starts_at, ends_at, contact_id)
+      values ('${COMPROMISSO_A}', '${ORG_A}', 'Reunião 0496', now() + interval '1 day', now() + interval '1 day 1 hour', '${CONTATO_A1}')
+      on conflict (id) do nothing;
+    update public.calendar_appointments set meeting_delivery_job_id = '${JOB_ENTREGA}' where id = '${COMPROMISSO_A}';
   `);
 });
 
@@ -287,6 +318,30 @@ describe("inv. 4 — fn_suspender_organizacao para a fila e escreve numa transa�
     expect(estado(ORG_B)).toBe("active/-");
     expect(valor(`select status from public.job_queue where id = '${JOB_B}';`)).toBe("pending");
     expect(valor(`select status from public.messages where id = '${MSG_B}';`)).toBe("queued");
+  });
+
+  it("⭐ o rascunho aprovado cujo envio estava na fila vira failed|org_suspensa, e não fica 'aguardando envio'", () => {
+    expect(suspender(ORG_A, "administrativa")).toEqual({ changed: true });
+    expect(valor(`select status || '|' || last_error from public.job_queue where id = '${JOB_RASCUNHO}';`)).toBe(
+      "failed|org_nao_operante",
+    );
+    expect(valor(`select status || '|' || error_code from public.ai_reply_drafts where send_job_id = '${JOB_RASCUNHO}';`)).toBe(
+      "failed|org_suspensa",
+    );
+  });
+
+  it("⭐ o link do Meet cuja entrega estava na fila fica com state failed e ganha o aviso na Central", () => {
+    expect(suspender(ORG_A, "administrativa")).toEqual({ changed: true });
+    expect(
+      valor(
+        `select (meeting_delivery->>'state') || '|' || (meeting_delivery->>'error') || '|' || (meeting_delivery ? 'settled_at')::text from public.calendar_appointments where id = '${COMPROMISSO_A}';`,
+      ),
+    ).toBe("failed|org_suspensa|true");
+    expect(
+      valor(
+        `select count(*) from public.agent_inbox_items where organization_id = '${ORG_A}' and ref_kind = 'appointment' and ref_id = '${COMPROMISSO_A}' and status = 'open';`,
+      ),
+    ).toBe("1");
   });
 
   it("idempotente: suspender de novo pelo mesmo tipo não muda nada nem emite 2º evento", () => {

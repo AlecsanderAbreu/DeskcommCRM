@@ -21,7 +21,9 @@
 -- C. `fn_suspender_organizacao`: uma transação, lock na linha, anti-backlog
 --    (jobs `pending` → `failed`/`org_nao_operante`; mensagens `queued` →
 --    `failed`/`org_suspensa`) e `tenant.suspended` no `event_log` na MESMA
---    transação. A administrativa prevalece sobre a de cobrança.
+--    transação. A administrativa prevalece sobre a de cobrança. O descarte da
+--    fila (C0, `fn_org_parada_descarta_fila`) assenta junto o que dependia do
+--    job: rascunho aprovado → `failed`, link do Meet → `failed` + aviso.
 -- D. `agent_inbox_items.kind` ganha 'org_reativada' (lista completa do baseline).
 -- E. `fn_reativar_organizacao`: exige o tipo, zera a suspensão, falha jobs
 --    `pending` que sobraram e abre UM item 'org_reativada' com a contagem de
@@ -31,7 +33,8 @@
 -- plpgsql resolve a relação ao executar, e daria 42P01 em toda chamada).
 -- Idempotente: `add column if not exists`, drop+add de constraint, `create or
 -- replace`, `drop trigger if exists`. Toda função perde EXECUTE das duas
--- origens (public e anon) e de authenticated; só service_role executa.
+-- origens (public e anon) e de authenticated; só service_role executa — e a
+-- C0, interna às duas funções de estado, nem ele.
 -- Gate: tests/invariants/org-suspensa.test.ts.
 
 -- ── A. suspended_kind + fn_org_operante ──────────────────────────────────────
@@ -105,6 +108,56 @@ create trigger trg_organizacao_estado_so_pelo_servidor
   before insert or update on public.organizations
   for each row execute function public.fn_organizacao_estado_so_pelo_servidor();
 
+-- ── C0. a fila que a organização parada descarta ────────────────────────────
+-- Falhar o job `pending` por fora não basta: o estado que dependia dele só é
+-- assentado pelo acerto normal (fn_reply_settle, fn_meet_delivery_settle), que
+-- nunca roda para um job que não saiu da fila. Sem isto, o rascunho aprovado
+-- ficava 'aguardando envio' e o link do Meet nunca saía, sem aviso. Precedente:
+-- fn_reply_redact, que falha job e rascunho juntos. Chamada pelas duas funções
+-- de estado; nenhum papel a executa direto.
+create or replace function public.fn_org_parada_descarta_fila(p_org uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_entregas    uuid[];
+  v_compromisso uuid;
+begin
+  with falhados as (
+    update public.job_queue
+       set status = 'failed', last_error = 'org_nao_operante'
+     where organization_id = p_org and status = 'pending'
+    returning id, kind
+  ),
+  rascunhos as (
+    update public.ai_reply_drafts d
+       set status = 'failed', error_code = 'org_suspensa', updated_at = now()
+      from falhados f
+     where d.organization_id = p_org and d.send_job_id = f.id
+       and f.kind = 'approved_reply' and d.status = 'approved'
+    returning d.id
+  )
+  select coalesce(array_agg(f.id) filter (where f.kind = 'transactional_delivery'), '{}')
+    into v_entregas
+    from falhados f;
+
+  for v_compromisso in
+    update public.calendar_appointments a
+       set meeting_delivery = a.meeting_delivery
+             || jsonb_build_object('state', 'failed', 'error', 'org_suspensa', 'settled_at', now())
+     where a.organization_id = p_org
+       and a.meeting_delivery_job_id = any(v_entregas)
+    returning a.id
+  loop
+    perform public.fn_meet_notice(p_org, v_compromisso, 'failed');
+  end loop;
+end;
+$$;
+
+revoke execute on function public.fn_org_parada_descarta_fila(uuid) from public, anon, authenticated, service_role;
+
 -- ── C. fn_suspender_organizacao: uma transação, fila parada ──────────────────
 -- Conserta a rota que lia, gravava e emitia o evento sem await em três passos.
 -- `failed` e não `dead` nos jobs: é o terminal de veto (queue.ts); `dead` abre
@@ -161,9 +214,7 @@ begin
     return jsonb_build_object('changed', false, 'motivo', 'org_encerrada');
   end if;
 
-  update public.job_queue
-     set status = 'failed', last_error = 'org_nao_operante'
-   where organization_id = p_org and status = 'pending';
+  perform public.fn_org_parada_descarta_fila(p_org);
 
   update public.messages
      set status = 'failed', error_code = 'org_suspensa'
@@ -252,9 +303,7 @@ begin
          suspended_by = null
    where id = p_org;
 
-  update public.job_queue
-     set status = 'failed', last_error = 'org_nao_operante'
-   where organization_id = p_org and status = 'pending';
+  perform public.fn_org_parada_descarta_fila(p_org);
 
   if v_desde is not null then
     select count(*) into v_conversas
