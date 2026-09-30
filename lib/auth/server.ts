@@ -295,8 +295,10 @@ export const loadAuthUser = cache(async (): Promise<AuthUser | null> => {
  * tinha até a spec da cobrança (§4, item 3).
  *
  * Só para quem PRECISA enxergar a org parada: `requireRole` (responde 403
- * `org_suspended` em JSON, não 307), o hub `/account-suspended` e leitura que não
- * pode sumir para o suspenso (`lib/legal/operador.ts`). O resto usa `resolveActiveOrg`.
+ * `org_suspended` em JSON, não 307), o hub `/account-suspended`, leitura que não
+ * pode sumir para o suspenso (`lib/legal/operador.ts`) e o início de um
+ * acompanhamento, que só guarda para onde voltar (`admin/tenants/[id]/impersonate`).
+ * O resto usa `resolveActiveOrg`.
  */
 export const orgAtivaSemPortao = cache(async (authUser: AuthUser): Promise<ActiveOrg | null> => {
   if (authUser.support) {
