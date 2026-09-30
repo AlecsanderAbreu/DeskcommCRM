@@ -129,6 +129,7 @@ export const DICIONARIO: Traducoes = {
   "Envio pausado": { es: "Envío en pausa" },
   "A conta está conectada, mas o envio está desligado na aba Configuração.": { es: "La cuenta está conectada, pero el envío está desactivado en la pestaña Configuración." },
   "A conta está conectada e o envio está ligado.": { es: "La cuenta está conectada y el envío está activado." },
+  "A conta desta empresa está suspensa.": { es: "La cuenta de esta empresa está suspendida." },
   "Conversões chegando ao Google": { es: "Conversiones llegando a Google" },
   "Nenhuma conversão aceita ainda": { es: "Ninguna conversión aceptada todavía" },
   "Pode ser falta de negócios vindos de anúncio do Google, ou a captura do clique ainda não configurada no site.": { es: "Puede deberse a que no hay negocios que vengan de anuncios de Google o a que la captura del clic aún no está configurada en el sitio." },
