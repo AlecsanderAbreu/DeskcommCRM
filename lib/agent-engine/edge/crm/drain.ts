@@ -23,6 +23,7 @@ import { avisoDeEventoMorto, IA_QUE_NAO_RESPONDEU } from '@/lib/event-log/aviso-
 import { TIPOS_DERIVAVEIS, DERIVACAO_TERMINADA } from '@/lib/messaging/media/derivable';
 import { decidirElegibilidadeDaConversa } from '@/lib/ai/elegibilidade/consulta-pg';
 import { deveCederTurnoAoRetorno } from '@/lib/followup/ceder-turno-ao-retorno';
+import { ehOperante } from '@/lib/organizacao/operante';
 
 const DRAIN_CONSUMER = 'agent-engine';
 
@@ -214,12 +215,19 @@ async function processEvent(
   }
   const p = parsed.data;
 
-  // Spec 14: org em modo 'external' tem agente EXTERNO como dono da conversa —
-  // o engine não responde por cima. Evento é consumido (done) sem job.
-  const { rows: modeRows } = await pool.query<{ mode: string | null }>(
-    `select settings->>'ai_dispatch_mode' as mode from organizations where id = $1`,
+  // Organização parada (suspensa, redigida, arquivada) não gera turno: o evento
+  // é consumido sem job. Vai na MESMA consulta do modo externo — uma ida ao banco
+  // por evento, não duas — e vem ANTES do `canAssist`, que desliga o gate.
+  const { rows: modeRows } = await pool.query<{ mode: string | null; status: string | null }>(
+    `select settings->>'ai_dispatch_mode' as mode, status from organizations where id = $1`,
     [event.organization_id],
   );
+  if (!ehOperante(modeRows[0]?.status)) {
+    log.info('drain: organização não operante — evento consumido sem job', { event_id: event.id });
+    return 'processado';
+  }
+  // Spec 14: org em modo 'external' tem agente EXTERNO como dono da conversa —
+  // o engine não responde por cima. Evento é consumido (done) sem job.
   if (modeRows[0]?.mode === 'external') {
     log.info('drain: org em modo external (spec 14) — evento pulado', { event_id: event.id });
     return 'processado';
