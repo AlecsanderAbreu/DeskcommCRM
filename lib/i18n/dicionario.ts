@@ -1722,6 +1722,11 @@ export const DICIONARIO: Traducoes = {
   "Volume de texto por atendimento": { es: "Volumen de texto por atención" },
   "Custo máximo por atendimento (centavos)": { es: "Costo máximo por atención (centavos)" },
   "Mensagens anteriores que ele lê": { es: "Mensajes anteriores que lee" },
+  "Esperar antes de responder (segundos)": { es: "Esperar antes de responder (segundos)" },
+  "Mensagens do mesmo contato dentro desse tempo viram uma resposta só. Vazio usa a janela padrão da instalação (máximo 60 segundos).": {
+    es: "Los mensajes del mismo contacto dentro de este tiempo se convierten en una sola respuesta. Vacío usa la ventana predeterminada de la instalación (máximo 60 segundos).",
+  },
+  "Vazio = padrão da instalação": { es: "Vacío = predeterminado de la instalación" },
   "Tamanho máximo desse histórico": { es: "Tamaño máximo de ese historial" },
   "As instruções dele": { es: "Sus instrucciones" },
   "Estilo de resposta": { es: "Estilo de respuesta" },
@@ -5258,6 +5263,20 @@ export const DICIONARIO: Traducoes = {
   "Variação aleatória máxima em segundos": { es: "Variación aleatoria máxima en segundos" },
   "Intervalo mínimo entre mensagens do mesmo número, mais uma variação aleatória — ritmo cravado parece robô para o WhatsApp.": {
     es: "Intervalo mínimo entre mensajes del mismo número, más una variación aleatoria. Un ritmo siempre igual hace que WhatsApp lo detecte como un robot.",
+  },
+  "Atraso humano antes da primeira resposta (ms)": {
+    es: "Retraso humano antes de la primera respuesta (ms)",
+  },
+  "Ver a notificação": { es: "Ver la notificación" },
+  "Mínimo": { es: "Mínimo" },
+  "Máximo": { es: "Máximo" },
+  "Tempo para ver a notificação em ms": { es: "Tiempo para ver la notificación en ms" },
+  "Por caractere": { es: "Por carácter" },
+  "Milissegundos por caractere da resposta": { es: "Milisegundos por carácter de la respuesta" },
+  "Atraso humano mínimo em ms": { es: "Retraso humano mínimo en ms" },
+  "Atraso humano máximo em ms": { es: "Retraso humano máximo en ms" },
+  "Quanto o agente \"pensa\" antes de mandar a primeira resposta (ver a notificação + digitação por caractere, limitado entre o mínimo e o máximo). Campo vazio usa o padrão — rápido demais parece robô; lento demais parece que caiu. Não mexe no intervalo entre mensagens.": {
+    es: "Cuánto \"piensa\" el agente antes de enviar la primera respuesta (ver la notificación + escritura por carácter, limitado entre un mínimo y un máximo). Campo vacío usa el estándar: demasiado rápido parece robot; demasiado lento parece que se cayó. No cambia el intervalo entre mensajes.",
   },
   "Teto diário de envios": { es: "Tope diario de envíos" },
   "sem teto definido": { es: "sin tope definido" },
