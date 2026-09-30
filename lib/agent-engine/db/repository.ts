@@ -92,7 +92,7 @@ export type InboxKind =
   // A proposta rascunhada pela IA precisa de revisão de uma pessoa — a Central
   // acompanha até resolver.
   | 'proposta_pronta_para_revisao'
-  // (migration 0495) A organização voltou de uma suspensão e há conversas que
+  // (migration 0496) A organização voltou de uma suspensão e há conversas que
   // receberam mensagem enquanto ela estava parada. A IA não respondeu e não vai
   // responder sozinha, então quem abre o Inbox é uma pessoa. Nasce sem referência.
   | 'org_reativada'

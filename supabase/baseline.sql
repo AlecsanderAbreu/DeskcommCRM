@@ -10106,7 +10106,7 @@ alter table public.agent_inbox_items
     -- sugerido (plano N1) ou falta preço de catálogo — a Central acompanha
     -- até as duas pendências sumirem, ou até a proposta ser enviada/descartada.
     'proposta_pronta_para_revisao',
-    -- (migration 0495) a organização voltou de uma suspensão e há conversas que
+    -- (migration 0496) a organização voltou de uma suspensão e há conversas que
     -- receberam mensagem enquanto ela estava parada: a IA não respondeu nem vai
     -- responder sozinha. Um item por reativação, aberto por fn_reativar_organizacao.
     'org_reativada',
@@ -42991,9 +42991,9 @@ create policy followup_flow_versions_delete on public.followup_flow_versions
   using (organization_id in (select public.fn_user_org_ids())
          and public.fn_role_at_least(organization_id, 'manager'));
 
--- ---- org operante e suspensão tipada (migration 0495) ----
+-- ---- org operante e suspensão tipada (migration 0496) ----
 -- A suspensão que suspende (spec cobrança do revendedor §2.1, §3.1). Corpo e
--- porquê: a migration 0495. Cópia byte a byte das seções A, B, C e E dela; a
+-- porquê: a migration 0496. Cópia byte a byte das seções A, B, C e E dela; a
 -- seção D (kind 'org_reativada') entra NO LUGAR, no bloco único de
 -- agent_inbox_items_kind_check. Entra ANTES da VARREDURA anon porque cria função.
 
@@ -43075,7 +43075,7 @@ create trigger trg_organizacao_estado_so_pelo_servidor
 -- `failed` e não `dead` nos jobs: é o terminal de veto (queue.ts); `dead` abre
 -- aviso `job_dead`. A mensagem `queued` vira `failed` para o redrive não a
 -- mandar quando alguém olhar de novo. Suspensão com tipo NULO (imagem anterior
--- à 0495, depois de rollback) vale como administrativa.
+-- à 0496, depois de rollback) vale como administrativa.
 create or replace function public.fn_suspender_organizacao(
   p_org uuid, p_kind text, p_motivo text, p_ator uuid
 ) returns jsonb

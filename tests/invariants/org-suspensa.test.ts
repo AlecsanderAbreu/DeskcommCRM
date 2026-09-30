@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { lastLine, sql, writeCountAs } from "./gov-helpers";
 
 /**
- * A SUSPENSÃO QUE SUSPENDE (migration 0495; spec cobrança do revendedor §2.1,
+ * A SUSPENSÃO QUE SUSPENDE (migration 0496; spec cobrança do revendedor §2.1,
  * §3.1 e §12, invariantes 2 a 4).
  *
  * Antes: suspender só tirava a pessoa da tela. A rota fazia leitura, UPDATE e
@@ -26,31 +26,31 @@ import { lastLine, sql, writeCountAs } from "./gov-helpers";
  * passaria por prova do gatilho.
  */
 
-const ORG_A = "c0de0492-0000-4000-8000-00000000000a"; // a que é suspensa
-const ORG_B = "c0de0492-0000-4000-8000-00000000000b"; // a vizinha, sempre ativa
-const ORG_C = "c0de0492-0000-4000-8000-00000000000c"; // alvo do inv. 2
-const ORG_R = "c0de0492-0000-4000-8000-00000000000d"; // redigida com tipo residual
-const ORG_FORJADA = "c0de0492-0000-4000-8000-00000000000e"; // nunca pode nascer
+const ORG_A = "c0de0496-0000-4000-8000-00000000000a"; // a que é suspensa
+const ORG_B = "c0de0496-0000-4000-8000-00000000000b"; // a vizinha, sempre ativa
+const ORG_C = "c0de0496-0000-4000-8000-00000000000c"; // alvo do inv. 2
+const ORG_R = "c0de0496-0000-4000-8000-00000000000d"; // redigida com tipo residual
+const ORG_FORJADA = "c0de0496-0000-4000-8000-00000000000e"; // nunca pode nascer
 
-const DONO = "c0de0492-1111-4000-8000-000000000001"; // platform admin `full`
-const SUPORTE = "c0de0492-1111-4000-8000-000000000002"; // platform admin `support_readonly`
-const ADMIN_A = "c0de0492-1111-4000-8000-000000000003"; // admin do tenant A
+const DONO = "c0de0496-1111-4000-8000-000000000001"; // platform admin `full`
+const SUPORTE = "c0de0496-1111-4000-8000-000000000002"; // platform admin `support_readonly`
+const ADMIN_A = "c0de0496-1111-4000-8000-000000000003"; // admin do tenant A
 
-const SESSAO_A = "c0de0492-2222-4000-8000-00000000000a";
-const SESSAO_B = "c0de0492-2222-4000-8000-00000000000b";
-const CONTATO_A1 = "c0de0492-3333-4000-8000-0000000000a1";
-const CONTATO_A2 = "c0de0492-3333-4000-8000-0000000000a2";
-const CONTATO_B = "c0de0492-3333-4000-8000-0000000000b1";
-const CONVERSA_A1 = "c0de0492-4444-4000-8000-0000000000a1";
-const CONVERSA_A2 = "c0de0492-4444-4000-8000-0000000000a2";
-const CONVERSA_B = "c0de0492-4444-4000-8000-0000000000b1";
-const JOB_A = "c0de0492-5555-4000-8000-00000000000a";
-const JOB_B = "c0de0492-5555-4000-8000-00000000000b";
-const MSG_A = "c0de0492-6666-4000-8000-00000000000a";
-const MSG_B = "c0de0492-6666-4000-8000-00000000000b";
-const PEDIDO_LGPD = "c0de0492-7777-4000-8000-000000000001";
+const SESSAO_A = "c0de0496-2222-4000-8000-00000000000a";
+const SESSAO_B = "c0de0496-2222-4000-8000-00000000000b";
+const CONTATO_A1 = "c0de0496-3333-4000-8000-0000000000a1";
+const CONTATO_A2 = "c0de0496-3333-4000-8000-0000000000a2";
+const CONTATO_B = "c0de0496-3333-4000-8000-0000000000b1";
+const CONVERSA_A1 = "c0de0496-4444-4000-8000-0000000000a1";
+const CONVERSA_A2 = "c0de0496-4444-4000-8000-0000000000a2";
+const CONVERSA_B = "c0de0496-4444-4000-8000-0000000000b1";
+const JOB_A = "c0de0496-5555-4000-8000-00000000000a";
+const JOB_B = "c0de0496-5555-4000-8000-00000000000b";
+const MSG_A = "c0de0496-6666-4000-8000-00000000000a";
+const MSG_B = "c0de0496-6666-4000-8000-00000000000b";
+const PEDIDO_LGPD = "c0de0496-7777-4000-8000-000000000001";
 
-const MOTIVO = "motivo de teste do invariante 0492";
+const MOTIVO = "motivo de teste do invariante 0496";
 
 type Resultado = { changed: boolean; motivo?: string };
 
@@ -122,31 +122,31 @@ function reiniciar(): void {
 beforeAll(() => {
   sql(`
     insert into auth.users (id, email) values
-      ('${DONO}', 'dono-0492@invariant.test'),
-      ('${SUPORTE}', 'suporte-0492@invariant.test'),
-      ('${ADMIN_A}', 'admin-a-0492@invariant.test')
+      ('${DONO}', 'dono-0496@invariant.test'),
+      ('${SUPORTE}', 'suporte-0496@invariant.test'),
+      ('${ADMIN_A}', 'admin-a-0496@invariant.test')
       on conflict do nothing;
     insert into public.platform_admins (user_id, granted_by, scope, mfa_required, reason) values
-      ('${DONO}', '${DONO}', 'full', false, 'fixture do invariante 0492'),
-      ('${SUPORTE}', '${DONO}', 'support_readonly', false, 'fixture do invariante 0492')
+      ('${DONO}', '${DONO}', 'full', false, 'fixture do invariante 0496'),
+      ('${SUPORTE}', '${DONO}', 'support_readonly', false, 'fixture do invariante 0496')
       on conflict do nothing;
     insert into public.organizations (id, slug, legal_name, display_name) values
-      ('${ORG_A}', 'org-0492-a', 'Org 0492 A', 'Org 0492 A'),
-      ('${ORG_B}', 'org-0492-b', 'Org 0492 B', 'Org 0492 B'),
-      ('${ORG_C}', 'org-0492-c', 'Org 0492 C', 'Org 0492 C'),
-      ('${ORG_R}', 'org-0492-r', 'Org 0492 R', 'Org 0492 R')
+      ('${ORG_A}', 'org-0496-a', 'Org 0496 A', 'Org 0496 A'),
+      ('${ORG_B}', 'org-0496-b', 'Org 0496 B', 'Org 0496 B'),
+      ('${ORG_C}', 'org-0496-c', 'Org 0496 C', 'Org 0496 C'),
+      ('${ORG_R}', 'org-0496-r', 'Org 0496 R', 'Org 0496 R')
       on conflict (id) do nothing;
     insert into public.user_organizations (user_id, organization_id, role, accepted_at)
       values ('${ADMIN_A}', '${ORG_A}', 'admin', now()) on conflict do nothing;
     do $s$ begin
       insert into public.channel_sessions (id, organization_id, waha_session_name, webhook_secret_encrypted) values
-        ('${SESSAO_A}', '${ORG_A}', 'org-0492-a', '\\x00'::bytea),
-        ('${SESSAO_B}', '${ORG_B}', 'org-0492-b', '\\x00'::bytea);
+        ('${SESSAO_A}', '${ORG_A}', 'org-0496-a', '\\x00'::bytea),
+        ('${SESSAO_B}', '${ORG_B}', 'org-0496-b', '\\x00'::bytea);
     exception when unique_violation then null; end $s$;
     insert into public.contacts (id, organization_id, display_name) values
-      ('${CONTATO_A1}', '${ORG_A}', 'Contato 0492 A1'),
-      ('${CONTATO_A2}', '${ORG_A}', 'Contato 0492 A2'),
-      ('${CONTATO_B}', '${ORG_B}', 'Contato 0492 B')
+      ('${CONTATO_A1}', '${ORG_A}', 'Contato 0496 A1'),
+      ('${CONTATO_A2}', '${ORG_A}', 'Contato 0496 A2'),
+      ('${CONTATO_B}', '${ORG_B}', 'Contato 0496 B')
       on conflict (id) do nothing;
     insert into public.conversations (id, organization_id, contact_id, channel_session_id, status) values
       ('${CONVERSA_A1}', '${ORG_A}', '${CONTATO_A1}', '${SESSAO_A}', 'open'),
@@ -235,7 +235,7 @@ describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
       const e = erroDe(
         comoUsuario(
           usuario,
-          `insert into public.organizations (id, slug, legal_name, display_name) values ('${ORG_FORJADA}', 'forjada-0492', 'Forjada', 'Forjada')`,
+          `insert into public.organizations (id, slug, legal_name, display_name) values ('${ORG_FORJADA}', 'forjada-0496', 'Forjada', 'Forjada')`,
         ),
       );
       expect(e).toContain("42501");
@@ -248,11 +248,11 @@ describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
     expect(
       writeCountAs(
         DONO,
-        `update public.organizations set display_name = 'Org 0492 C renomeada', timezone = 'America/Manaus' where id = '${ORG_C}'`,
+        `update public.organizations set display_name = 'Org 0496 C renomeada', timezone = 'America/Manaus' where id = '${ORG_C}'`,
       ),
     ).toBe(1);
     expect(valor(`select display_name || '|' || timezone from public.organizations where id = '${ORG_C}';`)).toBe(
-      "Org 0492 C renomeada|America/Manaus",
+      "Org 0496 C renomeada|America/Manaus",
     );
   });
 
@@ -452,7 +452,7 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
     expect(operante(ORG_R)).toBe("false");
   });
 
-  it("suspensão legada sem tipo (imagem anterior à 0495) vale como administrativa", () => {
+  it("suspensão legada sem tipo (imagem anterior à 0496) vale como administrativa", () => {
     sql(`update public.organizations set status = 'suspended', suspended_at = now() where id = '${ORG_A}';`);
     expect(reativar(ORG_A, "cobranca")).toEqual({ changed: false, motivo: "suspensao_administrativa" });
     expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });

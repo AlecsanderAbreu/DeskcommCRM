@@ -5,7 +5,7 @@ import { tickCron } from "@/lib/agent-engine/cron/scheduler";
 import { createLogger } from "@/lib/agent-engine/obs/logger";
 
 /**
- * O SQL REAL do agendador com a régua (migration 0495).
+ * O SQL REAL do agendador com a régua (migration 0496).
  *
  * `fireOneDue` chama `public.fn_org_operante(organization_id)` dentro do
  * `select … for update skip locked`, pelo pool `pg` do worker. O teste unitário
@@ -25,11 +25,11 @@ const pool = new pg.Pool({
 });
 const log = createLogger();
 
-const ORG_PARADA = "c0de0492-8888-4000-8000-00000000000a";
-const ORG_ATIVA = "c0de0492-8888-4000-8000-00000000000b";
-const CONTATO = "c0de0492-8888-4000-8000-0000000000c1";
-const CRON_RECORRENTE = "c0de0492-8888-4000-8000-0000000000d1";
-const CRON_UNICO = "c0de0492-8888-4000-8000-0000000000d2";
+const ORG_PARADA = "c0de0496-8888-4000-8000-00000000000a";
+const ORG_ATIVA = "c0de0496-8888-4000-8000-00000000000b";
+const CONTATO = "c0de0496-8888-4000-8000-0000000000c1";
+const CRON_RECORRENTE = "c0de0496-8888-4000-8000-0000000000d1";
+const CRON_UNICO = "c0de0496-8888-4000-8000-0000000000d2";
 const HORA = 3_600_000;
 /**
  * `tickCron` reivindica QUALQUER cron vencido do banco compartilhado, na ordem
@@ -44,11 +44,11 @@ const VENCIDO_EM = "2000-01-01T00:00:00Z";
 beforeAll(async () => {
   await pool.query(`
     insert into public.organizations (id, slug, legal_name, display_name, status, suspended_kind, suspended_at) values
-      ('${ORG_PARADA}', 'cron-0492-parada', 'Parada', 'Parada', 'suspended', 'administrativa', now()),
-      ('${ORG_ATIVA}', 'cron-0492-ativa', 'Ativa', 'Ativa', 'active', null, null)
+      ('${ORG_PARADA}', 'cron-0496-parada', 'Parada', 'Parada', 'suspended', 'administrativa', now()),
+      ('${ORG_ATIVA}', 'cron-0496-ativa', 'Ativa', 'Ativa', 'active', null, null)
       on conflict (id) do nothing;
     insert into public.contacts (id, organization_id, display_name)
-      values ('${CONTATO}', '${ORG_PARADA}', 'Contato cron 0492') on conflict (id) do nothing;
+      values ('${CONTATO}', '${ORG_PARADA}', 'Contato cron 0496') on conflict (id) do nothing;
     insert into public.cron_jobs (id, organization_id, contact_id, kind, interval_ms, job_kind, next_run_at) values
       ('${CRON_RECORRENTE}', '${ORG_PARADA}', '${CONTATO}', 'every', ${HORA}, 'followup_turn', '${VENCIDO_EM}'),
       ('${CRON_UNICO}', '${ORG_PARADA}', '${CONTATO}', 'at', null, 'followup_turn', '${VENCIDO_EM}')
