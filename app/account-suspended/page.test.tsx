@@ -9,6 +9,10 @@ const cena = vi.hoisted(() => ({
   status: {} as Record<string, string>,
   statusNaSessao: undefined as string | undefined,
   falhaNaLeitura: false,
+  suporte: "suporte@revenda.test",
+  platformAdmin: false,
+  modoSuporte: null as { reason: string } | null,
+  semOrgAtiva: false,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -20,8 +24,8 @@ vi.mock("@/lib/auth/server", () => ({
   requireAuth: async () => ({
     id: "11111111-1111-4111-8111-111111111111",
     email: "admin@empresa.test",
-    is_platform_admin: false,
-    support: null,
+    is_platform_admin: cena.platformAdmin,
+    support: cena.modoSuporte,
     idioma: "pt-BR",
     organizations: [
       { organization_id: cena.B, organization_name: "Empresa B", role: cena.papel },
@@ -31,7 +35,7 @@ vi.mock("@/lib/auth/server", () => ({
   }),
   // A régua da SESSÃO (o embed de `loadAuthUser`), que é a do `resolveActiveOrg`
   // do layout; `statusNaSessao` só difere do banco no caso da divergência.
-  orgAtivaSemPortao: async () => ({
+  orgAtivaSemPortao: async () => cena.semOrgAtiva ? null : ({
     orgId: cena.B, name: "Empresa B", role: cena.papel,
     org_status: cena.statusNaSessao ?? cena.status[cena.B],
   }),
@@ -48,7 +52,7 @@ vi.mock("@/lib/supabase/admin", () => ({
     }),
   }),
 }));
-vi.mock("@/lib/branding/saida", () => ({ emailDeSuporte: async () => "suporte@revenda.test" }));
+vi.mock("@/lib/branding/saida", () => ({ emailDeSuporte: async () => cena.suporte }));
 vi.mock("@/app/actions/auth/signOut", () => ({ signOut: vi.fn() }));
 vi.mock("@/app/app/lgpd/requests/RequestsTable", () => ({
   RequestsTable: ({ baseDoPedido }: { baseDoPedido?: string }) => <p data-testid="lgpd-lista">{baseDoPedido}</p>,
@@ -75,6 +79,10 @@ beforeEach(() => {
   cena.status = { [cena.B]: "suspended", [cena.C]: "active", [cena.D]: "suspended" };
   cena.statusNaSessao = undefined;
   cena.falhaNaLeitura = false;
+  cena.suporte = "suporte@revenda.test";
+  cena.platformAdmin = false;
+  cena.modoSuporte = null;
+  cena.semOrgAtiva = false;
 });
 
 describe("/account-suspended: o hub de quem está numa empresa suspensa", () => {
@@ -122,6 +130,38 @@ describe("/account-suspended: o hub de quem está numa empresa suspensa", () => 
     expect(screen.getByRole("link", { name: "suporte@revenda.test" })).toHaveAttribute("href", "mailto:suporte@revenda.test");
     expect(screen.getByTestId("lgpd-lista")).toHaveTextContent("/account-suspended?pedido=");
     expect(screen.getByTestId("outras")).toHaveTextContent(/^Empresa C$/);
+  });
+
+  it("sem SUPPORT_EMAIL, quem administra é mandado a quem administra o sistema, sem link, e a LGPD segue", async () => {
+    cena.suporte = "";
+    await montar();
+    expect(
+      screen.getByText("Sua conta está suspensa. Fale com quem administra este sistema para saber o motivo e como reativá-la."),
+    ).toBeVisible();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByTestId("lgpd-lista")).toBeVisible();
+  });
+
+  it("dono da plataforma com papel de atendente vê o painel de admin", async () => {
+    cena.papel = "agent";
+    cena.platformAdmin = true;
+    await montar();
+    expect(screen.getByTestId("lgpd-lista")).toBeVisible();
+    expect(screen.getByRole("link", { name: "suporte@revenda.test" })).toBeVisible();
+  });
+
+  it("dono da plataforma em modo suporte, com papel de atendente, não administra", async () => {
+    cena.papel = "agent";
+    cena.platformAdmin = true;
+    cena.modoSuporte = { reason: "acompanhamento" };
+    await montar();
+    expect(screen.getByText("Sua conta está suspensa. Avise o administrador da sua empresa.")).toBeVisible();
+    expect(screen.queryByTestId("lgpd-lista")).toBeNull();
+  });
+
+  it("sem empresa ativa não há o que mostrar: vai para /app", async () => {
+    cena.semOrgAtiva = true;
+    await expect(montar()).rejects.toThrow(/^NEXT_REDIRECT:\/app$/);
   });
 
   it("quem não administra é mandado ao administrador, sem LGPD e sem o endereço do suporte", async () => {
