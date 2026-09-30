@@ -112,7 +112,7 @@ fi
 # (29/09/2026) ela tinha ~1,29 M linhas (~112 MB), e o teste de vazio que havia aqui,
 # `${populacao// /}`, é uma substituição de padrão do bash — quadrática no tamanho da
 # string. O hook não terminava em 45 min. O grep lê o arquivo direto.
-populacao="$(mktemp)" || { echo "pre-commit BLOQUEADO: mktemp falhou — a população de migrations não pôde ser medida." >&2; exit 1; }
+populacao="$(mktemp)" || { echo "pre-commit BLOQUEADO: mktemp falhou — a população de migrations não pôde ser medida. Correção orientada pelo dono: DESKCOMM_GOV_MIGRATION_EDIT=1." >&2; exit 1; }
 trap 'rm -f "$populacao"' EXIT
 if declare -F pop_migrations >/dev/null 2>&1; then
   # O HEAD entra SEMPRE: `pop_refs_de_outrem` tira a ref cujo SHA é o do HEAD (a
@@ -120,7 +120,7 @@ if declare -F pop_migrations >/dev/null 2>&1; then
   # sumia da conta — a segunda 0411 e o carimbo repetido passavam calados, e a
   # dica de próximo livre apontava para o número da branch. O próprio arquivo
   # encenado não é acusado: o `grep -vE " <nome>$"` abaixo o tira.
-  pop_migrations $refs HEAD >"$populacao" 2>/dev/null || true
+  { pop_migrations $refs HEAD 2>/dev/null || true; } >"$populacao" || { echo "pre-commit BLOQUEADO: não foi possível gravar a população de migrations em $populacao. Correção orientada pelo dono: DESKCOMM_GOV_MIGRATION_EDIT=1." >&2; exit 1; }
 fi
 if ! grep -q . "$populacao"; then
   if ! declare -F pop_migrations >/dev/null 2>&1; then
@@ -155,7 +155,7 @@ while IFS= read -r path; do
   if [ -n "$conflict" ]; then
     echo "pre-commit BLOQUEADO: sequência NNNN=$nnnn de '$fname' já existe em: $(awk '{printf "%s(%s) ", $1, $2}' <<<"$conflict" | sed 's/ $//')" >&2
     if declare -F pop_dica_proximo_livre >/dev/null 2>&1; then
-      pop_dica_proximo_livre "$nnnn" "$base" "$(cut -d' ' -f2- "$populacao" | sort -u)" >&2
+      pop_dica_proximo_livre "$nnnn" "$base" "$(cut -d' ' -f2- "$populacao" | LC_ALL=C sort -u)" >&2
     else
       echo "Para o próximo número livre (main do produto ∪ PRs abertos): pnpm checar:colisao-de-migration" >&2
     fi

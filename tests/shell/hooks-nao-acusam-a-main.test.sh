@@ -981,10 +981,12 @@ assert_exit "$(exit_de "$r")" 0 "MIG-CONTROLE: e um número de fato livre passa"
 # (~112 MB) de população, e o hook não terminava em 45 min. A causa era o teste de
 # vazio `${populacao// /}`: a substituição de padrão do bash é quadrática no tamanho da
 # string (medido aqui: 25 mil linhas → 18 s só nessa linha; 100 mil → ~400 s o hook).
-# A população agora vive num ARQUIVO e o grep lê o arquivo. O fixture tem ~100 mil
-# linhas (500 migrations × 200 refs para o mesmo commit — `pop_migrations` emite uma
+# A população agora vive num ARQUIVO e o grep lê o arquivo. O fixture tem ~300 mil
+# linhas (500 migrations × 600 refs para o mesmo commit — `pop_migrations` emite uma
 # linha por ref) e o LIMITE é folgado para máquina lenta: o hook de antes estoura
-# qualquer limite razoável aqui, o de agora leva ~1 s. Rodam os DOIS hooks: o do
+# qualquer limite razoável aqui, o de agora leva ~1 s. O fixture foi dimensionado para o
+# antigo estourar TAMBÉM em locale C (LANG vazio), onde ele termina em ~10 s com 100 mil
+# linhas e o caso passaria sem vigiar; em UTF-8 o antigo é bem mais lento. Rodam os DOIS hooks: o do
 # contribuidor tinha a mesma linha.
 printf '\ncheck-migration-triple.sh — população grande termina (mantenedor e contribuidor)\n'
 LIMITE_S=30
@@ -1012,10 +1014,10 @@ for i in $(seq 1 500); do : > "$g/supabase/migrations/$(printf '2026010100%04d_%
 commitar "$g" "500 migrations"
 c_outra=$(git -C "$g" rev-parse HEAD)
 git -C "$g" checkout -q main
-seq 1 200 | awk -v c="$c_outra" '{ printf "create refs/heads/r%05d %s\n", $1, c }' | git -C "$g" update-ref --stdin
+seq 1 600 | awk -v c="$c_outra" '{ printf "create refs/heads/r%05d %s\n", $1, c }' | git -C "$g" update-ref --stdin
 linhas=$( cd "$g" && bash -c '. scripts/migration-populacao.sh; pop_migrations $(pop_refs_de_outrem "") HEAD | wc -l' | tr -d ' ')
-if [ "${linhas:-0}" -ge 100000 ]; then ok "MIG-GRANDE: a população do fixture tem $linhas linhas (premissa do volume)"
-else falha "MIG-GRANDE: população >= 100000 linhas" "veio ${linhas:-nada} — o caso não estressa o hook"; fi
+if [ "${linhas:-0}" -ge 300000 ]; then ok "MIG-GRANDE: a população do fixture tem $linhas linhas (premissa do volume)"
+else falha "MIG-GRANDE: população >= 300000 linhas" "veio ${linhas:-nada} — o caso não estressa o hook"; fi
 tripla "$g" 20990101000000_9999_livre.sql
 for h in loop/hooks/check-migration-triple.sh contrib/check-migration-triple.sh; do
   r=$(rodar_com_limite "$g" "$h")
