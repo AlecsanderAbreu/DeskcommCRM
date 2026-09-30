@@ -103,5 +103,32 @@ export async function sinalizarDigitando(
     organizationId: input.organizationId,
     sessionRef: resolveSessionRef(sessao),
     recipient,
+    inboundExternalId: await ultimaMensagemDoCliente(supabase, input),
   });
+}
+
+/**
+ * O `external_id` da última mensagem que o cliente mandou nesta conversa.
+ *
+ * Há canal em que o "digitando…" não é da conversa, é da MENSAGEM que se está
+ * respondendo: sem esse id ele não tem o que sinalizar. Buscar aqui, e não no
+ * adapter, mantém o adapter burro (traduz formato, não lê banco de conversa) e
+ * a leitura escopada por organização num lugar só, o mesmo da conversa acima.
+ * A consulta só acontece depois de todos os "não há o que sinalizar", então
+ * canal sem presença não paga por ela.
+ */
+async function ultimaMensagemDoCliente(
+  supabase: SupabaseClient,
+  input: SinalizarDigitandoInput,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("messages")
+    .select("external_id")
+    .eq("organization_id", input.organizationId)
+    .eq("conversation_id", input.conversationId)
+    .eq("direction", "inbound")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as { external_id: string | null } | null)?.external_id ?? null;
 }
