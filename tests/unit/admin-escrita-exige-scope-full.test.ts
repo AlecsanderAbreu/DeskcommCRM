@@ -32,12 +32,6 @@ const EXCECOES: Record<string, string> = {
     "abrir acompanhamento é o trabalho do support_readonly: fn_support_context rebaixa scope diferente de full a support_readonly, e a rota já confere mfaEmDivida",
   "app/actions/auth/politicaDeMfa.ts#B:flag":
     "lê is_platform_admin só para saber se a política de MFA da PLATAFORMA vale para a própria conta; não é atalho de papel nem escrita em nome de outro",
-  // ── temporárias: Task 14 ──
-  "app/api/v1/admin/incidents/[id]/resolve/route.ts#A:POST": PENDENTE,
-  "app/api/v1/admin/tenants/route.ts#A:POST": PENDENTE,
-  "app/api/v1/system/update/route.ts#A:POST": PENDENTE,
-  "app/api/v1/marca/logo/route.ts#A:POST": PENDENTE,
-  "app/api/v1/marca/logo/route.ts#A:DELETE": PENDENTE,
   // ── temporárias: Task 15 ──
   "app/actions/settings/updateDestinosInternos.ts#B:use-server": PENDENTE,
   "app/actions/settings/smtp.ts#B:use-server": PENDENTE,
