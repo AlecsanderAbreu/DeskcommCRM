@@ -3182,3 +3182,24 @@ respondeu; se a mensagem do fluxo saiu da janela do histórico (`historyLimit`),
 vale o horário, no segundo. Uma inbound sem texto acorda o nó, não é
 classificada, e a carência recomeça desse despertar (comportamento anterior do
 motor, não mexido aqui).
+
+## J39 — O fluxo de silêncio espera antes de recomeçar para quem já passou por ele `[P1]` (2026-09-27)
+
+Contexto do código: num fluxo de silêncio com `cancel_on_reply`, cada resposta do
+cliente cancelava a inscrição e a varredura seguinte o inscrevia de novo, do
+primeiro passo, depois do limiar (medido numa instalação real: uma oferta nova a
+cada "obrigado"; dois contatos em laço de ~95 reinscrições). O cooldown da
+varredura não segura esse caso: ele conta o limiar desde o fim da tentativa, e a
+resposta que encerra a inscrição é a mesma que começa o silêncio. A pausa
+(`trigger_config.params.reentry_pause_minutes`, regra em
+`lib/followup/pausa-de-reentrada.ts`) só vale se a TELA a grava e a preserva — o
+formulário do gatilho remonta os `params` a partir dos campos.
+
+Spec: `tests/e2e/pausa-de-reentrada.spec.ts`.
+
+| # | Caso | Expectativa | Resultado |
+|---|------|-------------|-----------|
+| J39.1 | Pôr 48 h no campo «Pausa antes de recomeçar (horas)» e salvar | o banco guarda `reentry_pause_minutes: 2880`; o botão diz «pausa de 48 h» | **PASS pela tela** — Evidência: `evidence/triagem-16set-l12/pausa-01-campo-preenchido.png`, `evidence/triagem-16set-l12/pausa-02-rotulo-com-pausa.png` |
+| J39.2 | Editar OUTRO campo do gatilho | a pausa sobrevive | **PASS pela tela** |
+| J39.3 | Zerar a pausa | a chave sai do gatilho (comportamento de antes) | **PASS pela tela** |
+| J39.4 | Quem encerrou uma inscrição há menos que a pausa / quem nunca passou / conversa com pessoa no comando / sem pausa (só o cooldown) | pula / entra / pula (salvo `handoff_policy='allow'`) / entra de novo no limiar | **PASS (invariante)** — `tests/invariants/followup-silence-sweep.test.ts` |
