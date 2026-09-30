@@ -85,6 +85,8 @@ export default async function AccountSuspendedPage({
       <main className="flex min-h-screen flex-col items-center gap-8 p-4 sm:p-8">
         <Card className="w-full max-w-md space-y-4 p-8 text-center">
           <h1 className="text-2xl font-semibold">{t("Conta suspensa")}</h1>
+          {/* Quem participa de várias empresas precisa saber QUAL parou. Dado, não interface: sem t(). */}
+          <p className="text-base font-medium">{ativa.name}</p>
           {!administra ? (
             <p className="text-sm text-muted-foreground">
               {t("Sua conta está suspensa. Avise o administrador da sua empresa.")}

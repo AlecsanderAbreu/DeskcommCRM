@@ -78,6 +78,13 @@ beforeEach(() => {
 });
 
 describe("/account-suspended: o hub de quem está numa empresa suspensa", () => {
+  it("diz QUAL empresa está suspensa — quem participa de várias não fica na dúvida", async () => {
+    await montar();
+    const titulo = screen.getByRole("heading", { level: 1, name: "Conta suspensa" });
+    expect(titulo.nextElementSibling).toHaveTextContent("Empresa B");
+    expect(screen.getByTestId("outras")).not.toHaveTextContent("Empresa B");
+  });
+
   it("empresa que opera não fica presa aqui: volta para /app", async () => {
     cena.status[cena.B] = "active";
     await expect(montar()).rejects.toThrow("NEXT_REDIRECT:/app");
