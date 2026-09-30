@@ -23,7 +23,8 @@
  * - recover-stuck-messages; sync/push do Google Agenda; contact-avatars;
  * - leitura via RLS, Realtime e Storage;
  * - escrita de dados de negócio via PostgREST por membro de org suspensa (D-12);
- * - LGPD: nunca bloqueada (requireRole({ permiteOrgSuspensa: true })).
+ * - LGPD: nunca bloqueada (requireRole({ permiteOrgSuspensa: true }), e no MCP a
+ *   ferramenta de privacidade — `lib/mcp/tools/privacidade.ts`).
  *
  * Este módulo NÃO importa `next/*` nem `server-only`: o dreno do event_log e o
  * do agent-engine o carregam sob `tsx` no worker

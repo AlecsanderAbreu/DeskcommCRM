@@ -10,12 +10,19 @@ import { arquivosDeCodigo, caminhoRelativo } from "./helpers/varrer-codigo";
  * (spec docs/superpowers/specs/2026-09-29-cobranca-do-revendedor-design.md §4 item 21).
  *
  * `requireRole({ permiteOrgSuspensa: true })` é a única porta de uma org parada
- * para a API de sessão. Duas direções, pelo AST (comentário não conta):
- *  1. a chave só aparece em `app/api/v1/lgpd/**` e `app/api/v1/cobranca/**`;
+ * para a API de sessão. Pelo AST (comentário não conta):
+ *  1. a chave só aparece em `app/api/v1/lgpd/**`, `app/api/v1/cobranca/**` e nos
+ *     dois arquivos do MCP abaixo;
  *  2. TODA chamada de `requireRole(` em `app/api/v1/lgpd/**` a passa — LGPD
- *     nunca é bloqueada, nem para quem teve a conta suspensa.
+ *     nunca é bloqueada, nem para quem teve a conta suspensa;
+ *  3. o `/api/mcp` a passa ao validar o token, e a ferramenta de privacidade a
+ *     declara (decisão do dono, 30/09: a privacidade do MCP fica liberada para a
+ *     empresa suspensa). Quem recusa as DEMAIS ferramentas é `lib/mcp/server.ts`,
+ *     provado em `tests/unit/mcp-org-suspensa-so-a-lgpd.test.ts`.
  */
-const PREFIXOS_PERMITIDOS = ["app/api/v1/lgpd/", "app/api/v1/cobranca/"] as const;
+const MCP_ROTA = "app/api/mcp/route.ts";
+const MCP_PRIVACIDADE = "lib/mcp/tools/privacidade.ts";
+const PREFIXOS_PERMITIDOS = ["app/api/v1/lgpd/", "app/api/v1/cobranca/", MCP_ROTA, MCP_PRIVACIDADE] as const;
 const DEFINICAO = "lib/auth/require-role.ts";
 
 function arvore(fonte: string, arquivo: string): ts.SourceFile {
@@ -73,6 +80,14 @@ describe("org suspensa só nas rotas permitidas (a CLASSE)", () => {
     const fora = FONTES.filter((f) => f.arquivo !== DEFINICAO && !permitido(f.arquivo))
       .flatMap((f) => usosDaPermissao(f.fonte, f.arquivo).map((l) => `${f.arquivo}:${l}`));
     expect(fora, "org parada passaria por uma rota que custa ou sai para fora").toEqual([]);
+  });
+
+  it("o /api/mcp abre a porta, e a ferramenta de privacidade a atravessa (decisão do dono, 30/09)", () => {
+    for (const arquivo of [MCP_ROTA, MCP_PRIVACIDADE]) {
+      const f = FONTES.find((x) => x.arquivo === arquivo);
+      expect(f, `não achei ${arquivo}`).toBeDefined();
+      expect(usosDaPermissao(f!.fonte, arquivo), `${arquivo} não passa permiteOrgSuspensa`).toHaveLength(1);
+    }
   });
 
   it("toda requireRole de app/api/v1/lgpd/** libera a org suspensa", () => {
