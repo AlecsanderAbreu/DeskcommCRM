@@ -11402,6 +11402,15 @@ export const DICIONARIO: Traducoes = {
   "Erro ao suspender tenant": { es: "Error al suspender el tenant" },
   "Tenant reativado com sucesso": { es: "Tenant reactivado correctamente" },
   "Erro ao reativar tenant": { es: "Error al reactivar el tenant" },
+  "Nada mudou": { es: "Nada cambió" },
+  "Esta empresa já estava suspensa.": { es: "Esta empresa ya estaba suspendida." },
+  "Esta empresa foi encerrada ou anonimizada e já não opera.": {
+    es: "Esta empresa fue cerrada o anonimizada y ya no opera.",
+  },
+  "Esta empresa não estava suspensa.": { es: "Esta empresa no estaba suspendida." },
+  "Esta suspensão é por falta de pagamento. Use Dar prazo ou Tornar isenta.": {
+    es: "Esta suspensión es por falta de pago. Use Dar plazo o Eximir.",
+  },
   "Incidente resolvido com sucesso": { es: "Incidente resuelto correctamente" },
   "Erro ao resolver incidente": { es: "Error al resolver el incidente" },
   "Redes sociais": { es: "Redes sociales" },
