@@ -31,7 +31,7 @@
     { "id": "motor", "lane": "motor", "col": 5, "type": "service", "label": "gate de elegibilidade · dispatcher naOrgParada", "sublabel": "veto org_nao_operante; handler 'pula' → skipped" },
     { "id": "hub", "lane": "pessoa", "col": 6, "type": "ui", "label": "/account-suspended (hub)", "sublabel": "suporte ou 'avise o administrador'; LGPD; voltar para outra empresa" },
     { "id": "central", "lane": "pessoa", "col": 5, "type": "ui", "label": "Central de avisos (/app/ai/inbox)" },
-    { "id": "fila", "lane": "pessoa", "col": 7, "type": "ui", "label": "/app/inbox, aba Fila" }
+    { "id": "fila", "lane": "pessoa", "col": 7, "type": "ui", "label": "/app/inbox, abas Fila e Automático" }
   ],
   "edges": [
     { "id": "e1", "from": "telaAdmin", "to": "rotaSuspensao", "label": "suspender / reativar com motivo" },

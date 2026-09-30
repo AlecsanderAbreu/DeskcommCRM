@@ -41,9 +41,11 @@ const SESSAO_B = "c0de0496-2222-4000-8000-00000000000b";
 const CONTATO_A1 = "c0de0496-3333-4000-8000-0000000000a1";
 const CONTATO_A2 = "c0de0496-3333-4000-8000-0000000000a2";
 const CONTATO_B = "c0de0496-3333-4000-8000-0000000000b1";
+const CONTATO_GRUPO = "c0de0496-3333-4000-8000-0000000000a3";
 const CONVERSA_A1 = "c0de0496-4444-4000-8000-0000000000a1";
 const CONVERSA_A2 = "c0de0496-4444-4000-8000-0000000000a2";
 const CONVERSA_B = "c0de0496-4444-4000-8000-0000000000b1";
+const CONVERSA_GRUPO = "c0de0496-4444-4000-8000-0000000000a3"; // grupo da org A
 const JOB_A = "c0de0496-5555-4000-8000-00000000000a";
 const JOB_B = "c0de0496-5555-4000-8000-00000000000b";
 const MSG_A = "c0de0496-6666-4000-8000-00000000000a";
@@ -123,7 +125,8 @@ function reiniciar(): void {
     update public.calendar_appointments set meeting_delivery = '{"state":"queued","generation":"1"}' where id = '${COMPROMISSO_A}';
     delete from public.agent_inbox_items where organization_id = '${ORG_A}' and ref_kind = 'appointment';
     update public.messages set status = 'queued', error_code = null where id in ('${MSG_A}', '${MSG_B}');
-    update public.conversations set last_inbound_at = null where id in ('${CONVERSA_A1}', '${CONVERSA_A2}');
+    update public.conversations set last_inbound_at = null
+     where id in ('${CONVERSA_A1}', '${CONVERSA_A2}', '${CONVERSA_GRUPO}');
     delete from public.agent_inbox_items where organization_id = '${ORG_A}' and kind = 'org_reativada';
   `);
 }
@@ -155,12 +158,16 @@ beforeAll(() => {
     insert into public.contacts (id, organization_id, display_name) values
       ('${CONTATO_A1}', '${ORG_A}', 'Contato 0496 A1'),
       ('${CONTATO_A2}', '${ORG_A}', 'Contato 0496 A2'),
-      ('${CONTATO_B}', '${ORG_B}', 'Contato 0496 B')
+      ('${CONTATO_B}', '${ORG_B}', 'Contato 0496 B'),
+      ('${CONTATO_GRUPO}', '${ORG_A}', 'Grupo 0496 A')
       on conflict (id) do nothing;
     insert into public.conversations (id, organization_id, contact_id, channel_session_id, status) values
       ('${CONVERSA_A1}', '${ORG_A}', '${CONTATO_A1}', '${SESSAO_A}', 'open'),
       ('${CONVERSA_A2}', '${ORG_A}', '${CONTATO_A2}', '${SESSAO_A}', 'open'),
       ('${CONVERSA_B}', '${ORG_B}', '${CONTATO_B}', '${SESSAO_B}', 'open')
+      on conflict (id) do nothing;
+    insert into public.conversations (id, organization_id, contact_id, channel_session_id, status, is_group)
+      values ('${CONVERSA_GRUPO}', '${ORG_A}', '${CONTATO_GRUPO}', '${SESSAO_A}', 'open', true)
       on conflict (id) do nothing;
     -- 'watchdog' não tem contato nem fronteira de atendimento (fn_job_service_boundary
     -- devolve cedo): é a forma mais barata de um job 'pending' de verdade.
@@ -455,7 +462,7 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
     ).toBe("true");
     expect(valor(`select count(*) from public.job_queue where organization_id = '${ORG_A}' and status = 'pending';`)).toBe("0");
     expect(corpoDoItem()).toBe(
-      "warn|null|2 conversas receberam mensagem enquanto a conta estava suspensa. A IA não respondeu nem vai responder sozinha a elas. Revise na Fila.",
+      "warn|null|2 conversas receberam mensagem enquanto a conta estava suspensa.",
     );
     expect(eventos(ORG_A, "tenant.reactivated")).toBe(antes + 1);
     expect(
@@ -471,8 +478,15 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
     sql(`update public.conversations set last_inbound_at = clock_timestamp() where id = '${CONVERSA_A1}';`);
     expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });
     expect(corpoDoItem()).toBe(
-      "warn|null|1 conversa recebeu mensagem enquanto a conta estava suspensa. A IA não respondeu nem vai responder sozinha a ela. Revise na Fila.",
+      "warn|null|1 conversa recebeu mensagem enquanto a conta estava suspensa.",
     );
+  });
+
+  it("⭐ conversa de grupo não entra na contagem: a IA não atende grupo", () => {
+    suspender(ORG_A, "administrativa");
+    sql(`update public.conversations set last_inbound_at = clock_timestamp() where id in ('${CONVERSA_A1}', '${CONVERSA_GRUPO}');`);
+    expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });
+    expect(corpoDoItem()).toBe("warn|null|1 conversa recebeu mensagem enquanto a conta estava suspensa.");
   });
 
   it("nenhuma conversa nova: reativa sem abrir item", () => {

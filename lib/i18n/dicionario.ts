@@ -10020,9 +10020,9 @@ export const DICIONARIO: Traducoes = {
   "A conta foi reativada — há conversas para revisar": {
     es: "La cuenta fue reactivada — hay conversaciones para revisar",
   },
-  "A IA não respondeu nem vai responder sozinha às conversas que chegaram durante a suspensão. Abra o Inbox e revise a aba Fila.":
+  "A IA não respondeu nem vai responder sozinha às conversas que chegaram durante a suspensão. Abra o Inbox e procure-as nas abas Fila e Automático.":
     {
-      es: "La IA no respondió ni responderá sola a las conversaciones que llegaron durante la suspensión. Abre el Inbox y revisa la pestaña Cola.",
+      es: "La IA no respondió ni responderá sola a las conversaciones que llegaron durante la suspensión. Abre el Inbox y búscalas en las pestañas Cola y Automático.",
     },
   "Abrir o Inbox": { es: "Abrir el Inbox" },
   // Diálogo de exclusão de canal (`frasesDoImpacto`): singular e plural.

@@ -27,7 +27,8 @@
 -- D. `agent_inbox_items.kind` ganha 'org_reativada' (lista completa do baseline).
 -- E. `fn_reativar_organizacao`: exige o tipo, zera a suspensão, falha jobs
 --    `pending` que sobraram e abre UM item 'org_reativada' com a contagem de
---    conversas que receberam mensagem durante a suspensão. Nada é reprocessado.
+--    conversas (fora grupos) que receberam mensagem durante a suspensão. Nada é
+--    reprocessado.
 -- F. `fn_claim_due_followup_enrollments` não entrega inscrição de org parada: o
 --    motor de follow-up não avança, não enfileira e não paga LLM por ela. Na
 --    reativação a inscrição RETOMA: a de um nó `action` cujo turno a C0 descartou
@@ -337,6 +338,7 @@ begin
     select count(*) into v_conversas
       from public.conversations c
      where c.organization_id = p_org
+       and not c.is_group
        and c.last_inbound_at >= v_desde;
   end if;
 
@@ -344,9 +346,11 @@ begin
     insert into public.agent_inbox_items (organization_id, kind, severity, title, body)
     values (p_org, 'org_reativada', 'warn',
             'A conta foi reativada — há conversas para revisar',
+            -- Só o fato: o que fazer é a orientação do aviso na tela
+            -- (lib/ai/inbox-destino.ts, org_reativada), que sabe das abas.
             case when v_conversas = 1
-              then '1 conversa recebeu mensagem enquanto a conta estava suspensa. A IA não respondeu nem vai responder sozinha a ela. Revise na Fila.'
-              else format('%s conversas receberam mensagem enquanto a conta estava suspensa. A IA não respondeu nem vai responder sozinha a elas. Revise na Fila.', v_conversas)
+              then '1 conversa recebeu mensagem enquanto a conta estava suspensa.'
+              else format('%s conversas receberam mensagem enquanto a conta estava suspensa.', v_conversas)
             end);
   end if;
 
