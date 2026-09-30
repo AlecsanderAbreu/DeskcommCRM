@@ -1,4 +1,8 @@
-### Cerca: toda versão de agente grava todas as chaves de configuração
+---
+impacto: nada_mudou
+secao: corrigido
+titulo: Reverter ou criar agente pela porta MCP não perdia mais anotações internas
+---
 
 Ao reverter para uma versão antiga ou criar um agente pela porta MCP, campos de
 configuração da versão (anotação interna e o rascunho com IA da proposta) algumas
