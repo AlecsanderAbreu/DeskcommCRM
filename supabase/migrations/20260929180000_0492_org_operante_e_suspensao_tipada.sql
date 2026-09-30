@@ -181,3 +181,25 @@ $$;
 revoke execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) to service_role;
 
+
+-- ── D. agent_inbox_items.kind ganha 'org_reativada' ──────────────────────────
+-- Lista COMPLETA do bloco único do baseline (kind-check-migration-x-baseline):
+-- esta passa a ser a última migration que reconstrói a constraint.
+alter table public.agent_inbox_items
+  drop constraint if exists agent_inbox_items_kind_check;
+alter table public.agent_inbox_items
+  add constraint agent_inbox_items_kind_check check (kind in (
+    'appointment_outcome_required','appointment_recovery_review','qr_rescan','routing_unassigned',
+    'job_dead','event_dead','budget_exceeded','handoff','promotion_review','judge_unaligned',
+    'followup_dead','snooze_expired','next_action_ambiguous','risk_backlog_seeded',
+    'reactivation_expired','capabilities_missing','message_send_stuck','midia_nao_lida',
+    'channel_template_review','channel_number_alert','promise_unfulfilled','contact_proposal_expired',
+    'budget_warning','conhecimento_nao_indexado','voice_call_missed','case_stale',
+    'aviso_de_caso_nao_entregue','followup_sem_agente','canal_mudo_sem_numero',
+    'proposal_expired_notice','proposal_acceptance_rate_drop','proposal_promised_not_created',
+    'proposta_travada',
+    'proposta_pronta_para_revisao',
+    -- a organização voltou de uma suspensão e há conversas para revisar.
+    'org_reativada',
+    'other'
+  ));

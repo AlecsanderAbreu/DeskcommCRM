@@ -96,6 +96,9 @@ export const KIND_LABEL = {
   followup_sem_agente: "Um follow-up está publicado e não está disparando",
   proposta_travada: "Uma proposta ficou presa em envio e voltou a rascunho",
   proposta_pronta_para_revisao: "Uma proposta está pronta para revisão",
+  // Igual ao `title` que fn_reativar_organizacao grava: diz o que a pessoa tem
+  // de FAZER agora — as conversas que chegaram durante a suspensão ficaram sem resposta.
+  org_reativada: "A conta foi reativada — há conversas para revisar",
   other: "Aviso do assistente",
 } as const satisfies Record<InboxKind, string>;
 
