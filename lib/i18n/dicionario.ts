@@ -7666,6 +7666,12 @@ export const DICIONARIO: Traducoes = {
   "Sua conta está suspensa. Fale com quem administra este sistema para saber o motivo e como reativá-la.": {
     es: "Tu cuenta está suspendida. Habla con quien administra este sistema para saber el motivo y cómo reactivarla.",
   },
+  "Sua conta está suspensa. Avise o administrador da sua empresa.": {
+    es: "Tu cuenta está suspendida. Avisa a quien administra tu empresa.",
+  },
+  "Os pedidos de LGPD dos seus clientes continuam com prazo durante a suspensão.": {
+    es: "Las solicitudes LGPD de tus clientes siguen con plazo durante la suspensión.",
+  },
 
   "Como esta instalação do": { es: "Cómo esta instalación de" },
   "trata dados pessoais.": { es: "trata los datos personales." },
