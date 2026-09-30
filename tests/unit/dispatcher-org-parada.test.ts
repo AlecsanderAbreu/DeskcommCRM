@@ -201,6 +201,21 @@ describe("drainEventLog lê o status das orgs do lote", () => {
     expect(resumo.pulados).toContain(`${EVENTO_DE_TESTE}/${PREFIXO_DE_TESTE}-pula: org_nao_operante`);
   });
 
+  // Controle do lado que mais pesa: sem este caso, inverter a régua do dreno
+  // (`!ehOperante`) calaria a IA e as automações de TODAS as empresas ativas
+  // com a suíte verde — os demais casos só olham a org parada.
+  it("org operante: o handler 'pula' roda e o evento fecha done com a chave em consumed_by, sem org_nao_operante", async () => {
+    handlePula.mockClear();
+    const { admin, updates } = dublarAdmin({ linhas: [linha()], orgs: [{ id: "org-1", status: "active" }] });
+    const resumo = await drainEventLog(admin);
+    const fim = updates.filter((u) => u.tabela === "event_log").pop()!.payload;
+    expect(handlePula).toHaveBeenCalledOnce();
+    expect(fim.status).toBe("done");
+    expect(fim.consumed_by).toEqual(expect.arrayContaining([`${PREFIXO_DE_TESTE}-pula`]));
+    expect(String(fim.last_error ?? "")).not.toContain("org_nao_operante");
+    expect(resumo.pulados ?? []).not.toContain(`${EVENTO_DE_TESTE}/${PREFIXO_DE_TESTE}-pula: org_nao_operante`);
+  });
+
   it("org que não volta da leitura conta como parada (falha fechada)", async () => {
     handlePula.mockClear();
     const { admin } = dublarAdmin({ linhas: [linha()], orgs: [] });
