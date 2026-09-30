@@ -27,7 +27,7 @@ const RAIZES = ["app", "lib", "workers"];
 const A_REGUA = "lib/organizacao/operante.ts";
 const TRANSICAO_DE_ESTADO = ["app/admin/", "app/api/v1/admin/"];
 const STATUS_DE_ORG = new Set(["active", "suspended", "redacted", "archived"]);
-const RECEPTOR_DE_ORG = /(^|[^a-z])org|organi[sz]a[tcç]/i;
+const RECEPTOR_DE_ORG = /(^|[^a-z])org|Org|organi[sz]a[tcç]/;
 const CHAMADAS_DE_DECISAO = new Set(["redirect", "fail", "notFound"]);
 const FILTROS = new Set(["eq", "neq", "in", "not", "filter", "match"]);
 const COMPARACOES = new Set([
@@ -66,6 +66,7 @@ function estaNumaDecisao(no: ts.Node): boolean {
   let filho: ts.Node = no;
   let pai = no.parent;
   while (pai && !ts.isSourceFile(pai) && !ts.isFunctionLike(pai)) {
+    if (ts.isJsxExpression(pai)) return false; // exibição, não decisão
     if (ts.isReturnStatement(pai)) return true;
     if (ts.isIfStatement(pai) && pai.expression === filho) return true;
     if (
@@ -78,7 +79,8 @@ function estaNumaDecisao(no: ts.Node): boolean {
     filho = pai;
     pai = pai.parent;
   }
-  return false;
+  // arrow concisa: o corpo É o retorno
+  return !!pai && ts.isArrowFunction(pai) && pai.body === filho;
 }
 
 function cadeiaVemDeOrganizations(e: ts.Expression): boolean {
@@ -167,6 +169,11 @@ describe("a sonda (controles no próprio arquivo)", () => {
     [`function g(org: { status: string }) { return org.status === "active"; }`, "c.ts"],
     [`db.from("user_organizations").select("x").eq("organizations.status", "active");`, "d.ts"],
     [`if (m.org_status !== "active") return fail("org_suspended", "x", 403);`, "e.ts"],
+    [`if (currentOrg.status !== "active") redirect("/x");`, "l.ts"],
+    [`if (activeOrg?.status === "suspended") redirect("/x");`, "m.ts"],
+    [`const ok = rows.filter((m) => m.org_status === "active");`, "n.ts"],
+    [`if (orgRow.status === "active") redirect("/x");`, "o.ts"],
+    [`if (Organizacao.status === "active") redirect("/x");`, "p.ts"],
   ])("acusa decisão por literal: %s", (fonte, nome) => {
     expect(decisoesPorStatusDeOrg(fonte, nome)).toHaveLength(1);
   });
