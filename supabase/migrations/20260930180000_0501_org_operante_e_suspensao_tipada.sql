@@ -308,6 +308,11 @@ alter table public.agent_inbox_items
     'proposal_expired_notice','proposal_acceptance_rate_drop','proposal_promised_not_created',
     'proposta_travada',
     'proposta_pronta_para_revisao',
+    -- (migration 0500) os dois avisos do Jev: entram aqui porque esta migration
+    -- roda DEPOIS da 0500 e reconstrói a lista inteira — sem eles, a 0501 apagaria
+    -- o vocabulário da 0500 (ou falharia com avisos do Jev já gravados).
+    'jev_pedido_de_humano',
+    'jev_parar_de_receber',
     -- a organização voltou de uma suspensão e há conversas para revisar.
     'org_reativada',
     'other'
