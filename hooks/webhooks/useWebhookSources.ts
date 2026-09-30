@@ -61,11 +61,24 @@ export function useCreateWebhookSource() {
   });
 }
 
+/**
+ * `secret` entra pelo MESMO caminho de `is_active` (a rota é um PATCH só), e o
+ * corpo é o que sobra depois do `id` — enumerar campo a campo já congelou esta
+ * mutação em `{ is_active }` e deixou a tela sem como mandar o segredo.
+ * O plaintext passa por aqui de ida e NUNCA volta: a resposta traz só
+ * `has_secret`.
+ */
 export function useUpdateWebhookSource() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) =>
-      apiClient.patch<{ data: WebhookSourceRow }>(`/api/v1/webhook-sources/${id}`, { is_active }),
+    mutationFn: async ({
+      id,
+      ...patch
+    }: {
+      id: string;
+      is_active?: boolean;
+      secret?: string | null;
+    }) => apiClient.patch<{ data: WebhookSourceRow }>(`/api/v1/webhook-sources/${id}`, patch),
     onError: showApiError,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SOURCES_KEY });

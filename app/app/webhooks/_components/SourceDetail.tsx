@@ -39,6 +39,7 @@ import {
   useWebhookSourceEvents,
   type WebhookSourceRow,
 } from "@/hooks/webhooks/useWebhookSources";
+import { usePermission } from "@/hooks/auth/AuthProvider";
 import { useT } from "@/hooks/i18n/useT";
 
 interface Props {
@@ -81,6 +82,20 @@ function relativeReceivedAt(iso: string, locale: Locale): string {
   return formatDistanceToNowStrict(new Date(iso), { addSuffix: true, locale: locale });
 }
 
+/**
+ * 32 bytes em hex (64 caracteres), pelo CSPRNG do navegador.
+ *
+ * `crypto.getRandomValues` e não `Math.random`: o valor é um segredo de
+ * autenticação, e `Math.random` é previsível por construção. Não é
+ * `crypto.randomUUID` pelo mesmo motivo de `lib/random-id.ts` — ele não existe
+ * fora de secure context, e um self-host em `http://IP` é exatamente onde esta
+ * tela roda.
+ */
+function gerarSecretHex(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export function SourceDetail({ source, open, onOpenChange }: Props) {
   const localeDaData = useLocaleDeData();
   const t = useT();
@@ -91,9 +106,35 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
   );
   const [testing, setTesting] = React.useState(false);
   const [testOk, setTestOk] = React.useState(false);
+  const podeGerirWebhooks = usePermission("webhooks.manage");
+  /**
+   * `source` é um SNAPSHOT: `SourcesTab` guarda o objeto da lista num estado e
+   * o passa por prop, então invalidar a query não reescreve esta prop enquanto
+   * o painel está aberto. A resposta do PATCH é o dado mais fresco que esta
+   * tela alcança — e os dois estados abaixo carregam o id da fonte junto para
+   * não pintarem o estado de uma fonte no painel de outra.
+   */
+  const [assinatura, setAssinatura] = React.useState<{ id: string; ativa: boolean } | null>(null);
+  /** O plaintext vive AQUI e em nenhum outro lugar: some ao fechar o painel. */
+  const [revelado, setRevelado] = React.useState<{ id: string; valor: string } | null>(null);
 
   const url = publicUrl(source.path_token);
   const events = eventsRes?.data ?? [];
+  const temAssinatura = assinatura?.id === source.id ? assinatura.ativa : source.has_secret;
+  const secretRevelado = revelado?.id === source.id ? revelado.valor : null;
+
+  const aplicarSecret = (secret: string | null, aviso: string) =>
+    update.mutate(
+      { id: source.id, secret },
+      {
+        onSuccess: (res) => {
+          setAssinatura({ id: source.id, ativa: res.data.has_secret });
+          // Nunca o valor no toast: ele sobrevive à troca de tela e ao print.
+          setRevelado(secret === null ? null : { id: source.id, valor: secret });
+          toast.success(aviso);
+        },
+      },
+    );
 
   const sendTestLead = async () => {
     setTesting(true);
@@ -128,7 +169,15 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet
+      open={open}
+      onOpenChange={(aberto) => {
+        // Fechou, o plaintext morre — não há segunda chance de ver, e é assim
+        // que se promete que ele não fica pendurado na tela.
+        if (!aberto) setRevelado(null);
+        onOpenChange(aberto);
+      }}
+    >
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
           <div className="flex items-center gap-2">
@@ -211,15 +260,130 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
           </details>
 
           <section className="space-y-3">
-            <Button type="button" onClick={sendTestLead} disabled={testing}>
+            <Button type="button" onClick={sendTestLead} disabled={testing || temAssinatura}>
               {testing ? t("Enviando…") : t("Enviar lead de teste")}
             </Button>
+            {temAssinatura ? (
+              // O navegador não tem o secret — e não deve ter. Um teste daqui
+              // levaria 401 e leria como "a fonte está quebrada".
+              <p className="text-xs text-muted-foreground">
+                {t("Com assinatura ativa, teste a partir do sistema que envia os dados.")}
+              </p>
+            ) : null}
             {testOk ? (
               <p className="text-sm">
                 <Link href="/app/kanban" className="text-accent underline underline-offset-4">
                   {t("Ver no Kanban")}
                 </Link>
               </p>
+            ) : null}
+          </section>
+
+          <section className="space-y-3 rounded-sm border border-border p-3">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-text">{t("Assinatura (HMAC)")}</p>
+              {/* "Ligada", e não "Ativa": o cabeçalho do painel já tem uma badge
+                  "Ativa/Pausada" para a FONTE, e duas badges com a mesma palavra
+                  no mesmo painel falam de duas coisas diferentes. */}
+              <Badge variant={temAssinatura ? "success" : "neutral"}>
+                {temAssinatura ? t("Ligada") : t("Desligada")}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "Sem assinatura, quem descobrir o endereço consegue criar leads. Com ela, quem envia assina o corpo cru da requisição com HMAC-SHA256 e manda o resultado em hexadecimal no header X-Deskcomm-Signature — hex puro, sem prefixo.",
+              )}
+            </p>
+
+            {secretRevelado ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 truncate rounded-sm border border-border bg-muted px-3 py-2 text-xs">
+                    {secretRevelado}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    onClick={() => copy(secretRevelado, t("Segredo copiado."), t)}
+                  >
+                    <Copy />
+                  </Button>
+                </div>
+                <p className="text-xs text-error">
+                  {t("Guarde agora. Ele não será mostrado de novo.")}
+                </p>
+              </div>
+            ) : null}
+
+            {podeGerirWebhooks ? (
+              <div className="flex flex-wrap gap-2">
+                {temAssinatura ? (
+                  <>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button type="button" variant="secondary" disabled={update.isPending}>
+                          {t("Trocar segredo")}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{t("Trocar o segredo desta fonte?")}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {t(
+                              "Integrações que usam o segredo atual vão parar de funcionar até serem atualizadas.",
+                            )}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => aplicarSecret(gerarSecretHex(), t("Segredo trocado."))}
+                          >
+                            {t("Trocar")}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button type="button" variant="secondary" disabled={update.isPending}>
+                          {t("Remover segredo")}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            {t("Remover a assinatura desta fonte?")}
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {t(
+                              "O endereço volta a aceitar envios sem assinatura — só o endereço secreto passa a protegê-lo.",
+                            )}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => aplicarSecret(null, t("Assinatura removida."))}
+                          >
+                            {t("Remover")}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    disabled={update.isPending}
+                    onClick={() => aplicarSecret(gerarSecretHex(), t("Assinatura ligada."))}
+                  >
+                    {t("Gerar segredo")}
+                  </Button>
+                )}
+              </div>
             ) : null}
           </section>
 
