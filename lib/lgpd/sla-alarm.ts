@@ -18,7 +18,6 @@ import { sendEmail } from "@/lib/email/roteador";
 import { audit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { valorDaInstalacao } from "@/lib/instalacao/config";
-import { caminhoDoPedido } from "./caminho-do-pedido";
 import type { LgpdRequest } from "./types";
 
 export type AlarmThreshold = "data_request_d5" | "redact_d10";
@@ -36,12 +35,6 @@ export interface TriggerSlaAlarmArgs {
    * mesma urgência teria errado a prioridade.
    */
   organizationName?: string | null;
-  /**
-   * `organizations.status`. Empresa parada recebe o link do hub com `?pedido=`:
-   * o de `/app` a levaria à lista, sem o pedido (ver `caminho-do-pedido.ts`).
-   * Nulo vale como parada — o hub devolve a empresa que opera ao pedido.
-   */
-  organizationStatus: string | null;
   /**
    * A marca resolvida da instalação/organização. Substitui o antigo literal e
    * pinta o botão — sem ela o alarme sairia com a cor de outro produto.
@@ -61,7 +54,7 @@ const DEDUP_MS = 24 * 60 * 60 * 1_000; // 24 h
 export async function triggerSlaAlarm(
   args: TriggerSlaAlarmArgs,
 ): Promise<TriggerSlaAlarmResult> {
-  const { request, threshold, organizationDpoEmail, organizationName, organizationStatus, marca } = args;
+  const { request, threshold, organizationDpoEmail, organizationName, marca } = args;
 
   // ──────────────────────────────────────────────────────────────────────────
   // 1. 24-hour dedup guard
@@ -123,7 +116,10 @@ export async function triggerSlaAlarm(
       const shortId = request.id.slice(0, 8);
       const orgName = escapeHtml(organizationName || marca.nome);
       const appUrl = env.NEXT_PUBLIC_APP_URL;
-      const requestUrl = `${appUrl}${caminhoDoPedido(organizationStatus, request.id)}`;
+      // Porta neutra, não `/app` nem o hub: a empresa pode ser suspensa ou
+      // reativada entre o envio e o clique, e quem decide é o clique
+      // (`app/lgpd/pedido/[id]/route.ts`).
+      const requestUrl = `${appUrl}/lgpd/pedido/${request.id}`;
 
       const subject = `[LGPD] Solicitação ${shortId} próxima do vencimento`;
 

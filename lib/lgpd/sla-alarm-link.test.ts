@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  *
  * `/app/lgpd/requests/<id>` passa pelo layout de `/app`, que manda a empresa
  * parada para `/account-suspended` SEM o pedido — o DPO caía na lista, com o
- * prazo legal correndo. Empresa parada recebe o link do hub com `?pedido=`.
+ * prazo legal correndo. E escolher a porta no ENVIO erra quando a empresa muda
+ * de estado antes do clique. O link é sempre a porta neutra `/lgpd/pedido/<id>`,
+ * que decide no clique (`app/lgpd/pedido/[id]/route.ts`).
  */
 const enviado = vi.hoisted(() => ({ html: "", text: "" }));
 vi.mock("@sentry/nextjs", () => ({ captureMessage: vi.fn() }));
@@ -39,13 +41,12 @@ const pedido = {
   request_payload: {},
 } as unknown as LgpdRequest;
 
-async function alarmar(organizationStatus: string | null) {
+async function alarmar() {
   await triggerSlaAlarm({
     request: pedido,
     threshold: "data_request_d5",
     organizationDpoEmail: "dpo@empresa.test",
     organizationName: "Empresa B",
-    organizationStatus,
     marca: { nome: "CRM", accent: "#000000", accentFg: "#ffffff" } as never,
   });
 }
@@ -56,16 +57,11 @@ beforeEach(() => {
 });
 
 describe("sla-alarm: o link do e-mail abre o pedido", () => {
-  it("empresa que opera: o link é o pedido dentro de /app", async () => {
-    await alarmar("active");
-    expect(enviado.html).toContain(`href="https://crm.test/app/lgpd/requests/${ID}"`);
-    expect(enviado.text).toContain(`https://crm.test/app/lgpd/requests/${ID}`);
-  });
-
-  it.each(["suspended", "redacted", null])("empresa parada (%s): o link é o hub com ?pedido=", async (status) => {
-    await alarmar(status);
-    expect(enviado.html).toContain(`href="https://crm.test/account-suspended?pedido=${ID}"`);
-    expect(enviado.text).toContain(`https://crm.test/account-suspended?pedido=${ID}`);
+  it("o link é a porta neutra, nem /app nem o hub: quem decide é o clique", async () => {
+    await alarmar();
+    expect(enviado.html).toContain(`href="https://crm.test/lgpd/pedido/${ID}"`);
+    expect(enviado.text).toContain(`https://crm.test/lgpd/pedido/${ID}`);
     expect(enviado.text).not.toContain("/app/lgpd/requests/");
+    expect(enviado.text).not.toContain("/account-suspended");
   });
 });

@@ -43,15 +43,8 @@ const SIMBOLOS_DE_FILTRO = new Set(["idsDeOrgsParadas", "ehOperante"]);
  * cerca não enxerga — quem o prova é tests/invariants/followup-org-suspensa.test.ts.
  */
 const PROFUNDIDADE_MAXIMA = 4;
-/**
- * Importar isto não faz a rota respeitar a org parada: assert na saída não é filtro, e
- * escolher a PORTA de um link (`caminho-do-pedido.ts`: hub ou `/app`) também não — o
- * alarme de LGPD segue saindo para a empresa parada, de propósito.
- */
-const NAO_E_FILTRO = new Set([
-  join(RAIZ, "app", "api", "v1", "messages", "_handler.ts"),
-  join(RAIZ, "lib", "lgpd", "caminho-do-pedido.ts"),
-]);
+/** Importar isto não faz a rota respeitar a org parada: assert na saída não é filtro. */
+const NAO_E_FILTRO = new Set([join(RAIZ, "app", "api", "v1", "messages", "_handler.ts")]);
 
 const SEM_FILTRO: Record<string, string> = {
   "agenda-expira-pendentes": "só libera o horário de pedido pendente vencido; escrita interna, sem custo nem saída",
