@@ -30,7 +30,7 @@ async function fixture(customFields: Record<string, unknown> = {}) {
     [org],
   );
   await pool.query(
-    "insert into crm_pipelines(id,organization_id,name,slug) values($1,$2,'Funil',$1::text)",
+    "insert into crm_pipelines(id,organization_id,name,slug) values($1::uuid,$2,'Funil',$1::text)",
     [pipeline, org],
   );
   await pool.query(
