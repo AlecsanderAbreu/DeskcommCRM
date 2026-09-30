@@ -49,6 +49,7 @@ vi.mock("@/lib/supabase/admin", () => ({
   }),
 }));
 vi.mock("@/lib/branding/saida", () => ({ emailDeSuporte: async () => "suporte@revenda.test" }));
+vi.mock("@/app/actions/auth/signOut", () => ({ signOut: vi.fn() }));
 vi.mock("@/app/app/lgpd/requests/RequestsTable", () => ({
   RequestsTable: ({ baseDoPedido }: { baseDoPedido?: string }) => <p data-testid="lgpd-lista">{baseDoPedido}</p>,
 }));
@@ -121,6 +122,14 @@ describe("/account-suspended: o hub de quem está numa empresa suspensa", () => 
     await montar("../app/inbox");
     expect(screen.getByTestId("lgpd-lista")).toBeVisible();
     expect(screen.queryByTestId("lgpd-pedido")).toBeNull();
+  });
+
+  it("'Sair' encerra a sessão: é um botão de envio dentro de um form, não um link para /login", async () => {
+    await montar();
+    const sair = screen.getByRole("button", { name: "Sair" });
+    expect(sair).toHaveAttribute("type", "submit");
+    expect(sair.closest("form")).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Sair" })).toBeNull();
   });
 
   it("leitura do estado que falha LANÇA: nem hub nem redirect por palpite", async () => {

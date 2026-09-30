@@ -1300,7 +1300,7 @@ painel suspendia e reativava empresas.
 | A admin da empresa suspensa cai no hub: texto do suporte, pedido de LGPD abrindo no próprio hub, volta para a empresa que opera | idem | CI (PARTE_6) |
 | `/app/inbox` volta para o hub; o token `dsk_` da empresa responde 403 `org_suspended` | idem | CI (PARTE_6) |
 | A captação por `webhooks/in/[token]` é gravada durante a suspensão; nenhuma `llm_calls` nem mensagem de saída nasce | idem | CI (PARTE_6) |
-| A atendente da empresa suspensa lê "Avise o administrador da sua empresa", sem LGPD | idem | CI (PARTE_6) |
+| A atendente da empresa suspensa lê "Avise o administrador da sua empresa", sem LGPD; "Sair" encerra a sessão e `/app` manda ao login | idem | CI (PARTE_6) |
 | O dono reativa: nada sai em rajada, e a Central mostra o aviso que leva ao Inbox | idem | CI (PARTE_6) |
 | O aviso de reativação conta só conversa que não é de grupo, diz só o fato, e a orientação manda procurar nas abas Fila e Automático (numa empresa com IA a conversa sem dono está em Automático) | `tests/invariants/org-suspensa.test.ts`, `lib/ai/inbox-destino.ts` | test:db |
 | Hub: empresa que opera volta para `/app`, pedido inválido cai na lista, leitura que falha lança | `app/account-suspended/page.test.tsx` | unit |

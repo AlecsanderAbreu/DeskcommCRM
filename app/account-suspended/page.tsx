@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
+import { signOut } from "@/app/actions/auth/signOut";
 import { LgpdRequestDetail } from "@/app/app/lgpd/requests/[id]/_client";
 import { RequestsTable } from "@/app/app/lgpd/requests/RequestsTable";
 import { OutrasOrganizacoes } from "@/app/onboarding/_components/OutrasOrganizacoes";
@@ -109,9 +109,13 @@ export default async function AccountSuspendedPage({
           )}
           <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
             <OutrasOrganizacoes outras={outras} />
-            <Button asChild variant="outline">
-              <Link href="/login">{t("Sair")}</Link>
-            </Button>
+            {/* Encerra a sessão, como a irmã /acesso-revogado: um link para /login
+                deixava a pessoa logada, e o próximo /app a trazia de volta aqui. */}
+            <form action={signOut}>
+              <Button type="submit" variant="outline">
+                {t("Sair")}
+              </Button>
+            </form>
           </div>
         </Card>
         {administra && (

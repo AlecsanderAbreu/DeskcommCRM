@@ -13,7 +13,7 @@
  *   4. `/app/inbox` volta para o hub, e o token `dsk_` de B responde 403;
  *   5. a captação por `webhooks/in/[token]` é GRAVADA, e nada responde:
  *      nenhuma `llm_calls`, nenhuma mensagem de saída;
- *   6. a atendente de B lê "Avise o administrador", sem LGPD;
+ *   6. a atendente de B lê "Avise o administrador", sem LGPD, e "Sair" encerra a sessão;
  *   7. o dono reativa. Nada sai em rajada, e a Central mostra o item de revisão.
  *
  * Self-contida: orgs, pessoas, token, fonte e pedido de LGPD nascem pelo
@@ -257,6 +257,11 @@ test("suspender cala B pela tela; o hub atende quem ficou; reativar não solta r
     await expect(pAtendente.getByText("Sua conta está suspensa. Avise o administrador da sua empresa.")).toBeVisible();
     await expect(pAtendente.getByRole("heading", { name: "Solicitações LGPD" })).toHaveCount(0);
     await pAtendente.screenshot({ path: `${EVIDENCIA}/hub-atendente.png`, fullPage: true });
+    // 'Sair' encerra a sessão: sem ela, /app não tem para onde mandar além do login.
+    await pAtendente.getByRole("button", { name: "Sair" }).click();
+    await pAtendente.waitForURL(/\/login/);
+    await pAtendente.goto("/app");
+    await expect(pAtendente).toHaveURL(/\/login/);
 
     // ── 7. O dono reativa: nada em rajada, e a Central pede revisão ────────
     await page.goto(`/admin/tenants/${orgB}`);
