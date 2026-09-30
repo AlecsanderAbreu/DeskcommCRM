@@ -261,3 +261,116 @@ describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
     expect(estado(ORG_C)).toBe("redacted/-");
   });
 });
+
+describe("inv. 4 — fn_suspender_organizacao para a fila e escreve numa transação só", () => {
+  it("⭐ suspende: tipo e autoria gravados, pending → failed, queued → failed; a vizinha fica intocada", () => {
+    const antes = eventos(ORG_A, "tenant.suspended");
+    expect(suspender(ORG_A, "administrativa")).toEqual({ changed: true });
+    expect(estado(ORG_A)).toBe("suspended/administrativa");
+    expect(
+      valor(
+        `select suspended_reason || '|' || suspended_by || '|' || (suspended_at is not null)::text from public.organizations where id = '${ORG_A}';`,
+      ),
+    ).toBe(`${MOTIVO}|${DONO}|true`);
+    expect(valor(`select status || '|' || last_error from public.job_queue where id = '${JOB_A}';`)).toBe(
+      "failed|org_nao_operante",
+    );
+    expect(valor(`select status || '|' || error_code from public.messages where id = '${MSG_A}';`)).toBe(
+      "failed|org_suspensa",
+    );
+    expect(eventos(ORG_A, "tenant.suspended")).toBe(antes + 1);
+    expect(
+      valor(
+        `select payload->>'kind' || '|' || status from public.event_log where organization_id = '${ORG_A}' and event_type = 'tenant.suspended' order by created_at desc limit 1;`,
+      ),
+    ).toBe("administrativa|done");
+    expect(estado(ORG_B)).toBe("active/-");
+    expect(valor(`select status from public.job_queue where id = '${JOB_B}';`)).toBe("pending");
+    expect(valor(`select status from public.messages where id = '${MSG_B}';`)).toBe("queued");
+  });
+
+  it("idempotente: suspender de novo pelo mesmo tipo não muda nada nem emite 2º evento", () => {
+    suspender(ORG_A, "cobranca");
+    const antes = eventos(ORG_A, "tenant.suspended");
+    expect(suspender(ORG_A, "cobranca")).toEqual({ changed: false, motivo: "ja_suspensa" });
+    expect(eventos(ORG_A, "tenant.suspended")).toBe(antes);
+    expect(estado(ORG_A)).toBe("suspended/cobranca");
+  });
+
+  it("a administrativa prevalece nos dois sentidos, sem recomeçar o início da suspensão", () => {
+    suspender(ORG_A, "administrativa");
+    expect(suspender(ORG_A, "cobranca")).toEqual({ changed: false, motivo: "administrativa_prevalece" });
+    expect(estado(ORG_A)).toBe("suspended/administrativa");
+
+    reiniciar();
+    suspender(ORG_A, "cobranca");
+    const inicio = valor(`select suspended_at::text from public.organizations where id = '${ORG_A}';`);
+    expect(suspender(ORG_A, "administrativa")).toEqual({ changed: true });
+    expect(estado(ORG_A)).toBe("suspended/administrativa");
+    expect(valor(`select suspended_at::text from public.organizations where id = '${ORG_A}';`)).toBe(inicio);
+  });
+
+  it("o evento nasce na MESMA transação: visível antes do commit, some no rollback", () => {
+    const antes = eventos(ORG_A, "tenant.suspended");
+    const saida = sql(`
+      begin;
+      set local role service_role;
+      select public.fn_suspender_organizacao('${ORG_A}', 'administrativa', '${MOTIVO}', '${DONO}');
+      reset role;
+      select 'dentro:' || count(*) from public.event_log where organization_id = '${ORG_A}' and event_type = 'tenant.suspended';
+      rollback;
+    `);
+    expect(saida.split("\n")).toContain(`dentro:${antes + 1}`);
+    expect(eventos(ORG_A, "tenant.suspended")).toBe(antes);
+    expect(estado(ORG_A)).toBe("active/-");
+    expect(valor(`select status from public.job_queue where id = '${JOB_A}';`)).toBe("pending");
+  });
+
+  it("tipo fora do vocabulário é 22023; organização inexistente é P0002", () => {
+    expect(erroDe(`set role service_role;\nselect public.fn_suspender_organizacao('${ORG_A}', 'fraude', '${MOTIVO}', null);`)).toContain("22023");
+    expect(erroDe(`set role service_role;\nselect public.fn_suspender_organizacao('${ORG_FORJADA}', 'administrativa', '${MOTIVO}', null);`)).toContain("P0002");
+    expect(estado(ORG_A)).toBe("active/-");
+  });
+
+  it("⭐ nenhuma sessão executa a função de suspensão", () => {
+    for (const usuario of [DONO, SUPORTE, ADMIN_A]) {
+      const e = erroDe(
+        comoUsuario(usuario, `select public.fn_suspender_organizacao('${ORG_A}', 'administrativa', '${MOTIVO}', '${usuario}')`),
+      );
+      expect(e, usuario).toContain("42501");
+      expect(e, usuario).toContain("permission denied");
+    }
+    expect(estado(ORG_A)).toBe("active/-");
+  });
+});
+
+describe("inv. 3 — com a org suspensa, o barramento e a LGPD seguem vivos", () => {
+  beforeEach(() => {
+    suspender(ORG_A, "administrativa");
+  });
+
+  it("emit_event pelo servidor (o que a aprovação de LGPD faz) grava para a org suspensa", () => {
+    const antes = eventos(ORG_A, "lgpd.data_request_received");
+    sql(`set role service_role;
+      select public.emit_event('lgpd.data_request_received', 'lgpd_request', '${PEDIDO_LGPD}',
+        jsonb_build_object('request_id', '${PEDIDO_LGPD}', 'manually_approved', true), '{}'::jsonb, '${ORG_A}');`);
+    expect(eventos(ORG_A, "lgpd.data_request_received")).toBe(antes + 1);
+  });
+
+  it("emit_event pela sessão do admin da org suspensa continua funcionando", () => {
+    const antes = eventos(ORG_A, "contact.updated");
+    sql(comoUsuario(ADMIN_A, `select public.emit_event('contact.updated', 'contact', '${CONTATO_A1}', '{}'::jsonb, '{}'::jsonb, '${ORG_A}')`));
+    expect(eventos(ORG_A, "contact.updated")).toBe(antes + 1);
+  });
+
+  it("a vizinha ativa segue normal: opera, fila intacta, barramento vivo", () => {
+    expect(operante(ORG_A)).toBe("false");
+    expect(operante(ORG_B)).toBe("true");
+    expect(valor(`select status from public.job_queue where id = '${JOB_B}';`)).toBe("pending");
+    expect(valor(`select status from public.messages where id = '${MSG_B}';`)).toBe("queued");
+    const antes = eventos(ORG_B, "contact.updated");
+    sql(`set role service_role;
+      select public.emit_event('contact.updated', 'contact', '${CONTATO_B}', '{}'::jsonb, '{}'::jsonb, '${ORG_B}');`);
+    expect(eventos(ORG_B, "contact.updated")).toBe(antes + 1);
+  });
+});

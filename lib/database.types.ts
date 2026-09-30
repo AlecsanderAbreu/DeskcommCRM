@@ -10311,6 +10311,10 @@ export type Database = {
         Returns: Json
       }
       fn_org_operante: { Args: { p_org: string }; Returns: boolean }
+      fn_suspender_organizacao: {
+        Args: { p_org: string; p_kind: string; p_motivo: string; p_ator: string }
+        Returns: Json
+      }
       fn_accept_team_invite: {
         Args: { p_user: string; p_org: string; p_role: string; p_invited_by: string | null; p_issued_at: string | null; p_invited_at: string; p_interface_settings?: Json }
         Returns: Json
