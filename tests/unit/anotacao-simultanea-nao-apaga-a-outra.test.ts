@@ -11,7 +11,7 @@
  * inteira com o valor que recebe, e `fn_lead_anotar_campos`, que mescla sobre o
  * que existe no momento. Com o código antigo o segundo `update` pisa no primeiro.
  *
- * O que este teste NÃO prova: a trava de linha (`for update`) de verdade. Isso é
+ * O que este teste NÃO prova: a espera entre transações de verdade. Isso é
  * do invariante `tests/invariants/anotacao-simultanea-nao-apaga-a-outra.test.ts`,
  * que abre duas transações num Postgres real.
  */

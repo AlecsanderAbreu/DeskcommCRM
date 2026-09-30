@@ -45285,13 +45285,21 @@ create unique index if not exists agent_inbox_event_dead_aberto_unico
 -- O handler grava pelo PostgREST (`supabase.update()`), e ele não sabe dizer
 -- `custom_fields = coalesce(custom_fields,'{}'::jsonb) || $1::jsonb` — só sabe
 -- mandar um VALOR pronto, que é justamente o valor calculado a partir de uma
--- leitura velha. O merge atômico tem de acontecer onde a trava de linha existe:
--- dentro do banco.
+-- leitura velha. A conta tem de acontecer DENTRO do `UPDATE`.
 --
--- `for update` antes do `update` não é redundante com o `update`: ele é o que
--- faz a segunda transação ESPERAR e RELER o que a primeira gravou, em vez de
--- decidir com o que leu antes. Sem ele, duas chamadas concorrentes leem a mesma
--- versão e a última concatena em cima de dado vencido.
+-- ─── Por que isso basta (medido, não suposto) ──────────────────────────────
+--
+-- Numa ÚNICA instrução `update … set custom_fields = custom_fields || $1`, em
+-- READ COMMITTED (o padrão do PostgREST), a segunda transação ESPERA o commit
+-- da primeira e RECALCULA a expressão sobre a versão nova da linha. Por isso ela
+-- soma sobre o que a primeira gravou, em vez de sobre o que leu antes.
+--
+-- Um `select … for update` antes NÃO é necessário: o invariante
+-- `anotacao-simultanea-nao-apaga-a-outra.test.ts` passou igual com e sem ele.
+-- O que quebra o conserto é o oposto — ler o valor para uma variável e gravar
+-- depois, que reintroduz a leitura velha (o invariante fica vermelho assim).
+-- Em REPEATABLE READ ou SERIALIZABLE a segunda transação recebe 40001 em vez de
+-- sobrescrever: falha alta, nunca dado perdido em silêncio.
 --
 -- ─── O que esta função NÃO faz ──────────────────────────────────────────────
 --
@@ -45316,18 +45324,11 @@ begin
     raise exception 'campos_precisa_ser_objeto' using errcode = '22023';
   end if;
 
-  -- A TRAVA É O CONSERTO. Quem chega depois espera aqui e relê o que o
-  -- primeiro gravou; sem isto os dois concatenariam em cima da mesma versão
-  -- velha e a última escrita venceria sozinha.
-  perform 1 from public.crm_leads
-   where organization_id = p_org and id = p_lead
-   for update;
-  if not found then
-    -- Silêncio de propósito: quem pede um lead que não é da organização dele
-    -- não recebe confirmação de que ele existe em outro lugar.
-    return null;
-  end if;
-
+  -- UMA instrução, sem leitura prévia: a conta `custom_fields || p_campos` é
+  -- refeita sobre a linha vigente quando há escrita concorrente (ver cabeçalho).
+  -- Sem linha (lead inexistente OU de outra organização) nada é gravado e
+  -- `resultado` fica nulo. Silêncio de propósito: quem pede um lead que não é da
+  -- organização dele não recebe confirmação de que ele existe em outro lugar.
   update public.crm_leads
      set custom_fields = coalesce(custom_fields, '{}'::jsonb) || p_campos
    where organization_id = p_org and id = p_lead
@@ -45347,7 +45348,7 @@ revoke all on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) from publ
 grant execute on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) to service_role;
 
 comment on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) is
-  'Mescla campos personalizados no lead DENTRO do banco, sob trava de linha. '
+  'Mescla campos personalizados no lead DENTRO do banco, numa única instrução atômica. '
   'Existe porque o merge no aplicativo perdia escrita concorrente em silêncio. '
   'Não decide papel nem organização — isso é de quem chama.';
 

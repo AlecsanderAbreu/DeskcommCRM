@@ -2,10 +2,10 @@
  * Duas anotações ao mesmo tempo no mesmo negócio NÃO se apagam (migration 0498).
  *
  * O teste unitário do handler reproduz a corrida com um banco falso. Este é o
- * que prova a TRAVA DE VERDADE, num Postgres real: duas transações abertas, a
+ * que prova a espera entre transações DE VERDADE, num Postgres real: duas transações abertas, a
  * segunda chamando `fn_lead_anotar_campos` ENQUANTO a primeira ainda não
- * confirmou. A segunda tem de ESPERAR (`for update`), reler o que a primeira
- * gravou e somar. Sem a trava as duas concatenariam em cima da mesma versão
+ * confirmou. A segunda tem de ESPERAR a linha, recalcular sobre o que a primeira
+ * gravou e somar. Se o valor fosse calculado FORA do UPDATE (ler e gravar depois), as duas concatenariam em cima da mesma versão
  * velha e a última venceria sozinha.
  *
  * Roda só no CI e em `pnpm test:db` (precisa de Postgres).
