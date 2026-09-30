@@ -48,6 +48,7 @@ const CONVERSA_B = "c0de0496-4444-4000-8000-0000000000b1";
 const CONVERSA_GRUPO = "c0de0496-4444-4000-8000-0000000000a3"; // grupo da org A
 const JOB_A = "c0de0496-5555-4000-8000-00000000000a";
 const JOB_B = "c0de0496-5555-4000-8000-00000000000b";
+const JOB_REMANESCENTE = "c0de0496-5555-4000-8000-00000000000c"; // escapa para a fila durante a suspensão
 const MSG_A = "c0de0496-6666-4000-8000-00000000000a";
 const MSG_B = "c0de0496-6666-4000-8000-00000000000b";
 const PEDIDO_LGPD = "c0de0496-7777-4000-8000-000000000001";
@@ -454,7 +455,7 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
     // Durante a suspensão: as duas conversas recebem mensagem e um job escapa para a fila.
     sql(`
       update public.conversations set last_inbound_at = clock_timestamp() where id in ('${CONVERSA_A1}', '${CONVERSA_A2}');
-      insert into public.job_queue (organization_id, kind, status) values ('${ORG_A}', 'watchdog', 'pending');
+      insert into public.job_queue (id, organization_id, kind, status) values ('${JOB_REMANESCENTE}', '${ORG_A}', 'watchdog', 'pending');
     `);
     const antes = eventos(ORG_A, "tenant.reactivated");
 
@@ -467,6 +468,10 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
       ),
     ).toBe("true");
     expect(valor(`select count(*) from public.job_queue where organization_id = '${ORG_A}' and status = 'pending';`)).toBe("0");
+    // Sair de 'pending' não basta: apagado ou 'done' também passaria acima.
+    expect(valor(`select status || '|' || last_error from public.job_queue where id = '${JOB_REMANESCENTE}';`)).toBe(
+      "failed|org_nao_operante",
+    );
     expect(corpoDoItem()).toBe(
       "warn|null|2 conversas receberam mensagem enquanto a conta estava suspensa.",
     );
