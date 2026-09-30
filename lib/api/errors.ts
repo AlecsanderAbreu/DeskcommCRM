@@ -78,6 +78,10 @@ export const ApiErrorCodes = {
   // POST /admin/tenants/[id]/reactivate sobre suspensão por falta de pagamento:
   // a saída é "Dar prazo" ou "Tornar isenta", nunca o "Reativar" genérico.
   suspensao_de_cobranca: "suspensao_de_cobranca",
+  // POST /admin/tenants/[id]/suspend|reactivate quando o descarte da fila bate
+  // na trava do aviso do Meet (`appointment_notice_busy`, 40001): outra escrita
+  // do mesmo contato está em curso. Nada foi gravado; tentar de novo resolve.
+  retry_later: "retry_later",
   invalid_state: "invalid_state", // resposta a um agent_case que saiu de awaiting_human (spec 15 §7)
   tenant_already_exists: "tenant_already_exists",
   // POST /api/v1/settings/api-tokens quando a organização já está no teto de

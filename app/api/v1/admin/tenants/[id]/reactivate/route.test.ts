@@ -110,4 +110,15 @@ describe("POST /admin/tenants/[id]/reactivate", () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
     expect((await POST(pedido({ reason: MOTIVO }), ctx)).status).toBe(500);
   });
+
+  it("trava do aviso do Meet (40001 appointment_notice_busy) → 409 retry_later, sem audit", async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { code: "40001", message: "appointment_notice_busy" } });
+    const res = await POST(pedido({ reason: MOTIVO }), ctx);
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatchObject({
+      code: "retry_later",
+      message: "Outra operação está em andamento para esta empresa. Tente de novo em instantes.",
+    });
+    expect(h.audit).not.toHaveBeenCalled();
+  });
 });

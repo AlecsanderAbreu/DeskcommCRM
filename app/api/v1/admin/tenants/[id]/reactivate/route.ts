@@ -29,6 +29,7 @@ const bodySchema = z.object({
     .max(500, "Motivo deve ter no máximo 500 caracteres"),
 });
 const resultadoSchema = z.object({ changed: z.boolean(), motivo: z.string().optional() });
+const MENSAGEM_DE_RETENTAR = "Outra operação está em andamento para esta empresa. Tente de novo em instantes.";
 const KIND_EXIGIDO: TipoDeSuspensao = "administrativa";
 const KIND_DE_COBRANCA: TipoDeSuspensao = "cobranca";
 
@@ -82,6 +83,12 @@ export async function POST(
     p_kind_exigido: KIND_EXIGIDO,
     p_ator: adminCtx.user.id,
   });
+  // 40001 = `appointment_notice_busy`: o descarte da fila avisa o Meet com
+  // trava SEM espera (esperar ali, com a linha da org em `for update`, arrisca
+  // deadlock). A transação inteira voltou; quem tenta de novo passa.
+  if (error?.code === "40001") {
+    return fail("retry_later", MENSAGEM_DE_RETENTAR, 409, { requestId });
+  }
   const resultado = resultadoSchema.safeParse(data);
   if (error || !resultado.success) {
     return fail("internal_error", "Failed to reactivate tenant", 500, { requestId });
