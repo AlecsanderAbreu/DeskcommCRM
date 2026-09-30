@@ -24,31 +24,12 @@ import { arquivosDeCodigo, caminhoRelativo } from "./helpers/varrer-codigo";
  */
 const METODOS_DE_ESCRITA = new Set(["POST", "PATCH", "PUT", "DELETE"]);
 
-const PENDENTE = "convertida numa tarefa seguinte do plano da PR 1 (feat/org-operante) — some ao converter";
-
 /** Allowlist que SÓ ENCOLHE. Chave `arquivo#regra:alvo`; valor = porquê (≥ 20 caracteres). */
 const EXCECOES: Record<string, string> = {
   "app/api/v1/admin/tenants/[id]/impersonate/route.ts#A:POST":
     "abrir acompanhamento é o trabalho do support_readonly: fn_support_context rebaixa scope diferente de full a support_readonly, e a rota já confere mfaEmDivida",
   "app/actions/auth/politicaDeMfa.ts#B:flag":
     "lê is_platform_admin só para saber se a política de MFA da PLATAFORMA vale para a própria conta; não é atalho de papel nem escrita em nome de outro",
-  // ── temporárias: Task 15 ──
-  // ── temporárias: Task 15b (atalho de papel por is_platform_admin) ──
-  "app/actions/integrations/connectNuvemshop.ts#B:flag": PENDENTE,
-  "app/actions/integrations/disconnectNuvemshop.ts#B:flag": PENDENTE,
-  "app/actions/settings/acoesDeConversaoGoogle.ts#B:flag": PENDENTE,
-  "app/actions/settings/apagarDadosOperacionaisDaOrganizacao.ts#B:flag": PENDENTE,
-  "app/actions/settings/atualizarInterfaceDaEmpresa.ts#B:flag": PENDENTE,
-  "app/actions/settings/definirVendaPeloCanal.ts#B:flag": PENDENTE,
-  "app/actions/settings/linksRastreaveis.ts#B:flag": PENDENTE,
-  "app/actions/settings/salvarRegrasDeConversaoGoogle.ts#B:flag": PENDENTE,
-  "app/actions/settings/updateAdInsightsConnection.ts#B:flag": PENDENTE,
-  "app/actions/settings/updateAdPlatformConnection.ts#B:flag": PENDENTE,
-  "app/actions/settings/updateCapturaDeUtm.ts#B:flag": PENDENTE,
-  "app/actions/settings/updateGoogleAdsConnection.ts#B:flag": PENDENTE,
-  "app/actions/settings/updateMarcaDaOrganizacao.ts#B:flag": PENDENTE,
-  "app/actions/settings/updatePipelineConfig.ts#B:flag": PENDENTE,
-  "app/actions/settings/updateTenant.ts#B:flag": PENDENTE,
 };
 
 export interface Violacao {
