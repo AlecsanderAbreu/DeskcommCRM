@@ -15,8 +15,9 @@ segredo com um clique, vê o valor uma única vez para copiar e guardar, e a par
 daí o endereço passa a recusar qualquer envio que não venha assinado por quem tem
 esse segredo. Dá para trocar o segredo (avisando que as integrações antigas param
 até serem atualizadas) e para removê-lo, voltando ao estado anterior. O valor
-aparece uma vez e não é mostrado de novo: ele não fica guardado em lugar nenhum
-que possa ser lido depois, nem por quem opera o sistema.
+aparece uma vez e não é mostrado de novo: o sistema guarda apenas uma versão
+cifrada dele, que serve para conferir os envios e não para exibir — nem para
+quem opera o servidor. Perdeu o segredo, o caminho é gerar outro.
 
 Quem envia os dados assina o corpo da requisição com HMAC-SHA256 e manda o
 resultado em hexadecimal no cabeçalho `X-Deskcomm-Signature`. Com a assinatura

@@ -67,10 +67,21 @@ export function useCreateWebhookSource() {
  * mutação em `{ is_active }` e deixou a tela sem como mandar o segredo.
  * O plaintext passa por aqui de ida e NUNCA volta: a resposta traz só
  * `has_secret`.
+ *
+ * ⚠️ `gcTime: 0` É PARTE DA PROMESSA, NÃO AFINAÇÃO DE MEMÓRIA.
+ *
+ * O TanStack guarda as `variables` de cada mutação no `MutationCache` do
+ * `QueryClient` — que é singleton da aplicação (`app/providers.tsx`) — pelo
+ * `gcTime` padrão de 5 minutos. Com o segredo dentro das `variables`, a tela
+ * pode ter descartado o valor e ele seguir legível por `getMutationCache()`
+ * durante esses minutos, para qualquer código que rode na página. Zerando,
+ * a mutação sai do cache assim que termina, e o único lugar onde o plaintext
+ * sobrevive passa a ser o estado local que o componente apaga ao fechar.
  */
 export function useUpdateWebhookSource() {
   const qc = useQueryClient();
   return useMutation({
+    gcTime: 0,
     mutationFn: async ({
       id,
       ...patch

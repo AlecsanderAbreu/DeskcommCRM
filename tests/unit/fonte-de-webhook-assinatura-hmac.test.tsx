@@ -75,7 +75,12 @@ function renderPainel(fonte: Partial<WebhookSourceRow> = {}) {
   );
 }
 
-/** O hex de 64 caracteres que a tela mandou no corpo do PATCH. */
+/**
+ * O hex de 64 caracteres que a tela mandou no corpo do PATCH.
+ *
+ * Lê a PRIMEIRA chamada: todo caso aqui dispara um PATCH só. Um caso futuro que
+ * dispare dois leria o primeiro em silêncio — se precisar, receba o índice.
+ */
 function segredoEnviado(): string {
   const corpo = patch.mock.calls[0]?.[1] as { secret?: string } | undefined;
   return corpo?.secret ?? "";
@@ -217,6 +222,40 @@ describe("fonte de webhook — assinatura (HMAC)", () => {
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
     expect(patch).toHaveBeenCalledWith("/api/v1/webhook-sources/src-1", { secret: null });
     await waitFor(() => expect(screen.getByText("Desligada")).toBeTruthy());
+  });
+
+  it("⭐ PATCH que falha não mente: a tela continua no estado de antes", async () => {
+    // O caso que a instalação self-host encontra de verdade: a rota devolve 422
+    // `encryption_unavailable` quando a chave de cifra não está ativa. O
+    // `onSuccess` não roda, então nada pode ter mudado na tela — e, acima de
+    // tudo, nenhum valor pode aparecer: um segredo exibido como se tivesse sido
+    // gravado faria o integrador configurar o outro lado com um valor que o
+    // servidor não conhece.
+    patch.mockRejectedValue(new Error("encryption_unavailable"));
+    const user = userEvent.setup();
+    renderPainel({ has_secret: false });
+
+    await user.click(screen.getByRole("button", { name: "Gerar segredo" }));
+    await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByText("Desligada")).toBeTruthy();
+    expect(screen.queryByText("Guarde agora. Ele não será mostrado de novo.")).toBeNull();
+    expect(document.body.textContent ?? "").not.toMatch(/[0-9a-f]{64}/);
+    expect(toastSuccess).not.toHaveBeenCalled();
+    // O botão continua oferecido: a falha é do servidor, e tentar de novo é a
+    // ação certa depois de ligar a chave de cifra.
+    expect(screen.getByRole("button", { name: "Gerar segredo" })).toBeTruthy();
+  });
+
+  it("o snippet de curl ensina a assinatura quando ela está ligada", () => {
+    // A seção "Para desenvolvedores" existe para ensinar a integrar. Um exemplo
+    // sem o cabeçalho, numa fonte que exige assinatura, ensina a levar 401.
+    const { unmount } = renderPainel({ has_secret: true });
+    expect(document.body.textContent).toContain("x-deskcomm-signature");
+    unmount();
+
+    renderPainel({ has_secret: false });
+    expect(document.body.textContent).not.toContain("x-deskcomm-signature:");
   });
 
   it("⭐ quem não gere webhooks não vê botão de assinatura nenhum", () => {

@@ -69,8 +69,16 @@ function formSnippet(url: string, t: (texto: string) => string): string {
 </form>`;
 }
 
-function curlSnippet(url: string): string {
-  return `curl -X POST ${url} \\\n  -H 'Content-Type: application/json' \\\n  -d '{"nome":"...","telefone":"..."}'`;
+/**
+ * O snippet acompanha a assinatura: com ela ligada, um `curl` sem o cabeçalho
+ * leva 401, e esta seção existe justamente para ensinar a integrar. Copiar daqui
+ * um exemplo que a própria fonte recusa é a pior primeira impressão possível.
+ */
+function curlSnippet(url: string, comAssinatura: boolean, t: (texto: string) => string): string {
+  const assinatura = comAssinatura
+    ? `\\\n  -H '${HEADER_ASSINATURA_DE_ENTRADA}: ${t("<HMAC-SHA256 do corpo, em hex, com o seu segredo>")}' `
+    : "";
+  return `curl -X POST ${url} \\\n  -H 'Content-Type: application/json' ${assinatura}\\\n  -d '{"nome":"...","telefone":"..."}'`;
 }
 
 async function copy(text: string, label: string, t: (texto: string) => string): Promise<void> {
@@ -116,7 +124,13 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
    * não pintarem o estado de uma fonte no painel de outra.
    */
   const [assinatura, setAssinatura] = React.useState<{ id: string; ativa: boolean } | null>(null);
-  /** O plaintext vive AQUI e em nenhum outro lugar: some ao fechar o painel. */
+  /**
+   * O plaintext vive AQUI e em nenhum outro lugar: some ao fechar o painel.
+   *
+   * O "nenhum outro lugar" só é verdade porque a mutação zera o `gcTime`
+   * (`hooks/webhooks/useWebhookSources.ts`) — sem isso o TanStack guardaria as
+   * `variables`, o segredo entre elas, no cache global por mais cinco minutos.
+   */
   const [revelado, setRevelado] = React.useState<{ id: string; valor: string } | null>(null);
 
   const url = publicUrl(source.path_token);
@@ -256,7 +270,7 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
               {t("Para desenvolvedores")}
             </summary>
             <pre className="mt-3 overflow-x-auto rounded-sm bg-muted p-3 text-xs">
-              <code>{curlSnippet(url)}</code>
+              <code>{curlSnippet(url, temAssinatura, t)}</code>
             </pre>
           </details>
 
@@ -305,7 +319,10 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
             {secretRevelado ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 truncate rounded-sm border border-border bg-muted px-3 py-2 text-xs">
+                  {/* `break-all`, não `truncate`: é a única vez que este valor
+                      aparece, e um "…" no fim esconde metade de um segredo que
+                      não volta. Quem copia à mão precisa vê-lo inteiro. */}
+                  <code className="flex-1 break-all rounded-sm border border-border bg-muted px-3 py-2 text-xs">
                     {secretRevelado}
                   </code>
                   <Button
@@ -345,6 +362,7 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
                         <AlertDialogFooter>
                           <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
                           <AlertDialogAction
+                            disabled={update.isPending}
                             onClick={() => aplicarSecret(gerarSecretHex(), t("Segredo trocado."))}
                           >
                             {t("Trocar")}
@@ -373,6 +391,7 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
                         <AlertDialogFooter>
                           <AlertDialogCancel>{t("Cancelar")}</AlertDialogCancel>
                           <AlertDialogAction
+                            disabled={update.isPending}
                             onClick={() => aplicarSecret(null, t("Assinatura removida."))}
                           >
                             {t("Remover")}
