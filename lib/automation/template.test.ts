@@ -19,7 +19,14 @@ describe("renderTemplate", () => {
   describe("{{campo}} curto para campo personalizado do lead (issue #1993)", () => {
     const comCampos = {
       contact: { name: "Ana" },
-      lead: { custom_fields: { servico: "projeto_customizado", interesses: ["a", "b"], qtd: 3, vazio: "" } },
+      lead: {
+        custom_fields: {
+          servico: "projeto_customizado",
+          interesses: ["a", "b"],
+          qtd: 3,
+          vazio: "",
+        },
+      },
     };
     it("resolve o nome do campo que o formulário mandou", () =>
       expect(renderTemplate("Oi {{nome}}, você quer {{servico}}", comCampos)).toBe(
@@ -32,9 +39,14 @@ describe("renderTemplate", () => {
     it("campo que não existe vira vazio, como qualquer variável ausente", () =>
       expect(renderTemplate("X{{fantasma}}Y", comCampos)).toBe("XY"));
     it("o caminho longo continua funcionando", () =>
-      expect(renderTemplate("{{lead.custom_fields.servico}}", comCampos)).toBe("projeto_customizado"));
+      expect(renderTemplate("{{lead.custom_fields.servico}}", comCampos)).toBe(
+        "projeto_customizado",
+      ));
     it("alias e caminho direto GANHAM do campo de mesmo nome (nada que funcionava muda)", () => {
-      const colisao = { contact: { name: "Ana" }, lead: { custom_fields: { nome: "Outro", email: "x@y.com" } } };
+      const colisao = {
+        contact: { name: "Ana" },
+        lead: { custom_fields: { nome: "Outro", email: "x@y.com" } },
+      };
       expect(renderTemplate("{{nome}}", colisao)).toBe("Ana");
       expect(renderTemplate("{{nome}}", { contact: { name: null }, lead: colisao.lead })).toBe("");
     });

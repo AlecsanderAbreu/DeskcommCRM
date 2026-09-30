@@ -19,9 +19,7 @@ const ALIASES: Record<string, string> = {
  * estaria vazia, e aí a recusa sumiria justamente no caso mais enganoso.
  */
 export function marcacaoDoCrm(nome: string): boolean {
-  return (
-    ALIASES[nome] !== undefined || nome.startsWith("contact.") || nome.startsWith("lead.")
-  );
+  return ALIASES[nome] !== undefined || nome.startsWith("contact.") || nome.startsWith("lead.");
 }
 
 /**
@@ -41,6 +39,8 @@ function campoPersonalizadoDoLead(context: Record<string, unknown>, nome: string
   if (!lead || typeof lead !== "object") return undefined;
   const campos = (lead as { custom_fields?: unknown }).custom_fields;
   if (!campos || typeof campos !== "object" || Array.isArray(campos)) return undefined;
+  // Só campo PRÓPRIO: `{{constructor}}` ou `{{toString}}` não podem puxar do protótipo.
+  if (!Object.hasOwn(campos, nome)) return undefined;
   const valor = (campos as Record<string, unknown>)[nome];
   return Array.isArray(valor) ? valor.join(", ") : valor;
 }

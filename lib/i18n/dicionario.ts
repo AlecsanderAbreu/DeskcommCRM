@@ -13685,6 +13685,8 @@ export const DICIONARIO: Traducoes = {
   "Esse campo já está cadastrado.": { es: "Ese campo ya está registrado." },
   "O funil já tem o máximo de campos.": { es: "El embudo ya tiene el máximo de campos." },
   "Dê um rótulo ao campo.": { es: "Ponle una etiqueta al campo." },
+  'Em "Ações após o envio", adicione "Webhook" e cole o endereço acima em "URL do Webhook".': { es: 'En "Acciones después del envío", agrega "Webhook" y pega la dirección de arriba en "URL del Webhook".' },
+  'Adicione a ação "Call Webhook" ao formulário e cole o endereço acima.': { es: 'Agrega la acción "Call Webhook" al formulario y pega la dirección de arriba.' },
 };
 
 /**
