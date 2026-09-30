@@ -56,7 +56,7 @@ function colunasDaTabela(sql: string): Set<string> {
   // Bloco `create table ... ai_agent_versions ( ... );`
   const bloco = /CREATE TABLE IF NOT EXISTS "public"\."ai_agent_versions" \((.*?)\)\s*;/s.exec(sql);
   if (bloco === null) throw new Error("create table de ai_agent_versions não encontrado");
-  for (const match of bloco[1].matchAll(/^\s+"(\w+)"\s+"?\w+/gm)) {
+  for (const match of (bloco[1] as string).matchAll(/^\s+"(\w+)"\s+"?\w+/gm)) {
     colunas.add(match[1] as string);
   }
 
