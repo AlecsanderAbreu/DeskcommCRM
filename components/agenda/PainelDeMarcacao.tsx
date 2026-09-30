@@ -357,16 +357,16 @@ export function PainelDeMarcacao({
    * volta à mão (para um encaixe hoje) fica onde voltou. Sem jornada publicada
    * não há o que procurar no mês seguinte, e o aviso é o próximo passo.
    */
-  const aberturaDecidida = React.useRef(false);
+  // Ajuste de estado DURANTE o render, não num efeito: o mês morto nem chega a
+  // ser pintado (https://react.dev/learn/you-might-not-need-an-effect).
+  const [aberturaDecidida, setAberturaDecidida] = React.useState(false);
   const aberturaCarregada = mesCarregado != null && dadosDoMesEmTela && isSameMonth(mes, ancora);
-  const aberturaSemVaga = aberturaCarregada && !semanas.flat().some(temHorario);
-  React.useEffect(() => {
-    if (aberturaDecidida.current || !aberturaCarregada || instanteInicial) return;
-    aberturaDecidida.current = true;
-    if (aberturaSemVaga && publicouHorarios && !erroAoCarregar) {
-      setMes((m) => startOfMonth(addDays(startOfMonth(m), 32)));
+  if (!aberturaDecidida && aberturaCarregada && !instanteInicial) {
+    setAberturaDecidida(true);
+    if (publicouHorarios && !erroAoCarregar && !semanas.flat().some(temHorario)) {
+      setMes(startOfMonth(addDays(startOfMonth(mes), 32)));
     }
-  }, [aberturaCarregada, aberturaSemVaga, publicouHorarios, erroAoCarregar, instanteInicial]);
+  }
 
   const nenhumDiaClicavel = semanas.flat().every((d) => !diaClicavel(d));
 
