@@ -11,4 +11,4 @@ Nenhuma configuração nova: é a alternativa mínima que o #1881 permite.
 
 Refs #1881.
 
-Contribuição de @webtecnica (#<PR>).
+Contribuição de @webtecnica (#2026).
