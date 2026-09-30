@@ -5,9 +5,9 @@
  * Este arquivo substitui `suspensao-campanha-nao-existe.test.ts`, que era o
  * congelamento: ele ficava vermelho no dia em que alguém criasse disparo em
  * massa, justamente para obrigar esta decisão em vez de deixar a linha
- * "coberta" num documento. O dia chegou; a decisão é a mesma da fila do agente
- * — organização suspensa não fala com ninguém, e prospecção ativa é a última
- * coisa que ela deveria continuar fazendo.
+ * "coberta" num documento. O dia chegou: organização suspensa não fala com
+ * ninguém, e a régua é a de `lib/organizacao/operante.ts` — prospecção ativa é
+ * a última coisa que ela deveria continuar fazendo.
  *
  * Mede pelo COMPORTAMENTO (a rodada não escolhe nem PROMOVE a campanha da org
  * suspensa), não pela presença do filtro no código: um teste que procurasse a

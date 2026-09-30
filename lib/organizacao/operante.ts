@@ -16,7 +16,8 @@
  * depois de um rollback) vale como `administrativa`, como nas funções de estado.
  *
  * ── Deliberadamente NÃO gatilhados (spec §4, decisões D-11 e D-12) ───────────
- * - webhooks de entrada de canal (as rotas `<canal>/[token]` e `channel/[token]`),
+ * - webhooks de entrada de canal (as rotas `<canal>/[token]` e `channel/[token]`,
+ *   e a rota global do canal, sem token),
  *   in/[token], channels/official/webhook, nuvemshop/[event] e
  *   lib/channels/inbound.ts — a mensagem que CHEGA continua gravada;
  * - landings anuncios/{google,meta}/[org] e rastreio/[id] (D-11);
