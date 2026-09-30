@@ -10199,7 +10199,6 @@ export type Database = {
       fn_followup_patch: { Args: { p_org: string; p_id: string; p_revision: number; p_patch: Json }; Returns: number }
       fn_followup_apply_step: { Args: { p_org: string; p_id: string; p_revision: number; p_patch: Json; p_event: Json }; Returns: number }
       fn_followup_inline_settle: { Args: { p_org: string; p_id: string; p_worker: string; p_done: boolean; p_error?: string | null; p_retry_at?: string | null; p_hold?: boolean; p_acquired_at?: string }; Returns: boolean }
-      fn_followup_turno_descartado: { Args: { p_org: string; p_job: string }; Returns: boolean }
       fn_service_observe_command: { Args: { p_org: string; p_contact: string }; Returns: Json }
       fn_service_event_origin: {
         Args: { p_org: string; p_event: string; p_contact: string; p_session?: string }
@@ -10324,15 +10323,6 @@ export type Database = {
       }
       fn_create_tenant_with_owner: {
         Args: { p_actor: string; p_key: string; p_request: Json; p_hash: string }
-        Returns: Json
-      }
-      fn_org_operante: { Args: { p_org: string }; Returns: boolean }
-      fn_suspender_organizacao: {
-        Args: { p_org: string; p_kind: string; p_motivo: string; p_ator: string }
-        Returns: Json
-      }
-      fn_reativar_organizacao: {
-        Args: { p_org: string; p_kind_exigido: string; p_ator: string }
         Returns: Json
       }
       fn_accept_team_invite: {
@@ -10558,6 +10548,10 @@ export type Database = {
         Args: { p_dias: number; p_lote?: number }
         Returns: number
       }
+      fn_followup_turno_descartado: {
+        Args: { p_job: string; p_org: string }
+        Returns: boolean
+      }
       fn_gasto_de_ia_do_mes: { Args: { p_org: string }; Returns: number }
       fn_is_platform_admin: { Args: never; Returns: boolean }
       fn_lgpd_anonymize_contact: {
@@ -10614,9 +10608,14 @@ export type Database = {
           pipeline_id: string
         }[]
       }
+      fn_org_operante: { Args: { p_org: string }; Returns: boolean }
       fn_podar_fila_de_jobs: {
         Args: { p_limite?: number; p_retencao_dias?: number }
         Returns: number
+      }
+      fn_reativar_organizacao: {
+        Args: { p_ator: string; p_kind_exigido: string; p_org: string }
+        Returns: Json
       }
       fn_reply_action: {
         Args: {
@@ -10678,6 +10677,15 @@ export type Database = {
       fn_semear_tipos_de_agendamento: {
         Args: { p_organization_id: string }
         Returns: number
+      }
+      fn_suspender_organizacao: {
+        Args: {
+          p_ator: string
+          p_kind: string
+          p_motivo: string
+          p_org: string
+        }
+        Returns: Json
       }
       fn_upsert_wa_contact: {
         Args: {
