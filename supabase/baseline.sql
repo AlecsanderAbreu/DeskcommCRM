@@ -43874,8 +43874,8 @@ create trigger trg_fechar_aviso_do_jev_ao_bloquear
  execute function public.fn_fechar_aviso_do_jev_ao_bloquear();
 
 notify pgrst, 'reload schema';
--- ---- a anotação simultânea não apaga a outra (migration 0501) ----
--- 0501 — duas anotações ao mesmo tempo não apagam uma à outra.
+-- ---- a anotação simultânea não apaga a outra (migration 0502) ----
+-- 0502 — duas anotações ao mesmo tempo não apagam uma à outra.
 --
 -- ─── O defeito, medido na main de 2026-09-30 ────────────────────────────────
 --
