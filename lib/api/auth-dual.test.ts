@@ -166,11 +166,38 @@ describe("resolveAuthDual", () => {
 describe("os caminhos de envio passam pelo proxy", () => {
   // Sem estas entradas o proxy responde 401 antes do handler, e a dualidade
   // acima fica inalcançável por token mesmo estando implementada.
-  it("libera as tres rotas de envio", () => {
+  it("liberas as tres rotas de envio", () => {
     expect(isPublicPath("/api/v1/messages")).toBe(true);
     expect(isPublicPath("/api/v1/conversations/open-with-contact")).toBe(true);
     // Mídia: sem ela o cartão de fidelidade não sai depois do corte.
     expect(isPublicPath("/api/v1/conversations/abc-123/media")).toBe(true);
+  });
+
+  it("libera as rotas de configuração de IA/follow-up/agenda (issue #1875)", () => {
+    expect(isPublicPath("/api/v1/ai/followup-flows")).toBe(true);
+    expect(isPublicPath("/api/v1/ai/followup-flows/from-model")).toBe(true);
+    expect(isPublicPath("/api/v1/ai/agents")).toBe(true);
+    expect(
+      isPublicPath("/api/v1/ai/agents/11111111-1111-4111-8111-111111111111/versions"),
+    ).toBe(true);
+    expect(isPublicPath("/api/v1/prospecting")).toBe(true);
+    expect(isPublicPath("/api/v1/agenda/tipos")).toBe(true);
+  });
+
+  it("não dá carona aos irmãos que seguem só-sessão (issue #1875)", () => {
+    // followup-flows: publicar, duplicar e [id] continuam exigindo a tela.
+    expect(isPublicPath("/api/v1/ai/followup-flows/123/publish")).toBe(false);
+    expect(isPublicPath("/api/v1/ai/followup-flows/123/duplicate")).toBe(false);
+    expect(isPublicPath("/api/v1/ai/followup-flows/123")).toBe(false);
+    expect(isPublicPath("/api/v1/ai/followup-flows/xpto")).toBe(false);
+    // agents: assignable e [id] seguem só-sessão; o segmento da versão é UUID.
+    expect(isPublicPath("/api/v1/ai/agents/assignable")).toBe(false);
+    expect(isPublicPath("/api/v1/ai/agents/11111111-1111-4111-8111-111111111111")).toBe(false);
+    expect(isPublicPath("/api/v1/ai/agents/abc/versions")).toBe(false);
+    // prospecting: só a rota de produção, não o cron irmão.
+    expect(isPublicPath("/api/v1/prospecting/agentes")).toBe(false);
+    // agenda/tipos: o irmão /reativar segue só-sessão.
+    expect(isPublicPath("/api/v1/agenda/tipos/reativar")).toBe(false);
   });
 
   it("não dá carona a sub-paths que não têm suporte a Bearer", () => {
