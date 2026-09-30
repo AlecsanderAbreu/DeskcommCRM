@@ -374,3 +374,88 @@ describe("inv. 3 — com a org suspensa, o barramento e a LGPD seguem vivos", ()
     expect(eventos(ORG_B, "contact.updated")).toBe(antes + 1);
   });
 });
+
+describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano", () => {
+  const corpoDoItem = () =>
+    valor(
+      `select coalesce(string_agg(severity || '|' || coalesce(ref_kind, 'null') || '|' || body, ' ## '), '-') from public.agent_inbox_items where organization_id = '${ORG_A}' and kind = 'org_reativada';`,
+    );
+
+  it("⭐ reativa a administrativa, zera a suspensão, falha o pending remanescente e abre UM item com a contagem", () => {
+    suspender(ORG_A, "administrativa");
+    // Durante a suspensão: as duas conversas recebem mensagem e um job escapa para a fila.
+    sql(`
+      update public.conversations set last_inbound_at = clock_timestamp() where id in ('${CONVERSA_A1}', '${CONVERSA_A2}');
+      insert into public.job_queue (organization_id, kind, status) values ('${ORG_A}', 'watchdog', 'pending');
+    `);
+    const antes = eventos(ORG_A, "tenant.reactivated");
+
+    expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });
+
+    expect(estado(ORG_A)).toBe("active/-");
+    expect(
+      valor(
+        `select (suspended_at is null and suspended_reason is null and suspended_by is null)::text from public.organizations where id = '${ORG_A}';`,
+      ),
+    ).toBe("true");
+    expect(valor(`select count(*) from public.job_queue where organization_id = '${ORG_A}' and status = 'pending';`)).toBe("0");
+    expect(corpoDoItem()).toBe(
+      "warn|null|2 conversas receberam mensagem enquanto a conta estava suspensa. A IA não respondeu nem vai responder sozinha a elas. Revise na Fila.",
+    );
+    expect(eventos(ORG_A, "tenant.reactivated")).toBe(antes + 1);
+    expect(
+      valor(
+        `select payload->>'conversas_com_mensagem' from public.event_log where organization_id = '${ORG_A}' and event_type = 'tenant.reactivated' order by created_at desc limit 1;`,
+      ),
+    ).toBe("2");
+  });
+
+  it("uma conversa só: frase no singular; mensagem de ANTES da suspensão não conta", () => {
+    sql(`update public.conversations set last_inbound_at = now() - interval '1 day' where id = '${CONVERSA_A2}';`);
+    suspender(ORG_A, "administrativa");
+    sql(`update public.conversations set last_inbound_at = clock_timestamp() where id = '${CONVERSA_A1}';`);
+    expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });
+    expect(corpoDoItem()).toBe(
+      "warn|null|1 conversa recebeu mensagem enquanto a conta estava suspensa. A IA não respondeu nem vai responder sozinha a ela. Revise na Fila.",
+    );
+  });
+
+  it("nenhuma conversa nova: reativa sem abrir item", () => {
+    suspender(ORG_A, "administrativa");
+    expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });
+    expect(corpoDoItem()).toBe("-");
+  });
+
+  it("⭐ o tipo é exigido: administrativa não desfaz cobrança, cobrança não desfaz administrativa", () => {
+    suspender(ORG_A, "cobranca");
+    expect(reativar(ORG_A, "administrativa")).toEqual({ changed: false, motivo: "suspensao_de_cobranca" });
+    expect(estado(ORG_A)).toBe("suspended/cobranca");
+    expect(reativar(ORG_A, "cobranca")).toEqual({ changed: true });
+    expect(estado(ORG_A)).toBe("active/-");
+
+    suspender(ORG_A, "administrativa");
+    expect(reativar(ORG_A, "cobranca")).toEqual({ changed: false, motivo: "suspensao_administrativa" });
+    expect(estado(ORG_A)).toBe("suspended/administrativa");
+  });
+
+  it("idempotente: reativar uma org ativa é no-op sem evento", () => {
+    const antes = eventos(ORG_A, "tenant.reactivated");
+    expect(reativar(ORG_A, "administrativa")).toEqual({ changed: false, motivo: "nao_suspensa" });
+    expect(eventos(ORG_A, "tenant.reactivated")).toBe(antes);
+  });
+
+  it("redigida com tipo residual: nem suspende, nem reativa, nem quebra", () => {
+    sql(`update public.organizations set status = 'redacted', suspended_kind = 'cobranca' where id = '${ORG_R}';`);
+    expect(suspender(ORG_R, "administrativa")).toEqual({ changed: false, motivo: "org_encerrada" });
+    expect(reativar(ORG_R, "cobranca")).toEqual({ changed: false, motivo: "nao_suspensa" });
+    expect(estado(ORG_R)).toBe("redacted/cobranca");
+    expect(operante(ORG_R)).toBe("false");
+  });
+
+  it("suspensão legada sem tipo (imagem anterior à 0492) vale como administrativa", () => {
+    sql(`update public.organizations set status = 'suspended', suspended_at = now() where id = '${ORG_A}';`);
+    expect(reativar(ORG_A, "cobranca")).toEqual({ changed: false, motivo: "suspensao_administrativa" });
+    expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });
+    expect(estado(ORG_A)).toBe("active/-");
+  });
+});

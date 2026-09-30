@@ -43146,6 +43146,87 @@ $$;
 revoke execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) to service_role;
 
+-- ── E. fn_reativar_organizacao: volta sem rajada ─────────────────────────────
+-- Exige o tipo: `/reactivate` desfaz só a administrativa; a de cobrança sai por
+-- pagamento, prazo ou isenção (PR 2 em diante). Nada é reprocessado: jobs
+-- `pending` que sobraram viram `failed`, e as conversas que receberam mensagem
+-- durante a suspensão viram UM item na Central (sem referência) para uma
+-- pessoa revisar.
+create or replace function public.fn_reativar_organizacao(
+  p_org uuid, p_kind_exigido text, p_ator uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status    text;
+  v_kind      text;
+  v_desde     timestamptz;
+  v_conversas integer := 0;
+begin
+  if p_kind_exigido is null or p_kind_exigido not in ('administrativa', 'cobranca') then
+    raise exception 'tipo_de_suspensao_invalido' using errcode = '22023';
+  end if;
+
+  select o.status, coalesce(o.suspended_kind, 'administrativa'), o.suspended_at
+    into v_status, v_kind, v_desde
+    from public.organizations o
+   where o.id = p_org
+     for update;
+  if not found then
+    raise exception 'organization_not_found' using errcode = 'P0002';
+  end if;
+
+  if v_status <> 'suspended' then
+    return jsonb_build_object('changed', false, 'motivo', 'nao_suspensa');
+  end if;
+  if v_kind <> p_kind_exigido then
+    return jsonb_build_object('changed', false, 'motivo',
+      case v_kind when 'cobranca' then 'suspensao_de_cobranca' else 'suspensao_administrativa' end);
+  end if;
+
+  update public.organizations
+     set status = 'active',
+         suspended_kind = null,
+         suspended_at = null,
+         suspended_reason = null,
+         suspended_by = null
+   where id = p_org;
+
+  update public.job_queue
+     set status = 'failed', last_error = 'org_nao_operante'
+   where organization_id = p_org and status = 'pending';
+
+  if v_desde is not null then
+    select count(*) into v_conversas
+      from public.conversations c
+     where c.organization_id = p_org
+       and c.last_inbound_at >= v_desde;
+  end if;
+
+  if v_conversas > 0 then
+    insert into public.agent_inbox_items (organization_id, kind, severity, title, body)
+    values (p_org, 'org_reativada', 'warn',
+            'A conta foi reativada — há conversas para revisar',
+            case when v_conversas = 1
+              then '1 conversa recebeu mensagem enquanto a conta estava suspensa. A IA não respondeu nem vai responder sozinha a ela. Revise na Fila.'
+              else format('%s conversas receberam mensagem enquanto a conta estava suspensa. A IA não respondeu nem vai responder sozinha a elas. Revise na Fila.', v_conversas)
+            end);
+  end if;
+
+  insert into public.event_log (organization_id, event_type, entity_kind, entity_id, payload)
+  values (p_org, 'tenant.reactivated', 'organization', p_org,
+          jsonb_build_object('tenant_id', p_org, 'kind', v_kind,
+                             'reactivated_by', p_ator, 'conversas_com_mensagem', v_conversas));
+
+  return jsonb_build_object('changed', true);
+end;
+$$;
+
+revoke execute on function public.fn_reativar_organizacao(uuid, text, uuid) from public, anon, authenticated;
+grant execute on function public.fn_reativar_organizacao(uuid, text, uuid) to service_role;
+
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
