@@ -293,6 +293,7 @@ function poolElegibilidade(
     aiAuthorizedAt?: string | null;
     forceHuman?: boolean;
     assigneeKind?: string | null;
+    orgStatus?: string | null;
   } = {},
 ) {
   const inboundId = '44444444-4444-4444-8444-444444444444';
@@ -319,6 +320,7 @@ function poolElegibilidade(
             bot_silenced_until: null,
             ai_authorized_at: opts.aiAuthorizedAt ?? null,
             phone_number: opts.phoneNumber ?? null,
+            org_status: opts.orgStatus === undefined ? 'active' : opts.orgStatus,
           },
         ],
       };
@@ -335,6 +337,15 @@ it('evento superado por inbound mais recente: turno pulado, sem job, sem gasto',
   expect(calls.some((s) => s.includes("direction = 'inbound'"))).toBe(true);
   expect(calls.some((s) => s.includes('job_queue'))).toBe(false);
   expect(calls.some((s) => s.includes("status = 'done'"))).toBe(true);
+});
+
+it('gate: organização não operante na leitura de elegibilidade → turno pulado, sem job', async () => {
+  const calls: string[] = [];
+  await drainTick(poolElegibilidade(calls, { orgStatus: 'suspended' }), knobs, log);
+  const consulta = calls.find((s) => s.includes('channel_metadata'));
+  expect(consulta, 'a consulta de elegibilidade não rodou').toBeDefined();
+  expect(consulta).toMatch(/join organizations o on o\.id = cv\.organization_id/);
+  expect(calls.some((s) => s.includes('job_queue'))).toBe(false);
 });
 
 it("gate 'allowlist' + contato NÃO autorizado: turno pulado, sem job, sem gasto", async () => {
