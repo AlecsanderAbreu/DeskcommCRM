@@ -116,7 +116,7 @@ import {
   type FollowupGateDb,
   type NoDeGatilho,
 } from "./agent-followup-gate";
-import { emPausaDeReentrada, type FatosDaReentrada } from "./pausa-de-reentrada";
+import { emPausaDeReentrada, type BaseDaPausa, type FatosDaReentrada } from "./pausa-de-reentrada";
 import { contatosComRetornoVivo } from "./retorno-segura-o-fluxo";
 
 /**
@@ -137,6 +137,8 @@ export interface SilencePointer {
   reentry_pause_minutes?: number;
   /** Teto do silêncio: só entra quem está calado há MENOS que isto; ausente = sem teto. */
   max_silence_minutes?: number;
+  /** De onde a pausa de reentrada conta; ausente = `ultima_mensagem`. */
+  reentry_pause_basis?: BaseDaPausa;
   /** `followup_flow_pointers.handoff_policy`; ausente = `pause` (o default da coluna). */
   handoff_policy?: "pause" | "cancel" | "allow";
 }
@@ -312,7 +314,7 @@ export async function runSilenceSweep(deps: SilenceSweepDeps): Promise<SilenceSw
           summary.skipped_cooldown++;
           continue;
         }
-        if (emPausaDeReentrada(encerramentos.get(contactId), pausaMinutos, clock())) {
+        if (emPausaDeReentrada(encerramentos.get(contactId), pausaMinutos, clock(), pointer.reentry_pause_basis)) {
           summary.skipped_reentry_pause++;
           continue;
         }
@@ -394,6 +396,7 @@ export function createSupabaseSilenceSweepDb(admin: SupabaseClient): SilenceSwee
           segments: parsed.data.params.segments ?? [],
           reentry_pause_minutes: parsed.data.params.reentry_pause_minutes ?? 0,
           ...(parsed.data.params.max_silence_minutes ? { max_silence_minutes: parsed.data.params.max_silence_minutes } : {}),
+          ...(parsed.data.params.reentry_pause_basis ? { reentry_pause_basis: parsed.data.params.reentry_pause_basis } : {}),
           handoff_policy:
             row.handoff_policy === "allow" || row.handoff_policy === "cancel" ? row.handoff_policy : "pause",
         });
