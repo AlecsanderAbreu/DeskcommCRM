@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { lastLine, sql, writeCountAs } from "./gov-helpers";
 
 /**
- * A SUSPENSÃO QUE SUSPENDE (migration 0492; spec cobrança do revendedor §2.1,
+ * A SUSPENSÃO QUE SUSPENDE (migration 0495; spec cobrança do revendedor §2.1,
  * §3.1 e §12, invariantes 2 a 4).
  *
  * Antes: suspender só tirava a pessoa da tela. A rota fazia leitura, UPDATE e
@@ -452,7 +452,7 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
     expect(operante(ORG_R)).toBe("false");
   });
 
-  it("suspensão legada sem tipo (imagem anterior à 0492) vale como administrativa", () => {
+  it("suspensão legada sem tipo (imagem anterior à 0495) vale como administrativa", () => {
     sql(`update public.organizations set status = 'suspended', suspended_at = now() where id = '${ORG_A}';`);
     expect(reativar(ORG_A, "cobranca")).toEqual({ changed: false, motivo: "suspensao_administrativa" });
     expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });
