@@ -40,6 +40,7 @@ import {
   type WebhookSourceRow,
 } from "@/hooks/webhooks/useWebhookSources";
 import { usePermission } from "@/hooks/auth/AuthProvider";
+import { HEADER_ASSINATURA_DE_ENTRADA } from "@/lib/webhooks/assinatura";
 import { useT } from "@/hooks/i18n/useT";
 
 interface Props {
@@ -291,8 +292,14 @@ export function SourceDetail({ source, open, onOpenChange }: Props) {
             </div>
             <p className="text-xs text-muted-foreground">
               {t(
-                "Sem assinatura, quem descobrir o endereço consegue criar leads. Com ela, quem envia assina o corpo cru da requisição com HMAC-SHA256 e manda o resultado em hexadecimal no header X-Deskcomm-Signature — hex puro, sem prefixo.",
-              )}
+                "Sem assinatura, quem descobrir o endereço consegue criar leads. Com ela, quem envia assina o corpo cru da requisição com HMAC-SHA256 e manda o resultado em hexadecimal — hex puro, sem prefixo — neste cabeçalho:",
+              )}{" "}
+              {/* O nome sai da constante, e não de uma string aqui: ele é
+                  contrato de fio (lib/webhooks/assinatura.ts), e a mesma
+                  constante é a que a rota de entrada confere. */}
+              <code className="rounded-sm bg-muted px-1 py-0.5">
+                {HEADER_ASSINATURA_DE_ENTRADA}
+              </code>
             </p>
 
             {secretRevelado ? (

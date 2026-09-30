@@ -5124,9 +5124,11 @@ export const DICIONARIO: Traducoes = {
   "Com assinatura ativa, teste a partir do sistema que envia os dados.": {
     es: "Con la firma activa, prueba desde el sistema que envía los datos.",
   },
-  "Sem assinatura, quem descobrir o endereço consegue criar leads. Com ela, quem envia assina o corpo cru da requisição com HMAC-SHA256 e manda o resultado em hexadecimal no header X-Deskcomm-Signature — hex puro, sem prefixo.":
+  // O NOME do cabeçalho não entra na frase: ele é contrato de fio e sai da
+  // constante de lib/webhooks/assinatura.ts, renderizada ao lado deste texto.
+  "Sem assinatura, quem descobrir o endereço consegue criar leads. Com ela, quem envia assina o corpo cru da requisição com HMAC-SHA256 e manda o resultado em hexadecimal — hex puro, sem prefixo — neste cabeçalho:":
     {
-      es: "Sin firma, quien descubra la dirección puede crear leads. Con ella, quien envía firma el cuerpo crudo de la solicitud con HMAC-SHA256 y manda el resultado en hexadecimal en la cabecera X-Deskcomm-Signature — hex puro, sin prefijo.",
+      es: "Sin firma, quien descubra la dirección puede crear leads. Con ella, quien envía firma el cuerpo crudo de la solicitud con HMAC-SHA256 y manda el resultado en hexadecimal — hex puro, sin prefijo — en esta cabecera:",
     },
   "Gerar segredo": { es: "Generar secreto" },
   "Trocar segredo": { es: "Cambiar secreto" },
