@@ -7384,6 +7384,10 @@ export const DICIONARIO: Traducoes = {
   "Pediu ao agente para escrever a mensagem": { es: "Le pidió al agente que escribiera el mensaje" },
   "Pediu ao agente para interpretar a resposta": { es: "Le pidió al agente que interpretara la respuesta" },
   "Conferiu se a mensagem já tinha saído": { es: "Verificó si el mensaje ya había salido" },
+  "O envio deste passo foi descartado porque a conta foi suspensa": {
+    es: "El envío de este paso se descartó porque la cuenta fue suspendida",
+  },
+  "sai num envio novo quando a conta for reativada": { es: "sale en un envío nuevo cuando se reactive la cuenta" },
   "Mensagem enviada": { es: "Mensaje enviado" },
   "Segurou o fluxo por causa de um retorno agendado": {
     es: "Frenó el flujo por un regreso programado",

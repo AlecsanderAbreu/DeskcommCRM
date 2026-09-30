@@ -36,7 +36,12 @@ const MODULO_DA_REGUA = "@/lib/organizacao/operante";
 const FUNCAO_SQL_DA_REGUA = "fn_org_operante(";
 /** Só estes FILTRAM. `OrgNaoOperanteError`/`assertOrgOperante` recusam na saída e não contam. */
 const SIMBOLOS_DE_FILTRO = new Set(["idsDeOrgsParadas", "ehOperante"]);
-/** Saltos de import a partir da rota: o filtro do followup-flow-worker mora a 2 (silence-sweep → gate). */
+/**
+ * Saltos de import a partir da rota: no followup-flow-worker, o símbolo mais perto mora a 2
+ * (silence-sweep → gate). Esse gate filtra só a VARREDURA de silêncio; o tick do motor é
+ * filtrado no SQL do claim (`fn_claim_due_followup_enrollments`, migration 0496), que esta
+ * cerca não enxerga — quem o prova é tests/invariants/followup-org-suspensa.test.ts.
+ */
 const PROFUNDIDADE_MAXIMA = 4;
 /** Importar isto não faz a rota respeitar a org parada: assert na saída não é filtro. */
 const NAO_E_FILTRO = new Set([join(RAIZ, "app", "api", "v1", "messages", "_handler.ts")]);
@@ -270,7 +275,9 @@ describe("crons × organização parada", () => {
     expect(rotas).toContain("kb-conversations-batch");
   });
 
-  it("followup-flow-worker respeita PELO silence-sweep → gate, e sem o filtro do gate fica vermelho", () => {
+  // A cerca vê o followup-flow-worker pela aresta silence-sweep → gate, e o gate filtra só
+  // a varredura. O tick (claim) é filtrado no SQL: tests/invariants/followup-org-suspensa.test.ts.
+  it("followup-flow-worker alcança a régua PELO silence-sweep → gate, e sem o filtro do gate fica vermelho", () => {
     const rota = join(DIR_CRON, "followup-flow-worker", "route.ts");
     const gate = join(RAIZ, "lib", "ai", "elegibilidade", "gate.ts");
     const envio = join(RAIZ, "lib", "followup", "enviar-texto-fixo.ts");

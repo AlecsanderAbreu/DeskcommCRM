@@ -43091,7 +43091,7 @@ begin
     update public.job_queue
        set status = 'failed', last_error = 'org_nao_operante'
      where organization_id = p_org and status = 'pending'
-    returning id, kind
+    returning id, kind, payload
   ),
   rascunhos as (
     update public.ai_reply_drafts d
@@ -43100,6 +43100,30 @@ begin
      where d.organization_id = p_org and d.send_job_id = f.id
        and f.kind = 'approved_reply' and d.status = 'approved'
     returning d.id
+  ),
+  turnos as (
+    -- O turno de envio de uma inscrição parada num nó `action` sai da fila sem
+    -- ter rodado. O evento diz isso ao motor, que enfileira um turno novo quando
+    -- a organização volta a operar (EVENTO_TURNO_DESCARTADO em
+    -- lib/followup/node-handlers.ts). Sem ele, os rechecks da reativação
+    -- esgotavam o dead-man e matavam a inscrição com `action_turn_never_completed`
+    -- e um `followup_dead` de motivo falso. A chave não termina em `:<número>`:
+    -- não conta como passo para fn_followup_job_current.
+    insert into public.followup_enrollment_events
+      (organization_id, enrollment_id, node_id, event_type, payload, idempotency_key)
+    select p_org, e.id, e.current_node_id, 'turn_discarded',
+           jsonb_build_object('job_id', f.id, 'motivo', 'org_nao_operante'),
+           coalesce(f.payload->>'source_step_key', f.id::text) || ':descartado'
+      from falhados f
+      join public.followup_enrollments e
+        on e.organization_id = p_org
+       and e.id::text = f.payload->>'followup_enrollment_id'
+       and e.current_node_id = f.payload->>'node_id'
+       and e.status in ('active', 'waiting_reply', 'dormente')
+     where f.kind = 'followup_turn'
+       and f.payload->>'purpose' = 'send_message'
+    on conflict (enrollment_id, idempotency_key) where idempotency_key is not null do nothing
+    returning 1
   )
   select coalesce(array_agg(f.id) filter (where f.kind = 'transactional_delivery'), '{}')
     into v_entregas
@@ -43272,6 +43296,76 @@ $$;
 
 revoke execute on function public.fn_reativar_organizacao(uuid, text, uuid) from public, anon, authenticated;
 grant execute on function public.fn_reativar_organizacao(uuid, text, uuid) to service_role;
+
+-- ── F. o claim do follow-up não vê a organização parada ──────────────────────
+-- Sem isto o motor seguia avançando fluxos da org suspensa, enfileirava turnos e
+-- pagava o LLM de classificação. Definição VIGENTE da 0308 (espera longa dorme),
+-- copiada do baseline, com UMA mudança: a CTE `orgs` só aceita organização
+-- `active` (a régua de fn_org_operante, escrita como `exists` para o planner).
+-- A inscrição da org parada não é tocada — nem o lease —, e volta ao rodízio na
+-- reativação. Revoke e grant iguais aos da 0308.
+create or replace function fn_claim_due_followup_enrollments(p_limit int, p_lease_seconds int)
+returns setof followup_enrollments
+language sql
+security definer
+set search_path = public
+as $$
+  with orgs as (
+    -- Sem a condição de claim aqui de propósito: o lateral abaixo a aplica, e uma
+    -- organização cujos vencidos estão todos com lease apenas devolve zero linhas.
+    select distinct organization_id
+      from followup_enrollments
+     where status in ('active','waiting_reply','dormente')
+       and next_eval_at <= now()
+       -- Organização parada (suspensa, redigida, arquivada) não roda follow-up
+       -- (migration 0496).
+       and exists (select 1 from public.organizations o
+                    where o.id = followup_enrollments.organization_id
+                      and o.status = 'active')
+  ),
+  fila as (
+    select f.id, f.next_eval_at, f.posicao_na_org
+      from orgs
+      cross join lateral (
+        select d.id,
+               d.next_eval_at,
+               row_number() over (order by d.next_eval_at) as posicao_na_org
+          from followup_enrollments d
+         where d.organization_id = orgs.organization_id
+           and d.status in ('active','waiting_reply','dormente')
+           and d.next_eval_at <= now()
+           and (d.claimed_until is null or d.claimed_until < now())
+         order by d.next_eval_at
+         limit p_limit
+      ) f
+  ),
+  escolhidos as (
+    -- O rodízio: posição 1 de todas as organizações, depois a 2 de todas, etc.
+    -- Empate na mesma posição vai para quem esperou mais.
+    select id from fila order by posicao_na_org, next_eval_at limit p_limit
+  ),
+  travados as (
+    select e.id from followup_enrollments e
+     where e.id in (select id from escolhidos)
+     for update skip locked
+  )
+  update followup_enrollments e
+     set claimed_until = now() + make_interval(secs => p_lease_seconds),
+         updated_at = now()
+   where e.id in (select id from travados)
+     -- A condição de lease É REPETIDA AQUI, e não é redundante com a CTE `fila`.
+     -- Sem ela, duas conexões simultâneas reclamam as MESMAS linhas: a segunda
+     -- espera o lock da primeira, e quando ele sai o Postgres (READ COMMITTED)
+     -- reavalia só o WHERE do UPDATE — que não olhava `claimed_until` — e grava
+     -- por cima. O `skip locked` da CTE não salva: as duas materializam a mesma
+     -- lista antes de qualquer lock existir. Medido: interseção de 5 em 5 no
+     -- invariante de concorrência (followup-schema.test.ts).
+     and (e.claimed_until is null or e.claimed_until < now())
+  returning e.*;
+$$;
+
+revoke execute on function fn_claim_due_followup_enrollments(int, int) from public, anon, authenticated;
+grant execute on function fn_claim_due_followup_enrollments(int, int) to service_role;
 
 
 -- ---- a cascata do BANCO alcança lead_notes, tool_calls, lead_state e social_identity (migration 0494) ----
