@@ -10532,6 +10532,11 @@ export type Database = {
       }
       fn_gasto_de_ia_do_mes: { Args: { p_org: string }; Returns: number }
       fn_is_platform_admin: { Args: never; Returns: boolean }
+      /** Migration 0497 — mescla campos personalizados no lead DENTRO do banco, sob trava de linha. */
+      fn_lead_anotar_campos: {
+        Args: { p_org: string; p_lead: string; p_campos: Json }
+        Returns: Json
+      }
       fn_lgpd_anonymize_contact: {
         Args: { p_contact_id: string; p_organization_id: string }
         Returns: Json
