@@ -74,7 +74,8 @@ export interface Violacao {
   chave: string;
   linha: number;
 }
-type Funcao = ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression;
+// Qualquer inicializador de const de topo conta: `= handle` (alias) e `= comX(async () => …)` (chamada) também são handlers.
+type Funcao = ts.Node;
 
 function funcoesDoTopo(sf: ts.SourceFile): Map<string, { no: Funcao; exportada: boolean }> {
   const mapa = new Map<string, { no: Funcao; exportada: boolean }>();
@@ -85,10 +86,7 @@ function funcoesDoTopo(sf: ts.SourceFile): Map<string, { no: Funcao; exportada: 
     if (ts.isFunctionDeclaration(st) && st.name) mapa.set(st.name.text, { no: st, exportada });
     if (ts.isVariableStatement(st)) {
       for (const d of st.declarationList.declarations) {
-        if (ts.isIdentifier(d.name) && d.initializer &&
-            (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer))) {
-          mapa.set(d.name.text, { no: d.initializer, exportada });
-        }
+        if (ts.isIdentifier(d.name) && d.initializer) mapa.set(d.name.text, { no: d.initializer, exportada });
       }
     }
   }
@@ -98,6 +96,16 @@ function funcoesDoTopo(sf: ts.SourceFile): Map<string, { no: Funcao; exportada: 
 function oQueAlcanca(no: ts.Node, funcoes: ReturnType<typeof funcoesDoTopo>, visitadas: Set<string>) {
   const r = { chamaLeitura: false, leFlag: false, chamaEscrita: false, chamaAtalhoComScope: false };
   const visitar = (n: ts.Node): void => {
+    // alias `export const POST = handle`: o identificador nu aponta para a função de topo
+    const alias = ts.isIdentifier(n) && n === no ? n : undefined;
+    if (alias && !visitadas.has(alias.text) && funcoes.has(alias.text)) {
+      visitadas.add(alias.text);
+      const sub = oQueAlcanca(funcoes.get(alias.text)!.no, funcoes, visitadas);
+      r.chamaLeitura ||= sub.chamaLeitura;
+      r.leFlag ||= sub.leFlag;
+      r.chamaEscrita ||= sub.chamaEscrita;
+      r.chamaAtalhoComScope ||= sub.chamaAtalhoComScope;
+    }
     if (ts.isCallExpression(n) && ts.isIdentifier(n.expression)) {
       const nome = n.expression.text;
       if (nome === "requirePlatformAdmin") r.chamaLeitura = true;
@@ -203,6 +211,14 @@ describe("controles do instrumento", () => {
   });
   it("A: POST que chama requirePlatformAdminEscrita passa", () => {
     expect(violacoesDeEscrita(`export async function POST() { await requirePlatformAdminEscrita(); }`, "r.ts")).toEqual([]);
+  });
+  it("A: alias `export const POST = handle` e chamada `= comAlgo(async () => …)` são vistos", () => {
+    const alias = (f: string) => `async function handle() { await ${f}(); }\nexport const POST = handle;`;
+    const chamada = (f: string) => `export const POST = comAlgo(async () => { await ${f}(); });`;
+    expect(violacoesDeEscrita(alias("requirePlatformAdmin"), "r.ts").map((v) => v.chave)).toEqual(["r.ts#A:POST"]);
+    expect(violacoesDeEscrita(chamada("requirePlatformAdmin"), "r.ts").map((v) => v.chave)).toEqual(["r.ts#A:POST"]);
+    expect(violacoesDeEscrita(alias("requirePlatformAdminEscrita"), "r.ts")).toEqual([]);
+    expect(violacoesDeEscrita(chamada("requirePlatformAdminEscrita"), "r.ts")).toEqual([]);
   });
   it("B: 'use server' que importa requirePlatformAdmin é acusado; a de escrita passa", () => {
     expect(violacoesDeEscrita(`"use server";\n${imp}`, "a.ts")).toHaveLength(1);
