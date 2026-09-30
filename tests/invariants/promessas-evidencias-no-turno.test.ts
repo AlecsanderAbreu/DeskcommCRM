@@ -16,7 +16,11 @@ import { createLogger } from "@/lib/agent-engine/obs/logger";
 import { loadEnv } from "@/lib/agent-engine/env";
 import { turnKnobsFromEnv } from "@/lib/agent-engine/agent/turn-knobs";
 const pool = new pg.Pool({
-  connectionString: `postgresql://postgres:postgres@127.0.0.1:${process.env.TEST_DB_PORT ?? 54329}/postgres`,
+  host: "127.0.0.1",
+  port: Number(process.env.TEST_DB_PORT ?? 54329),
+  database: "postgres",
+  user: "postgres",
+  password: "postgres", // Credenciais públicas do Postgres efêmero de teste.
   max: 6,
 });
 beforeAll(async () => {
@@ -30,7 +34,7 @@ function deps(prompts: string[]) {
   const knobs = turnKnobsFromEnv(
     loadEnv({
       NODE_ENV: "test",
-      SUPABASE_DB_URL: "postgresql://postgres:postgres@localhost/postgres",
+      SUPABASE_DB_URL: "postgresql://localhost/postgres",
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:1",
       SUPABASE_SERVICE_ROLE_KEY: "test-key",
     }),
