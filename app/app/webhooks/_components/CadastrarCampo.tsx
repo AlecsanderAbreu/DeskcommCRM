@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { updatePipelineConfig } from "@/app/actions/settings/updatePipelineConfig";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -177,9 +178,9 @@ export function CadastrarCampo({
   return (
     <div className="mt-2 space-y-2 rounded-sm border border-border p-2">
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground" htmlFor={`rotulo-${chave}`}>
+        <Label className="text-xs text-muted-foreground" htmlFor={`rotulo-${chave}`}>
           {t("Rótulo")}
-        </label>
+        </Label>
         <Input
           id={`rotulo-${chave}`}
           value={rotulo}
@@ -188,7 +189,7 @@ export function CadastrarCampo({
         />
       </div>
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">{t("Tipo")}</label>
+        <Label className="text-xs text-muted-foreground">{t("Tipo")}</Label>
         <Select value={tipo} onValueChange={(v) => setTipo(v as TipoCadastravel)}>
           <SelectTrigger>
             <SelectValue />
