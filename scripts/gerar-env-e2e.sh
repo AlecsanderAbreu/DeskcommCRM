@@ -47,16 +47,12 @@ if [ -f .env.e2e ]; then
   CHAVE_CPF="$(grep -E '^CPF_ENCRYPTION_KEY=' .env.e2e | cut -d= -f2-)"
   CHAVE_WAHA="$(grep -E '^WAHA_BYO_ENCRYPTION_KEY=' .env.e2e | cut -d= -f2-)"
   CHAVE_AI="$(grep -E '^AI_CRED_AES_KEY=' .env.e2e | cut -d= -f2-)"
-  # `|| true` porque esta chave é NOVA: num `.env.e2e` gerado antes dela o grep
-  # não casa, sai 1, e sob `set -e` o script morre calado ANTES de regravar o
-  # arquivo — o modo de falha que o comentário do `ler()` mais abaixo descreve.
-  CHAVE_WEBHOOK="$(grep -E '^# app_secrets.nuvemshop_oauth_key=' .env.e2e | cut -d= -f2- || true)"
 fi
 [ "${#CHAVE_CPF}" -ge 44 ] || CHAVE_CPF="$(openssl rand -base64 32)"
 [ "${#CHAVE_WAHA}" -ge 44 ] || CHAVE_WAHA="$(openssl rand -base64 32)"
 [ "${#CHAVE_AI}" -ge 44 ] || CHAVE_AI="$(openssl rand -base64 32)"
 # A chave de cifra `nuvemshop_oauth_key` NÃO é variável de ambiente: ela mora em
-# `private.app_secrets`, no banco, e é de lá que `fn_encrypt_oauth` a lê. O nome
+# `private.app_secrets`, no BANCO, e é de lá que `fn_encrypt_oauth` a lê. O nome
 # esconde o alcance — ela cifra também o segredo HMAC de uma fonte de captação
 # (`lib/webhooks/secrets.ts`) e a credencial do WAHA.
 #
@@ -64,7 +60,20 @@ fi
 # faz o mesmo na stack local. O rig do e2e não fazia, e por isso media um
 # produto que não existe: "Gerar segredo" respondia 422 `encryption_unavailable`
 # aqui e funcionava na VPS do cliente. Medido em 2026-09-30, pela tela.
-[ "${#CHAVE_WEBHOOK}" -ge 32 ] || CHAVE_WEBHOOK="$(openssl rand -hex 32)"
+#
+# A chave em vigor é lida do próprio banco, não do `.env.e2e`: o banco é a fonte
+# da verdade, e regenerá-la tornaria ilegível todo segredo que o banco de teste
+# já guarda.
+psql_no_banco() {
+  if command -v psql >/dev/null 2>&1; then
+    psql "$1" -v ON_ERROR_STOP=1 -q -At -c "$2" 2>/dev/null
+  elif command -v docker >/dev/null 2>&1; then
+    docker run --rm --network host postgres:15-alpine \
+      psql "$1" -v ON_ERROR_STOP=1 -q -At -c "$2" 2>/dev/null
+  else
+    return 1
+  fi
+}
 
 ENVOUT="$($SUPABASE status -o env 2>/dev/null)"
 # O `|| true` no fim não é decoração: sob `set -e` + `pipefail`, um `grep` sem
@@ -176,10 +185,6 @@ IMPERSONATE_COOKIE_SECRET=e2e-support-cookie-local-placeholder-32-chars
 CPF_ENCRYPTION_KEY=$CHAVE_CPF
 WAHA_BYO_ENCRYPTION_KEY=$CHAVE_WAHA
 AI_CRED_AES_KEY=$CHAVE_AI
-# Não é env do app: fica registrada aqui só para a próxima chamada deste script
-# reusá-la, como faz com as três de cima. Quem a lê é o Postgres, em
-# private.app_secrets — ver o bloco que a grava, no fim deste arquivo.
-# app_secrets.nuvemshop_oauth_key=$CHAVE_WEBHOOK
 WAHA_API_BASE_URL=http://127.0.0.1:3999
 WAHA_API_KEY=e2e-placeholder-nao-e-segredo
 WAHA_WEBHOOK_BASE_URL=http://127.0.0.1:3001
@@ -235,19 +240,26 @@ NEXT_TELEMETRY_DISABLED=1
 SENTRY_DSN=off
 EOF
 
+echo "==> .env.e2e gerado, apontando para $API_URL (Postgres em $(printf '%s' "$DB_URL" | sed -E 's#^.*@##'))"
+
 # A chave de cifra vai para o BANCO, que é onde `fn_encrypt_oauth` a procura —
-# o mesmo lugar em que o `install.sh` a grava numa VPS. Sem esta linha, toda
-# tela que guarda segredo cifrado (fonte de captação, credencial do WAHA)
-# responde 422 no rig e funciona no cliente.
-if command -v psql >/dev/null 2>&1; then
-  psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c \
-    "insert into private.app_secrets (name, value) values ('nuvemshop_oauth_key', '$CHAVE_WEBHOOK') on conflict (name) do update set value = excluded.value, updated_at = now();"
+# o mesmo lugar em que o `install.sh` a grava numa VPS. Sem ela, toda tela que
+# guarda segredo cifrado (fonte de captação, credencial do WAHA) responde 422.
+#
+# Não derruba o script quando o banco não responde: gerar o `.env.e2e` é útil
+# antes de o stack subir, e quem precisa da chave descobre pela recusa explicada
+# abaixo — não por um script que morre sem dizer o que fazia.
+CHAVE_WEBHOOK="$(psql_no_banco "$DB_URL" \
+  "select value from private.app_secrets where name = 'nuvemshop_oauth_key'" || true)"
+if [ "${#CHAVE_WEBHOOK}" -ge 32 ]; then
+  echo "==> chave de cifra já estava em private.app_secrets (nuvemshop_oauth_key) — mantida"
+elif psql_no_banco "$DB_URL" \
+  "insert into private.app_secrets (name, value) values ('nuvemshop_oauth_key', '$(openssl rand -hex 32)') on conflict (name) do update set value = excluded.value, updated_at = now()" \
+  >/dev/null; then
+  echo "==> chave de cifra gravada em private.app_secrets (nuvemshop_oauth_key)"
 else
-  docker run --rm --network host postgres:15-alpine psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c \
-    "insert into private.app_secrets (name, value) values ('nuvemshop_oauth_key', '$CHAVE_WEBHOOK') on conflict (name) do update set value = excluded.value, updated_at = now();" \
-    >/dev/null
+  echo "==> AVISO: não gravei a chave de cifra em private.app_secrets (banco fora do ar, ou sem psql e sem docker)." >&2
+  echo "    Sem ela, guardar segredo pela tela responde 422 encryption_unavailable." >&2
 fi
 
-echo "==> .env.e2e gerado, apontando para $API_URL (Postgres em $(printf '%s' "$DB_URL" | sed -E 's#^.*@##'))"
-echo "==> chave de cifra gravada em private.app_secrets (nuvemshop_oauth_key)"
 echo "==> Próximo: pnpm e2e:build && pnpm test:e2e"
