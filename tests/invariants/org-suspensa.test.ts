@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { lastLine, sql } from "./gov-helpers";
+import { lastLine, sql, writeCountAs } from "./gov-helpers";
 
 /**
  * A SUSPENSÃO QUE SUSPENDE (migration 0492; spec cobrança do revendedor §2.1,
@@ -193,5 +193,71 @@ describe("fn_org_operante — a régua SQL do predicado", () => {
     const e = erroDe(comoUsuario(ADMIN_A, `select public.fn_org_operante('${ORG_A}')`));
     expect(e).toContain("42501");
     expect(e).toContain("permission denied");
+  });
+});
+
+describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
+  for (const [scope, usuario] of [
+    ["support_readonly", SUPORTE],
+    ["full", DONO],
+  ] as const) {
+    it(`⭐ platform admin ${scope} não reativa uma suspensa pelo PostgREST`, () => {
+      sql(`update public.organizations set status = 'suspended', suspended_kind = 'cobranca', suspended_at = now() where id = '${ORG_C}';`);
+      const e = erroDe(comoUsuario(usuario, `update public.organizations set status = 'active' where id = '${ORG_C}'`));
+      expect(e).toContain("42501");
+      expect(e).toContain("estado_da_organizacao_so_pelo_servidor");
+      expect(estado(ORG_C)).toBe("suspended/cobranca");
+    });
+
+    it(`⭐ platform admin ${scope} não troca o tipo da suspensão`, () => {
+      sql(`update public.organizations set status = 'suspended', suspended_kind = 'administrativa', suspended_at = now() where id = '${ORG_C}';`);
+      const e = erroDe(comoUsuario(usuario, `update public.organizations set suspended_kind = 'cobranca' where id = '${ORG_C}'`));
+      expect(e).toContain("42501");
+      expect(e).toContain("estado_da_organizacao_so_pelo_servidor");
+      expect(estado(ORG_C)).toBe("suspended/administrativa");
+    });
+
+    it(`⭐ platform admin ${scope} não suspende nem reescreve autoria pelo PostgREST`, () => {
+      for (const atribuicao of [
+        `status = 'suspended'`,
+        `suspended_at = now()`,
+        `suspended_reason = 'forjado'`,
+        `suspended_by = '${usuario}'`,
+        `created_by = '${usuario}'`,
+      ]) {
+        const e = erroDe(comoUsuario(usuario, `update public.organizations set ${atribuicao} where id = '${ORG_C}'`));
+        expect(e, atribuicao).toContain("estado_da_organizacao_so_pelo_servidor");
+      }
+      expect(estado(ORG_C)).toBe("active/-");
+    });
+
+    it(`⭐ platform admin ${scope} não cria organização pelo PostgREST`, () => {
+      const e = erroDe(
+        comoUsuario(
+          usuario,
+          `insert into public.organizations (id, slug, legal_name, display_name) values ('${ORG_FORJADA}', 'forjada-0492', 'Forjada', 'Forjada')`,
+        ),
+      );
+      expect(e).toContain("42501");
+      expect(e).toContain("organizacao_nasce_so_pelo_servidor");
+      expect(valor(`select count(*) from public.organizations where id = '${ORG_FORJADA}';`)).toBe("0");
+    });
+  }
+
+  it("controle: a RLS deixa o dono escrever nome e fuso pela sessão (o que o updateTenant grava)", () => {
+    expect(
+      writeCountAs(
+        DONO,
+        `update public.organizations set display_name = 'Org 0492 C renomeada', timezone = 'America/Manaus' where id = '${ORG_C}'`,
+      ),
+    ).toBe(1);
+    expect(valor(`select display_name || '|' || timezone from public.organizations where id = '${ORG_C}';`)).toBe(
+      "Org 0492 C renomeada|America/Manaus",
+    );
+  });
+
+  it("controle: service_role (rota de servidor, worker de LGPD) escreve o status", () => {
+    sql(`set role service_role;\nupdate public.organizations set status = 'redacted' where id = '${ORG_C}';`);
+    expect(estado(ORG_C)).toBe("redacted/-");
   });
 });
