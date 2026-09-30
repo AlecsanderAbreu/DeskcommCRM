@@ -27,4 +27,4 @@ Verificado com o caso isolado em ambiente hostil (repro N vezes verdes), com o f
 suíte fechando em laço.
 
 Refs #1570.
-Contribuição de @webtecnica (#<PR>).
+Contribuição de @webtecnica (#2033).
