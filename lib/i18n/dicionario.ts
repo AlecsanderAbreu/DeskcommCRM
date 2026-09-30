@@ -4405,8 +4405,8 @@ export const DICIONARIO: Traducoes = {
   "Mínimo 10 caracteres": { es: "Mínimo 10 caracteres" },
   "Máximo 500 caracteres": { es: "Máximo 500 caracteres" },
   "Razão inválida": { es: "Motivo inválido" },
-  "A suspensão bloqueará o acesso dos usuários deste tenant à plataforma. Esta ação pode ser revertida.": {
-    es: "La suspensión bloqueará el acceso de los usuarios de este tenant a la plataforma. Esta acción se puede revertir.",
+  "A empresa perde o acesso, e a IA, os envios e as automações dela param. Mensagens na fila e tarefas agendadas são descartadas e não saem ao reativar; os follow-ups em andamento retomam de onde pararam. As mensagens que chegarem continuam gravadas.": {
+    es: "La empresa pierde el acceso, y su IA, sus envíos y sus automatizaciones se detienen. Los mensajes en cola y las tareas programadas se descartan y no salen al reactivar; los seguimientos en curso se reanudan donde se detuvieron. Los mensajes que lleguen siguen guardándose.",
   },
   "Motivo da suspensão": { es: "Motivo de la suspensión" },
   "Descreva o motivo da suspensão (mínimo 10 caracteres)...": {
