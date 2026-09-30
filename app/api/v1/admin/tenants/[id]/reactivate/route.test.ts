@@ -76,6 +76,17 @@ describe("POST /admin/tenants/[id]/reactivate", () => {
     expect(h.rpc).not.toHaveBeenCalled();
   });
 
+  it("org REDIGIDA com tipo residual 'cobranca' → não é 409 de cobrança (a função responde)", async () => {
+    // O lgpd-redact-worker troca status para 'redacted' sem limpar o tipo:
+    // parada, mas não suspensa — negociar pagamento seria instrução errada.
+    h.org = { id: TENANT, slug: "acme", status: "redacted", suspended_kind: "cobranca" };
+    h.rpc.mockResolvedValue({ data: { changed: false, motivo: "nao_suspensa" }, error: null });
+    const res = await POST(pedido({ reason: MOTIVO }), ctx);
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({ changed: false, motivo: "nao_suspensa" });
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+  });
+
   it("administrativa reativa pela função com kind exigido e audita com o motivo", async () => {
     const res = await POST(pedido({ reason: MOTIVO }), ctx);
     expect(res.status).toBe(200);

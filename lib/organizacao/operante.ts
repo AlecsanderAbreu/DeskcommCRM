@@ -11,8 +11,8 @@
  * ── Leitura de `suspended_kind` ──────────────────────────────────────────────
  * Só significa algo com status='suspended'. O lgpd-redact-worker troca o status
  * para 'redacted' sem limpar o tipo, e por isso o banco NÃO tem CHECK de
- * coerência entre as duas colunas: quem lê o tipo confere antes que a org está
- * parada. Suspensão com tipo NULO (gravada por uma imagem anterior à 0501,
+ * coerência entre as duas colunas: quem lê o tipo confere antes que o status é
+ * 'suspended' — "parada" não basta, a redigida também é parada. Suspensão com tipo NULO (gravada por uma imagem anterior à 0501,
  * depois de um rollback) vale como `administrativa`, como nas funções de estado.
  *
  * ── Deliberadamente NÃO gatilhados (spec §4, decisões D-11 e D-12) ───────────
