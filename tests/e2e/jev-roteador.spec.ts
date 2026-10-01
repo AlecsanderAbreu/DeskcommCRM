@@ -291,6 +291,7 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       await abrirOCartao(page);
       await expect(contexto).toContainText("Histórico autorizado");
       await expect(cartao.getByTestId("jev-tarefa-roteador")).toHaveAttribute("data-estado", "observando");
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: test.info().outputPath("jev-contexto-autorizado.png"), fullPage: true });
       await contexto.getByRole("button", { name: "Desativar histórico do roteador", exact: true }).click();
       await expect(contexto).toContainText("Histórico desativado");
@@ -381,6 +382,7 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       }).toPass();
       await page.reload();
       await expect(campo).toHaveValue("8");
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: test.info().outputPath("jev-roteador-contexto.png"), fullPage: true });
     });
 
@@ -397,6 +399,7 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       await expect(page.getByText("A IA tradicional só é chamada se o JEV falhar ou estiver inseguro.")).toBeVisible();
       const leitura = await page.request.get("/api/v1/ai/jev");
       expect((await leitura.json()).data.config.modo_roteador).toBe("sob_demanda");
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: test.info().outputPath("jev-roteador-sob-demanda.png"), fullPage: true });
       await page.goto(`/app/ai/routers/${semeado.roteador}`);
       await page.getByPlaceholder("Ex.: oi, quero saber o preço do plano premium").fill(FRASE);
@@ -409,6 +412,7 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       await expect(page.getByTestId("teste-agente-que-atenderia")).toContainText(`Suporte Jev ${sufixo}`);
       await expect(page.getByTestId("teste-escolha-da-ia")).toContainText("Não foi necessário consultar");
       await expect(page.getByTestId("teste-quem-decide")).toContainText("O JEV decidiu sozinho");
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: test.info().outputPath("jev-roteador-contexto.png"), fullPage: true });
       await abrirOCartao(page);
       // Casos sintéticos desta organização demonstram a revisão pela interface
@@ -434,6 +438,7 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
         expect((data as unknown as { revisao: string }).revisao).toBe("correto");
       }).toPass();
       await expect(caso.getByLabel("Revisão", { exact: true })).toHaveValue("correto");
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: test.info().outputPath("jev-roteador-resultados.png"), fullPage: true });
     });
   });
