@@ -97,7 +97,7 @@ describe("ajustar o ritmo de uma campanha pausada", () => {
     const { rows } = await pool.query("select status from prospecting_campaigns where id = $1", [
       PAUSADA,
     ]);
-    expect(rows[0].status).toBe("paused");
+    expect(rows[0]?.status).toBe("paused");
   });
 });
 
@@ -108,7 +108,7 @@ describe("a hora do próximo envio acompanha o ritmo novo", () => {
         "select next_send_at <= now() as venceu from prospecting_campaigns where id = $1",
         [id],
       )
-    ).rows[0].venceu;
+    ).rows[0]?.venceu;
 
   it("baixar o intervalo antecipa o envio que estava agendado com o ritmo velho", async () => {
     expect(await proximoEnvioJaVenceu(PAUSADA_COM_HORARIO_FUTURO)).toBe(false);
@@ -125,7 +125,7 @@ describe("a hora do próximo envio acompanha o ritmo novo", () => {
         "select next_send_at::text as t from prospecting_campaigns where id = $1",
         [PAUSADA],
       )
-    ).rows[0].t;
+    ).rows[0]?.t;
     await adjustPace(pool as unknown as pg.Pool, ORG_A, PAUSADA, {
       daily_limit: 7,
       interval_minutes: 1440,
@@ -135,8 +135,10 @@ describe("a hora do próximo envio acompanha o ritmo novo", () => {
         "select next_send_at::text as t from prospecting_campaigns where id = $1",
         [PAUSADA],
       )
-    ).rows[0].t;
-    expect(depois <= antes).toBe(true);
+    ).rows[0]?.t;
+    expect(antes).toBeDefined();
+    expect(depois).toBeDefined();
+    expect((depois ?? "") <= (antes ?? "")).toBe(true);
   });
 });
 
