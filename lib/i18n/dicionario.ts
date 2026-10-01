@@ -7923,6 +7923,9 @@ export const DICIONARIO: Traducoes = {
   "quando o operador liga o Jev (desligado por padrão), a TypeSafe AI, nos Estados Unidos, que recebe cada mensagem do cliente, sozinha e já sem CPF, telefone e e-mail, para avaliar se ele está irritado, se a mensagem tenta manipular o atendimento automático, a qual área da empresa ela se destina, se ela pede para falar com uma pessoa ou para parar de receber mensagens e, quando ela responde a um follow-up, em qual das saídas do fluxo ela se encaixa;": {
     es: "cuando el operador activa Jev (desactivado por defecto), TypeSafe AI, en Estados Unidos, que recibe cada mensaje del cliente, por separado y ya sin CPF, teléfono ni correo, para evaluar si está molesto, si el mensaje intenta manipular la atención automática, a qué área de la empresa se dirige, si pide hablar con una persona o dejar de recibir mensajes y, cuando responde a un seguimiento, en cuál de las salidas del flujo encaja;",
   },
+  "quando o operador cadastra uma chave de Mapas (desligado por padrão), o Google, que recebe as coordenadas da localização que o cliente compartilhou, para devolver a rua e a cidade aproximadas;": {
+    es: "cuando el operador registra una clave de Mapas (desactivado por defecto), Google, que recibe las coordenadas de la ubicación que el cliente compartió, para devolver la calle y la ciudad aproximadas;",
+  },
   "o provedor de infraestrutura onde o servidor está hospedado.": {
     es: "el proveedor de infraestructura donde el servidor está alojado.",
   },
@@ -13663,6 +13666,8 @@ export const DICIONARIO: Traducoes = {
   "Uma segunda inteligência decide as partes rápidas do atendimento.": { es: "Una segunda inteligencia decide las partes rápidas de la atención." },
   "Base de conhecimento com o Google": { es: "Base de conocimiento con Google" },
   "Prepara a base de conhecimento com a chave do Google em vez da OpenAI. Trocar refaz a base.": { es: "Prepara la base de conocimiento con la clave de Google en lugar de OpenAI. Cambiar rehace la base." },
+  "Endereço aproximado do pino": { es: "Dirección aproximada del pin" },
+  "Com uma chave do Google, o pino de localização do cliente chega com rua e cidade aproximadas.": { es: "Con una clave de Google, el pin de ubicación del cliente llega con calle y ciudad aproximadas." },
   "Teto de gasto de IA": { es: "Tope de gasto de IA" },
   "Teto mensal, aviso, e se a IA para ao chegar nele.": { es: "Tope mensual, aviso, y si la IA se detiene al llegar a él." },
   "Quais menus aparecem": { es: "Qué menús aparecen" },
