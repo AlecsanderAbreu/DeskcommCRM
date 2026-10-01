@@ -280,6 +280,15 @@ const PROVA_PROPRIA: readonly Excecao[] = [
       "composta que recusa etapa de outra organização.",
   },
   {
+    tabela: "meta_ads_conversion_rules",
+    razao:
+      "tests/invariants/captura-de-clique-e-server-side.test.ts — RLS ligada, " +
+      "zero policies, privilégios revogados e permission denied sob set role " +
+      "anon/authenticated. O servidor aplica organization_id às regras por etapa " +
+      "da Meta (0506). tests/invariants/meta-regras-etapa-isoladas.test.ts prova a " +
+      "FK composta que recusa etapa de outra organização.",
+  },
+  {
     tabela: "ad_tracking_links",
     razao:
       "tests/invariants/captura-de-clique-e-server-side.test.ts — mesmo teste " +
