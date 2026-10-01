@@ -26,31 +26,10 @@ import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { motivoDaRecusaDeDestino } from "@/lib/automation/destinos-internos-autorizados";
 import { DETALHE_TECNICO } from "@/lib/event-log/aviso-de-evento-morto";
+import { MENSAGEM_REDIGIDA } from "@/lib/lgpd/cascata";
 
 export const MEDIA_DERIVE_CONSUMER_KEY = "media_derive_v1";
 const DRAIN_MAX_ATTEMPTS = 5; // espelho de lib/event-log/drain.ts
-
-/**
- * O corpo que a cascata de anonimização (LGPD) grava numa mensagem redigida —
- * o mesmo sentinela que `fn_redigir_conversas_ao_anonimizar` e
- * `fn_lgpd_cascade_redact_contact` escrevem no body. É ele que marca a mensagem
- * como já anonimizada DO LADO da escrita: quem a redação zerou `body`, mídia e
- * metadata. Guardamos contra ele no UPDATE final para o worker nunca gravar a
- * transcrição (media_derived_text — o token mais sensível, texto de áudio/OCR da
- * imagem) numa mensagem que a anonimização alcançou entre a leitura e a gravação.
- */
-export const BODY_ANONIMIZADO = "[mensagem anonimizada]";
-
-/**
- * O corpo de uma mensagem já redigida pela anonimização LGPD — o espelho do
- * sentinela que `fn_redigir_conversas_ao_anonimizar` grava em `messages.body`.
- *
- * É o marcador honesto de "já anonimizada": a redação também zera a mídia
- * (`media_storage_path` vira nulo), mas mídia nula é também o estado legítimo
- * de mensagem que nunca teve anexo — usar o caminho como régua confundiria a
- * mensagem redigida com a que nunca teve mídia. O corpo sentinela não engana.
- */
-export const MENSAGEM_ANONIMIZADA = "[mensagem anonimizada]";
 
 // Lista compartilhada com o drain do turno — ver lib/messaging/media/derivable.ts.
 
@@ -278,15 +257,18 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
     // mídia. Se a virada acontece ENTRE a leitura desta mensagem e esta
     // gravação, a linha já está redigida — e este UPDATE regravaria o
     // `media_derived_text` que a cascata LGPD mandou zerar (a varredura diária
-    // do passo 9 só alcança em D+1). A guarda `body <> '[...]'` no WHERE faz o
-    // PostgREST casar ZERO linhas; conferimos o resultado para não devolver
-    // "ok" sobre uma escrita que o banco recusou.
+    // do passo 9 só alcança em D+1). A guarda `body IS DISTINCT FROM '[...]'`
+    // faz o PostgREST casar ZERO linhas; conferimos o resultado para não
+    // devolver "ok" sobre uma escrita que o banco recusou.
+    //
+    // `isdistinct`, nunca `neq`: áudio sem legenda tem body NULL, e
+    // `NULL <> '...'` é NULL — o `neq` recusaria TODA nota de voz.
     const { data: gravados, error: erroDaGravacao } = await admin
       .from("messages")
       .update({ media_derived_text: text, media_derived_status: "ready" })
       .eq("id", msg.id)
       .eq("organization_id", msg.organization_id)
-      .neq("body", MENSAGEM_ANONIMIZADA)
+      .filter("body", "isdistinct", MENSAGEM_REDIGIDA)
       .select("id");
     if (erroDaGravacao) return { consumer_key, status: "error", detail: erroDaGravacao.message };
     if (!gravados || gravados.length === 0) {

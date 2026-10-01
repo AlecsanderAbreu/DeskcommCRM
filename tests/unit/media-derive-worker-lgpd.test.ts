@@ -12,9 +12,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * → o worker tenta gravar. Sem a guarda ele regravaria o texto derivado numa
  * mensagem redigida; com ela, zero linhas são casadas e nada é gravado.
  *
- * O dublê emula o PostgREST do jeito que importa: o UPDATE só devolve a linha
- * casada quando a mensagem NÃO está redigida. É o análogo unit de o banco
- * aplicar `body <> '[mensagem anonimizada]'` no WHERE.
+ * O dublê emula o PostgREST do jeito que importa: o UPDATE AVALIA os filtros
+ * que o worker mandou contra o `body` atual da linha, com a semântica de NULL
+ * do Postgres (`NULL <> 'x'` é NULL e não casa; `IS DISTINCT FROM` casa). Um
+ * dublê que decidisse "redigida → zero linhas" sozinho passaria com qualquer
+ * filtro — inclusive sem guarda nenhuma, e inclusive com um `neq` que recusa
+ * toda nota de voz sem legenda (body NULL).
  */
 const downloadMock = vi.fn();
 const updateEqMock = vi.fn();
@@ -27,6 +30,8 @@ const messageRow = {
   media_mime: "audio/ogg",
   media_storage_path: "org1/conv1/msg1.ogg" as string | null,
   media_derived_status: null as string | null,
+  /** Nota de voz não tem legenda: a ingestão grava body NULL (`bodyOf`, lib/waha/ingest.ts). */
+  body: null as string | null,
 };
 
 let bindingDeVisao: { provider: string; model_id: string; credential_id: string | null } | null = null;
@@ -71,16 +76,29 @@ vi.mock("@/lib/supabase/admin", () => ({
                 filtrosDoUpdate.push(["neq", c, v]);
                 return chain;
               },
+              filter: (c: string, op: string, v: string) => {
+                filtrosDoUpdate.push([op, c, v]);
+                return chain;
+              },
               select: () => {
                 filtrosDoUpdate.push(["select", "*", ""]);
                 return chain;
               },
               then: (onFulfilled: (v: unknown) => void, onRejected?: (e: unknown) => void) => {
-                // Redigida → o WHERE `body <> sentinela` casa ZERO linhas.
-                const p = Promise.resolve({
-                  data: redigida ? [] : [messageRow],
-                  error: null,
+                // O "banco": a linha como está AGORA, e os filtros do worker
+                // avaliados contra ela com a semântica de NULL do Postgres.
+                const agora: Record<string, unknown> = {
+                  ...messageRow,
+                  body: redigida ? BODY_ANONIMIZADO : messageRow.body,
+                };
+                const casa = filtrosDoUpdate.every(([op, c, v]) => {
+                  const atual = agora[c];
+                  if (op === "eq") return atual !== null && atual === v;
+                  if (op === "neq") return atual !== null && atual !== v;
+                  if (op === "isdistinct") return atual !== v;
+                  return true;
                 });
+                const p = Promise.resolve({ data: casa ? [messageRow] : [], error: null });
                 return p.then(onFulfilled, onRejected);
               },
             },
@@ -119,7 +137,7 @@ vi.mock("@/lib/agent-engine/edge/llm/credentials", () => ({
   })),
 }));
 
-import { deriveMessageMedia, MENSAGEM_ANONIMIZADA } from "@/workers/media-derive-worker";
+import { deriveMessageMedia } from "@/workers/media-derive-worker";
 import { deriveMediaText } from "@/lib/messaging/media/derive";
 
 function eventRow(attempts = 0) {
@@ -160,22 +178,27 @@ describe("deriveMessageMedia — LGPD: não grava transcrição em mensagem já 
     messageRow.type = "audio";
     messageRow.media_storage_path = "org1/conv1/msg1.ogg";
     messageRow.media_mime = "audio/ogg";
+    messageRow.body = null;
     bindingDeVisao = null;
     agenteComVideo = { id: "v1" };
     vi.mocked(deriveMediaText).mockReset().mockResolvedValue("transcrição do áudio real");
   });
 
-  it("a guarda `body <> mensagem anonimizada` está SEMPRE no UPDATE final", async () => {
-    // Controle estrutural: numa mensagem NÃO redigida o worker grava (status ok)
-    // mas ainda assim envia a guarda no WHERE — sem ela, a corrida voltaria a
-    // regravar a mensagem redigida.
+  it("nota de voz sem legenda (body NULL) é transcrita — a guarda não pode recusá-la", async () => {
+    // `NULL <> '[mensagem anonimizada]'` é NULL no Postgres: um `neq` aqui
+    // recusaria TODA nota de voz, e o worker devolveria "message_redacted"
+    // para mensagens que ninguém anonimizou.
+    messageRow.body = null;
     const r = await deriveMessageMedia(eventRow());
-    expect(r.status, "a mensagem viva deveria ser derivada").toBe("ok");
+    expect(r.status, `detail=${r.detail}`).toBe("ok");
+  });
 
-    const filtro = filtrosDoUpdate.find(([op, coluna]) => op === "neq" && coluna === "body");
-    expect(filtro).toBeDefined();
-    expect(filtro).toEqual(["neq", "body", BODY_ANONIMIZADO]);
-    expect(MENSAGEM_ANONIMIZADA).toBe(BODY_ANONIMIZADO);
+  it("imagem com legenda é transcrita", async () => {
+    messageRow.type = "image";
+    messageRow.media_mime = "image/jpeg";
+    messageRow.body = "olha isso";
+    const r = await deriveMessageMedia(eventRow());
+    expect(r.status, `detail=${r.detail}`).toBe("ok");
   });
 
   it("lê → anonimiza → grava: a transcrição NÃO é gravada (nenhum UPDATE efetivo)", async () => {
