@@ -57,6 +57,7 @@ function dados(extra: Parcial = {}): DadosDoJev {
       },
     ],
     tem_ia_de_sempre: true,
+    area_saude: false,
     numeros: {
       dias: 7,
       decisoes: 0,
@@ -1543,5 +1544,23 @@ describe("CartaoDoJev — a tarefa do follow-up, que só observa", () => {
     expect(screen.getByTestId("jev-so-observa-followup")).toHaveTextContent(/^En esta versión, Jev solo observa esta tarea/);
     expect(screen.getByTestId("jev-sem-fluxo-followup_2")).toHaveTextContent(/^No se ejecuta ahora: ningún seguimiento publicado/);
     expect(screen.getByTestId("jev-concordancia-followup")).toHaveTextContent(/pusieron la respuesta del cliente en la misma salida del flujo en 3 de 4 mensajes\./);
+  });
+});
+
+describe("CartaoDoJev — o aviso da área da saúde (DEC-012 #2)", () => {
+  it("com a organização na área da saúde, a tela exibe o aviso onde o Jev observa/decide", () => {
+    montar(dados({ area_saude: true }));
+    const aviso = screen.getByTestId("jev-aviso-area-saude");
+    expect(aviso).toHaveTextContent(/dado de saúde, protegido pela LGPD/);
+  });
+
+  it("sem a marca de área da saúde, não há aviso (fora do critério)", () => {
+    montar(dados({ area_saude: false }));
+    expect(screen.queryByTestId("jev-aviso-area-saude")).toBeNull();
+  });
+
+  it("a marca ausente vale como fora da área da saúde (rollback da imagem anterior)", () => {
+    montar(dados({ area_saude: undefined as never }));
+    expect(screen.queryByTestId("jev-aviso-area-saude")).toBeNull();
   });
 });

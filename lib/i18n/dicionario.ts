@@ -9544,6 +9544,9 @@ export const DICIONARIO: Traducoes = {
   "Para ligar o Jev, cole a chave dele em Credenciais e espere o teste da chave passar.": {
     es: "Para activar Jev, pega su clave en Credenciales y espera a que pase la prueba de la clave.",
   },
+  "Área da saúde: as mensagens que o Jev observa podem conter dado de saúde, protegido pela LGPD. O Jev é um operador novo, nos Estados Unidos — confirme que o registro de operadores e a política de privacidade desta instalação já o listam antes de ligá-lo.": {
+    es: "Área de la salud: los mensajes que observa Jev pueden contener datos de salud, protegidos por la LGPD. Jev es un operador nuevo, en Estados Unidos — confirma que el registro de operadores y la política de privacidad de esta instalación ya lo listan antes de activarlo.",
+  },
   "Não consegui checar o pedido de atualização.": { es: "No pude verificar la solicitud de actualización." },
   "Não consegui finalizar a atualização.": { es: "No pude finalizar la actualización." },
   "Não consegui gravar o estado.": { es: "No pude guardar el estado." },
