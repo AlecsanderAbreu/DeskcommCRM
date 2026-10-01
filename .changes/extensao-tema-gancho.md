@@ -1,5 +1,5 @@
 ---
-impacto: nova_feature
+impacto: capacidade_nova
 secao: adicionado
 titulo: Extensão declarativa pode contribuir um tema (gancho)
 ---
@@ -14,4 +14,4 @@ visual: o bloco de CSS só existe quando a organização escolheu o tema de uma
 extensão ativa. A condição é protegida por teste (`extensao-tema-nao-vaza-para-
 quem-nao-escolheu.test.ts`).
 
-Contribuição de @webtecnica (PR #0000).
+Contribuição de @webtecnica (PR #2091).
