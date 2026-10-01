@@ -44598,6 +44598,11 @@ create trigger trg_trava_assentos_do_plano
 -- trava já é da própria transação, e travas consultivas são reentrantes.
 -- Um UPDATE que regrava archived_at = null num canal JÁ ativo (a reconexão de
 -- savePartnerSession/reactivateChannelSession) sai na guarda de transição.
+-- Essa guarda NÃO é intercambiável com o `cs.id <> new.id` da contagem: numa
+-- org que já está ACIMA do teto (chave ligada sobre orgs existentes, ou
+-- downgrade), os OUTROS canais já somam o teto, e só a guarda impede que a
+-- reconexão de um número no ar vire PT402. O `cs.id <> new.id` serve a quem
+-- entra de verdade (desarquivar, trocar provider ou org): não conta o próprio.
 create or replace function public.fn_trava_canais_do_plano()
 returns trigger
 language plpgsql
