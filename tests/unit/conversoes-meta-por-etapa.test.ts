@@ -25,7 +25,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 const ORG = "11111111-1111-1111-1111-111111111111";
 const LEAD = "22222222-2222-2222-2222-222222222222";
 const CONTATO = "33333333-3333-3333-3333-333333333333";
-const ORCAMENTO = "44444444-4444-4444-4444-444444444444";
+const ORCAMENTO = "44444444-4444-4444-8444-444444444444";
 const CHAVE = `MetaEtapa:${ORCAMENTO}`;
 
 let tabelas: Record<string, unknown>;
@@ -137,7 +137,7 @@ interface EventoEnviado {
 }
 
 function enviados(spy: ReturnType<typeof vi.spyOn>): EventoEnviado[] {
-  return spy.mock.calls.map(
+  return (spy.mock.calls as unknown[][]).map(
     (c) => (JSON.parse(String((c[1] as RequestInit).body)) as { data: EventoEnviado[] }).data[0]!,
   );
 }
