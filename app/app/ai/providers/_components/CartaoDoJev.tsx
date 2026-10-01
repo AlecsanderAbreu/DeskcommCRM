@@ -1120,7 +1120,7 @@ function Ligado({
             )}
             {tarefa.id === "roteador" && tarefa.estado === "decidindo" && rodando && (
               <div className="mt-2 space-y-1 text-xs" data-testid="jev-modo-roteador">
-                <label htmlFor="jev-router-mode" className="font-medium">{t("Como o roteador consulta as IAs")}</label>
+                <label htmlFor="jev-router-mode" className="block font-medium">{t("Como o roteador consulta as IAs")}</label>
                 <select id="jev-router-mode" className="block rounded-md border bg-background p-2 text-sm"
                   value={dados.config.modo_roteador ?? "comparacao"} disabled={!dados.pode_editar || enviando}
                   onChange={(e) => void mudar({ modo_roteador: e.target.value }, t("Modo do roteador salvo."))}>

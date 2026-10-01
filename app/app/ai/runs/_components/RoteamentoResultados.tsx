@@ -110,22 +110,22 @@ export function RoteamentoResultados() {
       </header>
       <Card className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="text-xs">{t("Período")}
-          <select className="mt-1 block w-full rounded border bg-background p-2" value={dias} onChange={(e) => setDias(e.target.value)}>
+          <select className="mt-1 block w-full rounded-md border bg-background p-2" value={dias} onChange={(e) => setDias(e.target.value)}>
             {[7,30,90].map((n) => <option key={n} value={n}>{n} {t("dias")}</option>)}
           </select>
         </label>
         <label className="text-xs">{t("Modo")}
-          <select className="mt-1 block w-full rounded border bg-background p-2" value={modo} onChange={(e) => setModo(e.target.value)}>
+          <select className="mt-1 block w-full rounded-md border bg-background p-2" value={modo} onChange={(e) => setModo(e.target.value)}>
             <option value="">{t("Todos")}</option>{["tradicional_comparacao", "jev_comparacao", "jev_sob_demanda"].map((v) => <option key={v} value={v}>{nomeDoModo(v, t)}</option>)}
           </select>
         </label>
         <label className="text-xs">{t("Roteador")}
-          <select className="mt-1 block w-full rounded border bg-background p-2" value={routerId} onChange={(e) => setRouterId(e.target.value)}>
+          <select className="mt-1 block w-full rounded-md border bg-background p-2" value={routerId} onChange={(e) => setRouterId(e.target.value)}>
             <option value="">{t("Todos")}</option>{routers.map((router) => <option key={router.id} value={router.id}>{router.name}</option>)}
           </select>
         </label>
         <label className="text-xs">{t("Modelo JEV")}
-          <select className="mt-1 block w-full rounded border bg-background p-2" value={modelo} onChange={(e) => setModelo(e.target.value)}>
+          <select className="mt-1 block w-full rounded-md border bg-background p-2" value={modelo} onChange={(e) => setModelo(e.target.value)}>
             <option value="">{t("Todos")}</option>{modelos.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
@@ -158,11 +158,11 @@ export function RoteamentoResultados() {
           <div className="flex flex-wrap items-center gap-2">
             {c.conversation_id && <Link className="text-xs underline" href={`/app/inbox?id=${c.conversation_id}`}>{t("Abrir conversa")}</Link>}
             {dados.pode_revisar && <><label className="text-xs" htmlFor={`revisao-${c.id}`}>{t("Revisão")}</label>
-              <select id={`revisao-${c.id}`} className="rounded border bg-background p-1 text-xs" value={c.revisao ?? ""} disabled={salvando === c.id}
+              <select id={`revisao-${c.id}`} className="rounded-md border bg-background p-1 text-xs" value={c.revisao ?? ""} disabled={salvando === c.id}
                 onChange={(e) => void revisar(c, e.target.value ? e.target.value as "correto" | "incorreto" : null, null)}>
                 <option value="">{t("Não revisado")}</option><option value="correto">{t("Correto")}</option><option value="incorreto">{t("Incorreto")}</option>
               </select>
-              {c.revisao === "incorreto" && <select aria-label={t("Agente esperado")} className="rounded border bg-background p-1 text-xs" value={c.agent_id_esperado ?? ""} disabled={salvando === c.id}
+              {c.revisao === "incorreto" && <select aria-label={t("Agente esperado")} className="rounded-md border bg-background p-1 text-xs" value={c.agent_id_esperado ?? ""} disabled={salvando === c.id}
                 onChange={(e) => void revisar(c, "incorreto", e.target.value || null)}>
                 <option value="">{t("Escolher agente esperado")}</option>
                 {dados.membros.filter((m) => m.router_id === c.router_id).map((m) => <option key={`${m.agent_id}-${m.intent_name}`} value={m.agent_id}>{m.intent_name}</option>)}
