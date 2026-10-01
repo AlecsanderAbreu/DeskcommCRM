@@ -55,6 +55,7 @@ describe('resultados do roteamento', () => {
     expect(status).toBe(200);
     expect(body.data.resumo).toMatchObject({ total: 1, sem_reserva: 1, reservas: 0, comparacoes_destino: 0, custo_total_cents: .01, custos_incompletos: 0 });
     expect(filtros).toContainEqual(['jev_router_decisions', 'organization_id', ORG]);
+    expect(filtros).toContainEqual(['ai_routers', 'organization_id', ORG]);
     expect(filtros).not.toContainEqual(['jev_router_decisions', 'organization_id', OUTRA]);
   });
 

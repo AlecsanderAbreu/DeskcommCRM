@@ -23,6 +23,7 @@ interface Caso {
 
 interface Resultado {
   casos: Caso[];
+  roteadores: Array<{ id: string; name: string }>;
   membros: Array<{ router_id: string; agent_id: string; intent_name: string }>;
   pode_revisar: boolean;
   resumo: {
@@ -97,7 +98,7 @@ export function RoteamentoResultados() {
 
   const r = dados?.resumo;
   const modelos = [...new Set(dados?.casos.map((c) => c.modelo_jev).filter((v): v is string => !!v) ?? [])];
-  const routers = [...new Set(dados?.casos.map((c) => c.router_id) ?? [])];
+  const routers = dados?.roteadores ?? [];
   const porcentagem = (a: number, b: number) => b ? `${Math.round(100 * a / b)}% (${a}/${b})` : t("Sem pares");
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 p-6" data-testid="resultados-roteamento">
@@ -120,7 +121,7 @@ export function RoteamentoResultados() {
         </label>
         <label className="text-xs">{t("Roteador")}
           <select className="mt-1 block w-full rounded border bg-background p-2" value={routerId} onChange={(e) => setRouterId(e.target.value)}>
-            <option value="">{t("Todos")}</option>{routers.map((id) => <option key={id} value={id}>{id.slice(0,8)}</option>)}
+            <option value="">{t("Todos")}</option>{routers.map((router) => <option key={router.id} value={router.id}>{router.name}</option>)}
           </select>
         </label>
         <label className="text-xs">{t("Modelo JEV")}
@@ -155,7 +156,7 @@ export function RoteamentoResultados() {
           <p className="text-xs text-muted-foreground">{t("Janela de histórico")}: {c.context_message_count} · {t("Intenção JEV")}: {c.intent_jev ?? "—"} · {t("Intenção tradicional")}: {c.intent_tradicional ?? "—"}</p>
           <p className="text-xs text-muted-foreground">JEV: {c.custo_jev_cents === null ? "—" : dinheiro.format(c.custo_jev_cents / 100)} · {t("Tradicional")}: {c.custo_tradicional_cents === null ? "—" : dinheiro.format(c.custo_tradicional_cents / 100)}{c.custo_incompleto ? ` · ${t("custo incompleto")}` : ""}</p>
           <div className="flex flex-wrap items-center gap-2">
-            {c.conversation_id && <Link className="text-xs underline" href={`/app/inbox?conversation=${c.conversation_id}`}>{t("Abrir conversa")}</Link>}
+            {c.conversation_id && <Link className="text-xs underline" href={`/app/inbox?id=${c.conversation_id}`}>{t("Abrir conversa")}</Link>}
             {dados.pode_revisar && <><label className="text-xs" htmlFor={`revisao-${c.id}`}>{t("Revisão")}</label>
               <select id={`revisao-${c.id}`} className="rounded border bg-background p-1 text-xs" value={c.revisao ?? ""} disabled={salvando === c.id}
                 onChange={(e) => void revisar(c, e.target.value ? e.target.value as "correto" | "incorreto" : null, null)}>

@@ -49,15 +49,17 @@ export async function GET(req: NextRequest): Promise<Response> {
   const ids = linhas.flatMap((l) => l.message_id ? [l.message_id] : []);
   const jobs = [...new Set(linhas.flatMap((l) => l.job_id ? [l.job_id] : []))];
   const routers = [...new Set(linhas.map((l) => l.router_id))];
-  const [obs, chamadas, membros] = await Promise.all([
+  const [obs, chamadas, membros, roteadores] = await Promise.all([
     ids.length ? db.from('jev_observacoes').select('message_id,rotulo_jev,rotulo_atual,intencao_jev,intencao_atual,concordou,modelo')
       .eq('organization_id', authz.org.orgId).eq('tarefa', 'roteador').in('message_id', ids) : Promise.resolve({ data: [], error: null }),
     jobs.length ? db.from('llm_calls').select('job_id,provider,cost_cents,model')
       .eq('organization_id', authz.org.orgId).eq('purpose', 'intent_router').in('job_id', jobs).limit(1500) : Promise.resolve({ data: [], error: null }),
     routers.length ? db.from('ai_router_members').select('router_id,agent_id,intent_name')
       .eq('organization_id', authz.org.orgId).in('router_id', routers) : Promise.resolve({ data: [], error: null }),
+    routers.length ? db.from('ai_routers').select('id,name')
+      .eq('organization_id', authz.org.orgId).in('id', routers) : Promise.resolve({ data: [], error: null }),
   ]);
-  if (obs.error || chamadas.error || membros.error) return fail('query_failed', 'Não foi possível carregar as medições.', 500);
+  if (obs.error || chamadas.error || membros.error || roteadores.error) return fail('query_failed', 'Não foi possível carregar as medições.', 500);
   const porMensagem = new Map((obs.data ?? []).map((o) => [o.message_id, o]));
   const porJob = new Map<string, Array<{ provider: string; cost_cents: number | null; model: string }>>();
   for (const c of chamadas.data ?? []) {
@@ -96,6 +98,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   return ok({
     casos,
     membros: membros.data ?? [],
+    roteadores: roteadores.data ?? [],
     pode_revisar: roleAtLeast(authz.org.role, 'admin'),
     resumo: {
       total: casos.length, limite_amostra: 500, periodo_dias: filtro.dias,
