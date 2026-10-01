@@ -8,4 +8,4 @@ O seam de modelo nao envia `response_format`: os auxiliares do agente pedem JSON
 
 Novo `extrairJsonDoTexto` (lib/agent-engine/texto/): retira a cerca, tenta o texto inteiro e, senao, devolve o primeiro bloco JSON top-level que parsear (varredura ciente de strings, com PII com `{`/`}`/`"`). Nunca lanca — um auxiliar nao derruba o turno. Os quatro pontos que leem JSON de modelo (checkpoint, compactacao, roteador de intencao e o flywheel de propostas) passam a rotear por ele, protegidos por teste do gate do dono (cerca anti-regressao).
 
-Contribuicao de @webtecnica (PR #0000).
+Contribuição de @webtecnica (PR #2096).
