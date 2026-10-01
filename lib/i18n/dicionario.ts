@@ -3657,6 +3657,15 @@ export const DICIONARIO: Traducoes = {
   "O botão 'Preencher com a conversa' não sugere nada, e quem revisa preenche cada campo lendo a conversa manualmente.": {
     es: "El botón 'Completar con la conversación' no sugiere nada, y quien revisa completa cada campo leyendo la conversación manualmente.",
   },
+  "Ler o valor da venda na conversa": {
+    es: "Leer el valor de la venta en la conversación",
+  },
+  "Quando um negócio vindo de anúncio da Meta é ganho sem valor preenchido, lê a conversa e acha o valor e o produto vendidos, para a compra ser reportada à Meta. Só aceita valor que aparece escrito na conversa.": {
+    es: "Cuando un negocio que vino de un anuncio de Meta se gana sin valor completado, lee la conversación y encuentra el valor y el producto vendidos, para reportar la compra a Meta. Solo acepta un valor que aparece escrito en la conversación.",
+  },
+  "A venda vinda de anúncio fica como pendência 'sem valor' em Configurações › Conversões, e a Meta não recebe a compra até alguém preencher o valor do negócio.": {
+    es: "La venta que vino de un anuncio queda como pendiente 'sin valor' en Configuración › Conversiones, y Meta no recibe la compra hasta que alguien complete el valor del negocio.",
+  },
   "Transformar proposta da empresa em modelo": {
     es: "Transformar propuesta de la empresa en modelo",
   },

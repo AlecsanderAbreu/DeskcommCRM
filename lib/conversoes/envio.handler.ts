@@ -52,6 +52,7 @@ import type {
 } from "@/lib/plataformas-de-anuncio/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { lerAtribuicao } from "./leitura-da-atribuicao";
+import { lerValorDaConversa } from "./valor-da-conversa";
 import { lerVendaPeloCanal } from "./venda-pelo-canal";
 import { ehEventoDeEtapa } from "./regras-google";
 import { lerRegistro, registraEnvio } from "./registro-de-envio";
@@ -141,6 +142,11 @@ export async function processarConversao(
   /** O valor que a compra leva — `null` quando sai sem valor (0436). */
   let valorDaVenda: number | null =
     lead.value_cents !== null && lead.value_cents > 0 ? lead.value_cents : null;
+  let moedaDaVenda: string | null = lead.currency;
+  /** O que foi vendido, quando a conversa disse — vai no evento da Meta. */
+  let produto: string | null = null;
+  /** De onde veio o valor (ou por que faltou), quando ele foi lido da conversa. */
+  let detalheDoValor: string | null = null;
 
   const registra = (
     status: "sent" | "skipped" | "error",
@@ -168,8 +174,8 @@ export async function processarConversao(
             googleActionId: registro?.google_action_id ?? qualificacao.googleActionId,
           }
         : {}),
-      moeda: registro?.remote_request_id ? registro.currency : lead.currency,
-      detalhe: detalhe ?? null,
+      moeda: registro?.remote_request_id ? registro.currency : moedaDaVenda,
+      detalhe: detalhe ?? detalheDoValor,
       protocolo,
       solicitadoEm,
     });
@@ -191,10 +197,33 @@ export async function processarConversao(
   // No Google a organização escolhe (0436, `google_purchase_value_mode`): a
   // compra pode sair SEM valor — nunca com zero —, e o Google a conta como uma
   // conversão sem receita. Por isso a decisão do Google espera a credencial.
-  const semValor =
+  //
+  // Na Meta, antes de desistir, a conversa: quem opera pediu a venda sem passo
+  // humano, então o valor DITO na conversa vale como valor da venda. Só o dito —
+  // `valor-da-conversa.ts` recusa o que não consegue mostrar escrito, e aí a
+  // pendência `sem_valor` segue, agora com o motivo no Histórico.
+  if (
     !qualificacao &&
     !registro?.remote_request_id &&
-    (lead.value_cents === null || lead.value_cents <= 0);
+    valorDaVenda === null &&
+    plataforma === "meta_ads"
+  ) {
+    const lido = await lerValorDaConversa(
+      admin,
+      row.organization_id,
+      lead.contact_id,
+      lead.currency ?? "BRL",
+    );
+    if (lido.ok) {
+      valorDaVenda = lido.valorCentavos;
+      moedaDaVenda = lido.moeda;
+      produto = lido.produto;
+      detalheDoValor = `Valor lido da conversa: "${lido.trecho}"`;
+    } else {
+      detalheDoValor = lido.motivo;
+    }
+  }
+  const semValor = !qualificacao && !registro?.remote_request_id && valorDaVenda === null;
   if (semValor && plataforma !== "google_ads") {
     await registra("skipped", "sem_valor");
     return ok("skipped", "sem_valor");
@@ -230,7 +259,7 @@ export async function processarConversao(
       plataforma === "meta_ads" &&
       EVENTO === "Purchase" &&
       !registro?.remote_request_id &&
-      lead.value_cents !== null
+      valorDaVenda !== null
     ) {
       // A chave vem ANTES de tudo (doc 76): desligada — o padrão —, nem as
       // conversas são lidas, e nada sai para o provedor.
@@ -254,8 +283,8 @@ export async function processarConversao(
           eventId: `${lead.id}:${EVENTO}`,
           occurredAt: new Date(lead.closed_at ?? row.created_at ?? Date.now()),
           phone: telefone,
-          valueCents: lead.value_cents,
-          currency: lead.currency ?? "BRL",
+          valueCents: valorDaVenda,
+          currency: moedaDaVenda ?? "BRL",
         });
         return desfecho(doCanal(pelo), false);
       }
@@ -306,8 +335,9 @@ export async function processarConversao(
     telefone,
     // A coluna tem `DEFAULT 'BRL'` e um CHECK de ISO-4217; o fallback só cobre a
     // linha que teve a moeda apagada à mão.
-    moeda: lead.currency ?? "BRL",
+    moeda: moedaDaVenda ?? "BRL",
     valorCentavos: qualificacao ? null : valorDaVenda,
+    produto,
   };
 
   // Protocolo já recebido: consultar é a única operação permitida até concluir.
