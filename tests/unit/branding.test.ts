@@ -820,7 +820,7 @@ const HOSTS_DECLARADOS: Record<string, EntradaDeHost> = {
     motivo:
       "endpoint público da BrasilAPI (`lib/brasil-api/client.ts`) que devolve os dados cadastrais de um CNPJ. É o destino do request, só chamado com o módulo de empresas ligado e só para o CNPJ que alguém da organização cadastrou ou importou; trocar pelo domínio do revendedor faria a consulta não chegar a lugar nenhum.",
   },
-  // ── geocodificação reversa do pino (0503): destino de chamada ──
+  // ── geocodificação reversa do pino (0504): destino de chamada ──
   "maps.googleapis.com": {
     categoria: "FORNECEDOR",
     motivo:

@@ -2468,7 +2468,7 @@ export const DICIONARIO: Traducoes = {
   "ex: vip, carrinho-abandonado": { es: "Ej.: vip, carrito-abandonado" },
   "Cancelar se o lead responder": { es: "Cancelar si el lead responde" },
   "Salvar gatilho": { es: "Guardar disparador" },
-  // Cartão "Mapas" em Provedores (0503) e a API dele.
+  // Cartão "Mapas" em Provedores (0504) e a API dele.
   "Mapas (Google)": { es: "Mapas (Google)" },
   "Chave gravada": { es: "Clave guardada" },
   "Sem chave": { es: "Sin clave" },

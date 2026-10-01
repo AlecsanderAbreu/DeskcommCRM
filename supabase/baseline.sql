@@ -45419,7 +45419,7 @@ alter table public.ai_agent_versions
   add constraint ai_agent_versions_inbound_debounce_ms_check
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
 
--- ---- a chave de mapas da organização (migration 0503) ----
+-- ---- a chave de mapas da organização (migration 0504) ----
 -- Pino do WhatsApp → rua/bairro/cidade aproximados (lib/mapas/). Server-side only.
 create table if not exists public.map_provider_credentials (
   id uuid primary key default gen_random_uuid(),

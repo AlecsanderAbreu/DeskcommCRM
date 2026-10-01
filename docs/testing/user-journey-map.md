@@ -3188,7 +3188,7 @@ motor, não mexido aqui).
 Contexto: medido numa loja, 10 de 10 pinos do mês chegaram só com coordenadas —
 o agente lia um link e perguntava a cidade de novo. Com a chave da Geocoding API
 (Agente de IA › Provedores, cartão «Mapas (Google)»; tabela
-`map_provider_credentials`, migration 0503; regra em `lib/mapas/`), o pino ganha
+`map_provider_credentials`, migration 0504; regra em `lib/mapas/`), o pino ganha
 o endereço aproximado no corpo (o que o agente lê) e no cartão do pino da
 conversa. Os nomes vêm no idioma da organização (`organizations.locale`, pelo
 registro de idiomas).
