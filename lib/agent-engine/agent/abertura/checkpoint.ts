@@ -21,6 +21,7 @@ import {
   currentExecutionBoundary,
   guardServiceEffect,
 } from "@/lib/atendimento/fronteira-server";
+import { extrairJsonDoTexto } from "@/lib/agent-engine/texto/extrair-json-do-texto";
 
 import type { Queryable } from "../../queue/queue";
 import {
@@ -138,20 +139,11 @@ export async function insertCheckpoint(
  * modelo na mensagem (pode carregar PII da conversa) — o job re-tenta.
  */
 export function parseCheckpointText(text: string): CheckpointContent {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) {
+  const bruto = extrairJsonDoTexto(text);
+  if (bruto === null) {
     throw new Error('fechamento do turno sem JSON de checkpoint — run re-tentado pela fila');
   }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    throw new Error(
-      'JSON de checkpoint inválido no fechamento do turno — run re-tentado pela fila',
-    );
-  }
-  const parsed = checkpointContentSchema.safeParse(raw);
+  const parsed = checkpointContentSchema.safeParse(bruto);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `${i.path.join('.') || '(raiz)'}: ${i.code}`)
