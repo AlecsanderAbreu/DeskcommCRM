@@ -21,8 +21,23 @@ export function MediaRenderer({ message }: { message: Message }) {
       return <ImageMedia messageId={message.id} alt={t("Imagem recebida")} />;
     case "sticker":
       return <StickerMedia messageId={message.id} />;
-    case "audio":
-      return <AudioPlayer messageId={message.id} isOutbound={isOutbound} />;
+    case "audio": {
+      const pronto = message.media_derived_status === "ready";
+      const transcricao = message.media_derived_text?.trim();
+      return (
+        <div className="flex flex-col gap-2">
+          <AudioPlayer messageId={message.id} isOutbound={isOutbound} />
+          {pronto && transcricao ? (
+            <p
+              data-testid="transcricao-de-audio"
+              className="text-sm leading-relaxed text-muted-foreground"
+            >
+              {transcricao}
+            </p>
+          ) : null}
+        </div>
+      );
+    }
     case "video":
       return <VideoMedia messageId={message.id} />;
     case "contact":
