@@ -44481,6 +44481,115 @@ $$;
 revoke execute on function public.fn_limite_do_plano(uuid, text) from public, anon, authenticated;
 grant execute on function public.fn_limite_do_plano(uuid, text) to service_role;
 
+-- ── C. assentos: provisório só pelo servidor, e o teto de pessoas ────────────
+-- O vínculo provisório (0237) não ocupa vaga, e fn_user_org_ids o trata como
+-- membro pleno. Sem esta trava, um admin de tenant inseriria provisórios pelo
+-- PostgREST (user_orgs_insert aceita admin), e cada um entraria sem contar no
+-- plano. O único escritor legítimo é fn_create_tenant_with_owner.
+-- INVOKER e separado do gatilho de assentos DE PROPÓSITO: numa definer,
+-- current_user é o dono da função e "quem escreve?" responderia sempre postgres
+-- (molde: fn_organizacao_estado_so_pelo_servidor, 0501). A sessão ainda revoga e
+-- reativa o provisório existente (rotas de Equipe, cliente da sessão); o que ela
+-- não faz é CRIAR um.
+create or replace function public.fn_membro_provisorio_so_pelo_servidor()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_cria_provisorio boolean;
+begin
+  if current_user not in ('authenticated', 'anon') or not new.provisional_until_handover then
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    v_cria_provisorio := true;
+  else
+    v_cria_provisorio := not old.provisional_until_handover
+                         or new.organization_id is distinct from old.organization_id;
+  end if;
+  if v_cria_provisorio then
+    raise exception 'membro_provisorio_so_pelo_servidor'
+      using errcode = '42501',
+            detail = 'Vínculo provisório nasce só por fn_create_tenant_with_owner, nunca pela sessão.';
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.fn_membro_provisorio_so_pelo_servidor() from public, anon, authenticated;
+
+-- A coluna é da 0237. No baseline ela só é acrescentada DEPOIS da VARREDURA anon,
+-- e `create trigger ... update of provisional_until_handover` exige a coluna: sem
+-- esta linha a instalação nova para aqui com ON_ERROR_STOP. Idempotente.
+alter table public.user_organizations
+  add column if not exists provisional_until_handover boolean not null default false;
+
+drop trigger if exists trg_membro_provisorio_so_pelo_servidor on public.user_organizations;
+create trigger trg_membro_provisorio_so_pelo_servidor
+  before insert or update of revoked_at, provisional_until_handover, organization_id
+  on public.user_organizations
+  for each row execute function public.fn_membro_provisorio_so_pelo_servidor();
+
+-- O teto de pessoas. Conta ativo (sem revoked_at) e não provisório; convite
+-- pendente não conta (D-10). Só confere quem PASSA a ocupar vaga: INSERT ativo,
+-- revoked_at que volta a nulo, provisório que vira definitivo, troca de org de um
+-- ativo. A trava consultiva faz duas entradas simultâneas não verem o mesmo
+-- "cabe mais um". PT402; a MENSAGEM `limite_do_plano:assentos:<teto>` é o
+-- contrato com lib/cobranca/limites.ts; DETAIL {recurso, limite, em_uso}.
+create or replace function public.fn_trava_assentos_do_plano()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_limite integer;
+  v_em_uso integer;
+begin
+  if new.revoked_at is not null or new.provisional_until_handover then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' then
+    if old.revoked_at is null
+       and not old.provisional_until_handover
+       and new.organization_id is not distinct from old.organization_id then
+      return new;
+    end if;
+  end if;
+
+  v_limite := public.fn_limite_do_plano(new.organization_id, 'assentos');
+  if v_limite is null then
+    return new;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(new.organization_id::text, 2282));
+
+  select count(*) into v_em_uso
+    from public.user_organizations uo
+   where uo.organization_id = new.organization_id
+     and uo.revoked_at is null
+     and not uo.provisional_until_handover
+     and uo.user_id <> new.user_id;
+
+  if v_em_uso >= v_limite then
+    raise exception 'limite_do_plano:assentos:%', v_limite
+      using errcode = 'PT402',
+            detail = jsonb_build_object('recurso', 'assentos', 'limite', v_limite, 'em_uso', v_em_uso)::text;
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.fn_trava_assentos_do_plano() from public, anon, authenticated;
+
+drop trigger if exists trg_trava_assentos_do_plano on public.user_organizations;
+create trigger trg_trava_assentos_do_plano
+  before insert or update of revoked_at, provisional_until_handover, organization_id
+  on public.user_organizations
+  for each row execute function public.fn_trava_assentos_do_plano();
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria
