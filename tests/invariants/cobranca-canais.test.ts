@@ -116,6 +116,10 @@ describe("inv. 6 — canais de mensagem", () => {
       chaveDeCobranca("ligado");
     }
     expect(canaisOcupados(org(8))).toBe(3);
+    // Org JÁ acima do teto (chave ligada sobre orgs existentes, ou downgrade): reconectar um
+    // canal ativo não pode virar PT402. Aqui só a guarda de transição protege — `cs.id <> new.id`
+    // sozinho contaria os OUTROS 2 (2 >= 1) e recusaria um número que já está no ar.
+    expect(erroDe(`update public.channel_sessions set archived_at = null where id = '${canal(13)}';`)).toBe("");
     expect(erroDe(`${insercaoDeCanal(canal(16), org(8))};`)).toContain("PT402");
     sql(`${insercaoDeCanal(canal(17), org(5))}; ${insercaoDeCanal(canal(18), org(5))};`);
     assinar(org(9), PLANO_SEM_TETO);
