@@ -13754,6 +13754,13 @@ export const DICIONARIO: Traducoes = {
   "Não dá para ver daqui": { es: "No se puede ver desde aquí" },
   "Ajustar": { es: "Ajustar" },
   "Tudo o que se liga e desliga, se está ligado e onde se ajusta.": { es: "Todo lo que se activa y desactiva, si está activado y dónde se ajusta." },
+  "Não foi necessário consultar a IA tradicional.": { es: "No fue necesario consultar a la IA tradicional." },
+  "O JEV decidiu sozinho; a IA tradicional não foi chamada.": { es: "JEV decidió solo; no se llamó a la IA tradicional." },
+  "O JEV precisou de reserva. A IA tradicional foi consultada; sem resposta válida, valem as regras de fallback do roteador.": { es: "JEV necesitó respaldo. Se consultó a la IA tradicional; sin respuesta válida, se aplican las reglas de respaldo del enrutador." },
+
+  "Janela de histórico": { es: "Ventana de historial" },
+  "A janela indica o histórico disponível. O JEV só recebe o que foi autorizado em Provedores.": { es: "La ventana indica el historial disponible. JEV solo recibe lo autorizado en Proveedores." },
+
 };
 
 /**

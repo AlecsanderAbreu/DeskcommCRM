@@ -398,6 +398,19 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       const leitura = await page.request.get("/api/v1/ai/jev");
       expect((await leitura.json()).data.config.modo_roteador).toBe("sob_demanda");
       await page.screenshot({ path: test.info().outputPath("jev-roteador-sob-demanda.png"), fullPage: true });
+      await page.goto(`/app/ai/routers/${semeado.roteador}`);
+      await page.getByPlaceholder("Ex.: oi, quero saber o preço do plano premium").fill(FRASE);
+      const [previa] = await Promise.all([
+        page.waitForResponse((r) => r.url().includes(`/api/v1/ai/routers/${semeado.roteador}/test`)),
+        page.getByRole("button", { name: "Testar classificação" }).click(),
+      ]);
+      expect(previa.status()).toBe(200);
+      expect((await previa.json()).data.ia_consultada).toBe(false);
+      await expect(page.getByTestId("teste-agente-que-atenderia")).toContainText(`Suporte Jev ${sufixo}`);
+      await expect(page.getByTestId("teste-escolha-da-ia")).toContainText("Não foi necessário consultar");
+      await expect(page.getByTestId("teste-quem-decide")).toContainText("O JEV decidiu sozinho");
+      await page.screenshot({ path: test.info().outputPath("jev-roteador-contexto.png"), fullPage: true });
+      await abrirOCartao(page);
       // Casos sintéticos desta organização demonstram a revisão pela interface
       // contra o banco real; não são medições de custo/acerto do fornecedor.
       const decisao = randomUUID();

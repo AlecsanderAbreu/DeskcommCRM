@@ -46,7 +46,8 @@ sem configuração explícita é `comparacao`, preservando instalações anterio
 aumentar tokens, custo e latência; ganho de acerto exige avaliação com respostas reais.
 
 Cada turno registra uma linha sem texto em `jev_router_decisions`: modo efetivo, origem da
-decisão, motivo da reserva, contexto usado, custo conhecido e tempo total. Em IA › Execuções ›
+decisão, motivo da reserva, janela de histórico disponível, custo conhecido e tempo total.
+A janela não afirma que o Jev recebeu todo o histórico: o aceite específico continua limitando o envio. Em IA › Execuções ›
 Roteamento, a amostra de até 500 casos mostra custo e latência por modo, comparação entre
 intenções e destinos quando há os dois pareceres, e revisão humana de acerto. Concordância
 entre modelos não é acurácia; a revisão humana é uma métrica separada. Custo desconhecido é
@@ -68,3 +69,8 @@ do Jev, com padrão de 90 dias e piso de 30 dias.
 
 Destino: núcleo, pois estende o contrato de roteamento e consentimento já distribuído.
 Com zero organizações optando, o envio do Jev continua como antes.
+
+O botão **Testar classificação** respeita o modo salvo: sob demanda dispensa a IA
+tradicional quando o Jev escolhe intenção confiável, e informa que ela não foi
+consultada. A prévia recebe somente a frase digitada; não gera observações nem
+decisões reais no painel de resultados. Custos de teste continuam em Execuções.

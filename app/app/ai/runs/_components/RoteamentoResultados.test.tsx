@@ -28,7 +28,7 @@ describe('aba de resultados do roteamento', () => {
     render(<RoteamentoResultados />);
     const linha = await screen.findByTestId(`roteamento-${caso.id}`);
     expect(linha).toHaveTextContent('JEV; reserva sob demanda');
-    expect(linha).toHaveTextContent('Histórico usado: 8');
+    expect(linha).toHaveTextContent('Janela de histórico: 8');
     expect(screen.getByText(/Concordância de destino/)).toHaveTextContent('Sem pares');
     expect(screen.getByText(/Reservas sob demanda não formam amostra/)).toBeVisible();
   });

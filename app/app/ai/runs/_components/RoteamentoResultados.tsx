@@ -105,6 +105,7 @@ export function RoteamentoResultados() {
         <div className="mb-2 flex gap-3 text-sm"><Link href="/app/ai/runs" className="underline">{t("Execuções")}</Link><span aria-current="page" className="font-medium">{t("Roteamento")}</span></div>
         <h1 className="text-2xl font-semibold">{t("Resultados do roteamento")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("Compare os modos e revise decisões reais. Concordância entre IAs não é prova de acerto.")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("A janela indica o histórico disponível. O JEV só recebe o que foi autorizado em Provedores.")}</p>
       </header>
       <Card className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="text-xs">{t("Período")}
@@ -151,7 +152,7 @@ export function RoteamentoResultados() {
         {dados.casos.map((c) => <Card key={c.id} className="space-y-2 p-4 text-sm" data-testid={`roteamento-${c.id}`}>
           <div className="flex flex-wrap justify-between gap-2"><strong>{nomeDoModo(c.modo, t)}</strong><span className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString(idioma)} · {c.tempo_total_ms} ms</span></div>
           <p>{t("Escolha final")}: {c.intent_final ?? t("Sem intenção")} · {t("Origem")}: {c.origem === "reserva" ? t("Reserva tradicional") : c.origem === "jev" ? "JEV" : t("IA tradicional")}{c.motivo_reserva ? ` · ${motivoDaReserva(c.motivo_reserva, t)}` : ""}</p>
-          <p className="text-xs text-muted-foreground">{t("Histórico usado")}: {c.context_message_count} · {t("Intenção JEV")}: {c.intent_jev ?? "—"} · {t("Intenção tradicional")}: {c.intent_tradicional ?? "—"}</p>
+          <p className="text-xs text-muted-foreground">{t("Janela de histórico")}: {c.context_message_count} · {t("Intenção JEV")}: {c.intent_jev ?? "—"} · {t("Intenção tradicional")}: {c.intent_tradicional ?? "—"}</p>
           <p className="text-xs text-muted-foreground">JEV: {c.custo_jev_cents === null ? "—" : dinheiro.format(c.custo_jev_cents / 100)} · {t("Tradicional")}: {c.custo_tradicional_cents === null ? "—" : dinheiro.format(c.custo_tradicional_cents / 100)}{c.custo_incompleto ? ` · ${t("custo incompleto")}` : ""}</p>
           <div className="flex flex-wrap items-center gap-2">
             {c.conversation_id && <Link className="text-xs underline" href={`/app/inbox?conversation=${c.conversation_id}`}>{t("Abrir conversa")}</Link>}

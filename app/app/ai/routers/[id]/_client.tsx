@@ -798,7 +798,7 @@ function EscolhasLadoALado({
       <div className="rounded-md border border-border/60 p-3 text-sm" data-testid="teste-escolha-da-ia">
         <p className="text-xs text-muted-foreground">{t("Sua IA escolheu")}</p>
         <p className="font-medium">
-          {result.confidence === null ? t("não respondeu") : (result.agent_name ?? t("nenhum (sem fallback)"))}
+          {result.ia_consultada === false ? t("Não foi necessário consultar a IA tradicional.") : result.confidence === null ? t("não respondeu") : (result.agent_name ?? t("nenhum (sem fallback)"))}
         </p>
         {result.confidence !== null && (
           <p className="text-xs text-muted-foreground">
@@ -827,7 +827,11 @@ function EscolhasLadoALado({
         )}
       </div>
       <p className="text-xs text-muted-foreground sm:col-span-2" data-testid="teste-quem-decide">
-        {jev.decide
+        {result.modo_roteador === "sob_demanda" && jev.estado === "decidindo"
+          ? jev.decide
+            ? t("O JEV decidiu sozinho; a IA tradicional não foi chamada.")
+            : t("O JEV precisou de reserva. A IA tradicional foi consultada; sem resposta válida, valem as regras de fallback do roteador.")
+          : jev.decide
           ? t("O Jev decide esta tarefa: em produção, vale a escolha dele, e a sua IA fica de reserva.")
           : jev.estado === "observando"
             ? // Sem a resposta da IA não há "escolha da sua IA": vale a regra de sempre.

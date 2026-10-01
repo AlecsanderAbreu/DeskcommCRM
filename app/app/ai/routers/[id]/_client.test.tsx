@@ -144,6 +144,19 @@ describe("Testar classificação com o Jev (onda 2 do Jev, bloco 2.2)", () => {
     expect(screen.getByTestId("teste-quem-decide").textContent).toMatch(/vale a escolha dele/);
   });
 
+  it("sob demanda distingue a reserva dispensada de falha de resposta", () => {
+    comResultado({ ...RESULTADO, confidence: null, ia_consultada: false, modo_roteador: "sob_demanda", jev: { ...DO_JEV, estado: "decidindo", decide: true } });
+    expect(screen.getByTestId("teste-escolha-da-ia").textContent).toContain("Não foi necessário consultar");
+    expect(screen.getByTestId("teste-quem-decide").textContent).toContain("O JEV decidiu sozinho");
+    expect(screen.getByTestId("teste-agente-que-atenderia").textContent).toBe("Agente Suporte");
+  });
+
+  it("sob demanda explica reserva por baixa confiança mesmo quando Jev respondeu", () => {
+    comResultado({ ...RESULTADO, ia_consultada: true, modo_roteador: "sob_demanda", jev: { ...DO_JEV, confidence: 0.3, estado: "decidindo", decide: false } });
+    expect(screen.getByTestId("teste-quem-decide").textContent).toContain("O JEV precisou de reserva");
+    expect(screen.getByTestId("teste-agente-que-atenderia").textContent).toBe("Agente Financiamento");
+  });
+
   it("decidindo sem a sua IA (R2): quem atende NÃO é o do Jev", () => {
     comResultado({
       ...RESULTADO,

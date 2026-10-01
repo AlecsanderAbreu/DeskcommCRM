@@ -133,6 +133,13 @@ export type DestinoDoVeredito =
     }
   | { membro: null; outcome: 'no_match' | 'classifier_failed'; confidence: number | null };
 
+/** Mesma condição para dispensar a reserva no turno e na prévia do painel. */
+export function vereditoConfiavelDoRoteador(router: LoadedRouter, verdict: IntentVerdict | null): boolean {
+  return verdict !== null && verdict.falhou !== true && verdict.intentName !== null &&
+    verdict.confidence >= router.minConfidence &&
+    router.members.some((m) => m.intentName === verdict.intentName);
+}
+
 export function destinoDoVeredito(
   router: LoadedRouter,
   stickyMember: RouterMember | undefined,
@@ -359,10 +366,7 @@ export async function resolveTurnAgent(
     const independente = modo === 'sob_demanda' && estadoLido === 'decidindo';
     const comparacao = independente ? null : classificar();
     const escolhaIndependente = independente ? await jev.escolha : null;
-    const jevConfiavel = escolhaIndependente !== null &&
-      escolhaIndependente.veredito.intentName !== null &&
-      escolhaIndependente.veredito.confidence >= router.minConfidence &&
-      router.members.some((m) => m.intentName === escolhaIndependente.veredito.intentName);
+    const jevConfiavel = vereditoConfiavelDoRoteador(router, escolhaIndependente?.veredito ?? null);
     const verdict = comparacao !== null ? await comparacao : jevConfiavel ? null : await classificar();
 
     // Decidindo, vale a escolha do Jev, e a IA de sempre é a reserva. Sem a IA
