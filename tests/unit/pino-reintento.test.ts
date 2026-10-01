@@ -13,6 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveZernioCreds } from "@/lib/channels/zernio/credentials";
+import { EVENTO_NOVA_BUSCA_DO_PINO } from "@/lib/channels/zernio/localizacao";
 import {
   DESISTE_APOS_MS,
   ESPERA_INICIAL_MS,
@@ -20,7 +21,8 @@ import {
   pinoReintentoHandler,
   tratarNovaBuscaDoPino,
 } from "@/lib/channels/zernio/pino-reintento.handler";
-import type { EventRow } from "@/lib/event-log/dispatcher";
+import { getRegisteredHandlers, type EventRow } from "@/lib/event-log/dispatcher";
+import { ensureHandlersRegistered } from "@/lib/event-log/register-handlers";
 
 vi.mock("@/lib/channels/zernio/credentials", async (orig) => ({
   ...(await orig<typeof import("@/lib/channels/zernio/credentials")>()),
@@ -91,6 +93,15 @@ afterEach(() => vi.restoreAllMocks());
 describe("a nova busca do pino", () => {
   it("consome o evento que a ingestão emite", () => {
     expect(pinoReintentoHandler.events).toEqual(["message.location_retry_requested"]);
+  });
+
+  // A ingestão emite pela CONSTANTE, e `evento-comando-tem-consumidor.test.ts` só
+  // enxerga `p_event_type: "<literal>"`: sem esta linha, tirar o consumidor do
+  // barramento deixaria o pedido `pending` para sempre com a cerca verde.
+  it("o barramento registra o consumidor do pedido", () => {
+    ensureHandlersRegistered();
+    const consumidores = getRegisteredHandlers().filter((h) => h.events.includes(EVENTO_NOVA_BUSCA_DO_PINO));
+    expect(consumidores.map((h) => h.key)).toEqual([pinoReintentoHandler.key]);
   });
 
   it("espera 1 minuto antes da primeira tentativa — sem tocar o banco nem a API", async () => {
