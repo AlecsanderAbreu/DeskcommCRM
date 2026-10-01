@@ -283,3 +283,63 @@ create trigger trg_trava_assentos_do_plano
   before insert or update of revoked_at, provisional_until_handover, organization_id
   on public.user_organizations
   for each row execute function public.fn_trava_assentos_do_plano();
+
+-- ── D. canais de mensagem: o teto de números conectados ──────────────────────
+-- Conta canal NÃO arquivado que não seja `wacalls` (voz; a lista de mensagem é
+-- PROVIDERS_DE_MENSAGEM em lib/channels/capabilities.ts). A trava consultiva é
+-- a MESMA de fn_reserve_channel_connection (hashtextextended(org, 2281)):
+-- reserva e inserção direta nunca contam ao mesmo tempo. Dentro da reserva a
+-- trava já é da própria transação, e travas consultivas são reentrantes.
+-- Um UPDATE que regrava archived_at = null num canal JÁ ativo (a reconexão de
+-- savePartnerSession/reactivateChannelSession) sai na guarda de transição.
+create or replace function public.fn_trava_canais_do_plano()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_limite integer;
+  v_em_uso integer;
+begin
+  if new.archived_at is not null or new.provider = 'wacalls' then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' then
+    if old.archived_at is null
+       and old.provider <> 'wacalls'
+       and new.organization_id is not distinct from old.organization_id then
+      return new;
+    end if;
+  end if;
+
+  v_limite := public.fn_limite_do_plano(new.organization_id, 'canais');
+  if v_limite is null then
+    return new;
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(new.organization_id::text, 2281));
+
+  select count(*) into v_em_uso
+    from public.channel_sessions cs
+   where cs.organization_id = new.organization_id
+     and cs.archived_at is null
+     and cs.provider <> 'wacalls'
+     and cs.id <> new.id;
+
+  if v_em_uso >= v_limite then
+    raise exception 'limite_do_plano:canais:%', v_limite
+      using errcode = 'PT402',
+            detail = jsonb_build_object('recurso', 'canais', 'limite', v_limite, 'em_uso', v_em_uso)::text;
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.fn_trava_canais_do_plano() from public, anon, authenticated;
+
+drop trigger if exists trg_trava_canais_do_plano on public.channel_sessions;
+create trigger trg_trava_canais_do_plano
+  before insert or update of archived_at, provider, organization_id
+  on public.channel_sessions
+  for each row execute function public.fn_trava_canais_do_plano();
