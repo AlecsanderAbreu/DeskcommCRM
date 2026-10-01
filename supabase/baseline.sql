@@ -27539,10 +27539,14 @@ create table if not exists public.organization_extensions (
   configuration jsonb not null check (
     jsonb_typeof(configuration) = 'object'
     and configuration ?& array['density','show_description']
-    and configuration - array['density','show_description'] = '{}'::jsonb
+    and configuration - array['density','show_description','theme'] = '{}'::jsonb
     and configuration->>'density' is not null
     and configuration->>'density' in ('comfortable','compact')
     and jsonb_typeof(configuration->'show_description') = 'boolean'
+    and (
+      not (configuration ? 'theme')
+      or configuration->>'theme' in ('sage','clay','mist','plum','olive')
+    )
   ),
   revision integer not null check (revision > 0),
   updated_by uuid references auth.users(id) on delete set null,
@@ -28009,9 +28013,10 @@ begin
   end if;
   v_config := coalesce(p_configuration,v_link.configuration,v_manifest->'configuration');
   if v_config is null or jsonb_typeof(v_config) <> 'object'
-    or not (v_config ?& array['density','show_description']) or v_config - array['density','show_description'] <> '{}'::jsonb
+    or not (v_config ?& array['density','show_description']) or v_config - array['density','show_description','theme'] <> '{}'::jsonb
     or v_config->>'density' is null or v_config->>'density' not in ('comfortable','compact')
-    or jsonb_typeof(v_config->'show_description') is distinct from 'boolean' then
+    or jsonb_typeof(v_config->'show_description') is distinct from 'boolean'
+    or (v_config ? 'theme' and (v_config->>'theme' is null or v_config->>'theme' not in ('sage','clay','mist','plum','olive'))) then
     raise exception using errcode='P0001',message='extension_invalid_input';
   end if;
   if p_enabled and not coalesce(v_link.enabled,false) and
@@ -32003,13 +32008,14 @@ create or replace function public.fn_extensions_permissoes_validas(p_permissions
 returns boolean language sql immutable set search_path = public, pg_temp as $$
   select p_permissions is not null
     and jsonb_typeof(p_permissions) = 'array'
-    and jsonb_array_length(p_permissions) between 1 and 6
+    and jsonb_array_length(p_permissions) between 1 and 7
     and not exists (
       select 1 from jsonb_array_elements(p_permissions) e
       where jsonb_typeof(e.value) <> 'string'
          or e.value #>> '{}' not in (
               'navigation.tasks', 'navigation.inbox', 'navigation.kanban',
-              'navigation.contacts', 'navigation.agenda', 'navigation.radar')
+              'navigation.contacts', 'navigation.agenda', 'navigation.radar',
+              'theme.apply')
     )
     and (select count(distinct e.value) from jsonb_array_elements(p_permissions) e)
         = jsonb_array_length(p_permissions);

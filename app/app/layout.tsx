@@ -8,8 +8,10 @@ import { AuthProvider } from "@/hooks/auth/AuthProvider";
 import { ProvedorDeCoresDasEtiquetas } from "@/components/tags/CoresDasEtiquetas";
 import { AppShell } from "./_components/AppShell";
 import { EstiloDaMarcaDaOrganizacao } from "./_components/EstiloDaMarcaDaOrganizacao";
+import { EstiloDoTemaDaExtensao } from "./_components/EstiloDoTemaDaExtensao";
 import { MfaEnrollGate } from "@/components/auth/MfaEnrollGate";
 import { cssDaMarca, ESCOPO_DA_ORGANIZACAO } from "@/lib/branding/css";
+import { cssDaExtensaoDeTema, linhaBrutaDeTema, temaAplicavel } from "@/lib/extensions/tema";
 import { marcaDaInstalacao } from "@/lib/branding/instalacao";
 import { resolverMarcaDaOrganizacao } from "@/lib/branding/organizacao";
 import { env } from "@/lib/env";
@@ -57,6 +59,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
    * e não aqui: a precedência é regra do produto, não detalhe deste layout.
    */
   let cssDaOrganizacao: string | null = null;
+  // O tema de extensão, se a organização escolheu um. `null` = quem não
+  // escolheu — e aí o `EstiloDoTemaDaExtensao` não renderiza nada.
+  let cssDoTemaDaExtensao: string | null = null;
 
   // EPIC-02: gate /app/* on completed onboarding.
   // EPIC-11: gate /app/* on org not being suspended (S-11.08).
@@ -90,7 +95,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
      *    este layout — a cerca anterior lia o texto-fonte e reprovava esta
      *    refatoração sem que nada tivesse quebrado.
      */
-    const [orgRes, conexoes, isEnrolled, mfaRequired, modulos] = await Promise.all([
+    const [orgRes, conexoes, isEnrolled, mfaRequired, modulos, temaTrace] = await Promise.all([
       admin
         .from("organizations")
         .select("onboarded_at, status, settings")
@@ -106,6 +111,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       ),
       // Da INSTALAÇÃO: decide se a porta de um módulo opcional entra no menu.
       modulosLigados(admin),
+      // O tema que a organização escolheu na configuração de UMA extensão
+      // ativa. Uma linha por vínculo ativo; o próprio `temaAplicavel` decide se
+      // há exatamente um candidato (mais de um = sugere conflito e aplica nada).
+      admin
+        .from("organization_extensions")
+        .select(
+          "configuration," +
+            "extension_installations!organization_extensions_installation_id_fkey(" +
+            "extension_artifacts!extension_installations_artifact_id_fkey(manifest))",
+        )
+        .eq("organization_id", activeOrg.orgId)
+        .eq("enabled", true)
+        .limit(50),
     ]);
 
     const orgRow = orgRes.data;
@@ -157,6 +175,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       // laço de retorno desta feature é a tela `/app/settings/marca`, que mostra
       // os motivos para quem pode consertá-los — o admin daquela organização.
       cssDaOrganizacao = cssDaMarca(marca.cor, ESCOPO_DA_ORGANIZACAO).css;
+    }
+
+    // O tema de extensão NUNCA derruba a casca: leitura fora do ar ou formato
+    // inesperado desce para `null` — quem não escolheu tema fica exatamente
+    // como está, e quem escolheu só perde a pintura naquele render.
+    if (!temaTrace.error) {
+      const linhas = (temaTrace.data ?? [])
+        .map(linhaBrutaDeTema)
+        .filter((linha): linha is NonNullable<typeof linha> => linha !== null);
+      const temaEscolhido = temaAplicavel(linhas);
+      cssDoTemaDaExtensao = temaEscolhido === null ? null : cssDaExtensaoDeTema(temaEscolhido).css;
     }
 
     // Desce para o menu CAMPO A CAMPO, e só o campo que a organização definiu.
@@ -260,6 +289,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       */}
       <div data-marca-org="" className="contents">
         <EstiloDaMarcaDaOrganizacao css={cssDaOrganizacao} />
+        <EstiloDoTemaDaExtensao css={cssDoTemaDaExtensao} />
         <ImpersonateBanner impersonating={impersonating} />
         <ConexaoCaidaBanner caidas={conexoesCaidas} />
         {needsMfaGate ? (
