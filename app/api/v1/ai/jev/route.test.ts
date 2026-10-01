@@ -1166,7 +1166,7 @@ describe("aceite específico do contexto do roteador", () => {
     const antes = structuredClone(estado.settings);
     const r = await mudar({ contexto_roteador: true, aceite_contexto_roteador: true });
     expect(r.status).toBe(200);
-    expect(r.corpo.data.config.contexto_roteador).toMatchObject({ por: USUARIO, versao: 1 });
+    expect(r.corpo.data.config.contexto_roteador).toMatchObject({ por: USUARIO, versao: 2 });
     expect(r.corpo.data.config.ligado).toBe(false);
     expect(estado.settings.branding).toEqual(antes.branding);
     expect(estado.settings.llm).toEqual(antes.llm);
@@ -1180,6 +1180,14 @@ describe("aceite específico do contexto do roteador", () => {
     const revogado = await mudar({ contexto_roteador: false });
     expect(revogado.corpo.data.config.contexto_roteador).toBeNull();
     expect((await mudar({ contexto_roteador: true })).status).toBe(422);
+  });
+
+  it("aceite antigo de quatro mensagens só é ampliado com nova confirmação", async () => {
+    estado.settings.jev = { contexto_roteador: { em: "2026-09-29T12:00:00.000Z", por: USUARIO, versao: 1 } };
+    expect((await mudar({ contexto_roteador: true })).corpo.data.alterado).toBe(false);
+    const ampliado = await mudar({ contexto_roteador: true, aceite_contexto_roteador: true });
+    expect(ampliado.status).toBe(200);
+    expect(ampliado.corpo.data.config.contexto_roteador.versao).toBe(2);
   });
 
   it("gerente não autoriza histórico e corpo não escolhe outra organização", async () => {

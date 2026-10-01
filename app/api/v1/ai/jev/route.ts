@@ -681,11 +681,13 @@ export async function PATCH(req: NextRequest): Promise<Response> {
   }
 
   // Aceite separado: não amplia o alcance das outras tarefas nem muda quem decide.
-  if (corpo.contexto_roteador === true && atual.contexto_roteador == null) {
+  if (corpo.contexto_roteador === true &&
+    (atual.contexto_roteador == null ||
+      (atual.contexto_roteador.versao === 1 && corpo.aceite_contexto_roteador === true))) {
     if (corpo.aceite_contexto_roteador !== true) {
       return fail("jev_exige_aceite", t("Para usar o histórico no roteador, confirme o envio das mensagens recentes à TypeSafe AI."), 422, { requestId });
     }
-    mudanca.contexto_roteador = { em: new Date().toISOString(), por: user.id, versao: 1 };
+    mudanca.contexto_roteador = { em: new Date().toISOString(), por: user.id, versao: 2 };
   } else if (corpo.contexto_roteador === false && atual.contexto_roteador != null) {
     mudanca.contexto_roteador = null;
   }

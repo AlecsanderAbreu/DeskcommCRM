@@ -35,17 +35,20 @@ interface Resultado {
 }
 
 const dinheiro = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 6 });
-const NOME_DO_MODO: Record<string, string> = {
-  tradicional_comparacao: "IA tradicional decide; JEV observa",
-  jev_comparacao: "JEV decide; comparação ativa",
-  jev_sob_demanda: "JEV; reserva sob demanda",
-};
-const MOTIVO: Record<string, string> = {
-  falha_jev: "JEV não respondeu",
-  baixa_confianca: "Confiança abaixo do mínimo",
-  sem_intencao: "Nenhuma intenção identificada",
-  intencao_invalida: "Intenção fora do roteador",
-};
+function nomeDoModo(modo: string, t: (texto: string) => string): string {
+  if (modo === "tradicional_comparacao") return t("IA tradicional decide; JEV observa");
+  if (modo === "jev_comparacao") return t("JEV decide; comparação ativa");
+  if (modo === "jev_sob_demanda") return t("JEV; reserva sob demanda");
+  return modo;
+}
+
+function motivoDaReserva(motivo: string, t: (texto: string) => string): string {
+  if (motivo === "falha_jev") return t("JEV não respondeu");
+  if (motivo === "baixa_confianca") return t("Confiança abaixo do mínimo");
+  if (motivo === "sem_intencao") return t("Nenhuma intenção identificada");
+  if (motivo === "intencao_invalida") return t("Intenção fora do roteador");
+  return motivo;
+}
 
 export function RoteamentoResultados() {
   const t = useT();
@@ -111,7 +114,7 @@ export function RoteamentoResultados() {
         </label>
         <label className="text-xs">{t("Modo")}
           <select className="mt-1 block w-full rounded border bg-background p-2" value={modo} onChange={(e) => setModo(e.target.value)}>
-            <option value="">{t("Todos")}</option>{Object.entries(NOME_DO_MODO).map(([v,n]) => <option key={v} value={v}>{t(n)}</option>)}
+            <option value="">{t("Todos")}</option>{["tradicional_comparacao", "jev_comparacao", "jev_sob_demanda"].map((v) => <option key={v} value={v}>{nomeDoModo(v, t)}</option>)}
           </select>
         </label>
         <label className="text-xs">{t("Roteador")}
@@ -141,13 +144,13 @@ export function RoteamentoResultados() {
           <p>{t("Concordância de destino")}: <strong>{porcentagem(r.concordancias_destino, r.comparacoes_destino)}</strong> · {t("de intenção")}: <strong>{porcentagem(r.concordancias_intencao, r.comparacoes_intencao)}</strong></p>
           <p>{t("Acerto revisado por pessoa")}: <strong>{porcentagem(r.corretos_revisados, r.revisados)}</strong></p>
           <p className="text-xs text-muted-foreground">{t("A concordância usa apenas os modos comparativos. Reservas sob demanda não formam amostra geral de comparação.")}</p>
-          {r.reservas > 0 && <p className="text-xs text-muted-foreground">{t("Motivos da reserva")}: {Object.entries(r.motivos_reserva).filter(([,n]) => n > 0).map(([m,n]) => `${t(MOTIVO[m] ?? m)}: ${n}`).join(" · ")}</p>}
+          {r.reservas > 0 && <p className="text-xs text-muted-foreground">{t("Motivos da reserva")}: {Object.entries(r.motivos_reserva).filter(([,n]) => n > 0).map(([m,n]) => `${motivoDaReserva(m, t)}: ${n}`).join(" · ")}</p>}
         </Card>
       </>}
       {dados && (dados.casos.length ? <div className="space-y-2">
         {dados.casos.map((c) => <Card key={c.id} className="space-y-2 p-4 text-sm" data-testid={`roteamento-${c.id}`}>
-          <div className="flex flex-wrap justify-between gap-2"><strong>{t(NOME_DO_MODO[c.modo] ?? c.modo)}</strong><span className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString(idioma)} · {c.tempo_total_ms} ms</span></div>
-          <p>{t("Escolha final")}: {c.intent_final ?? t("Sem intenção")} · {t("Origem")}: {c.origem === "reserva" ? t("Reserva tradicional") : c.origem === "jev" ? "JEV" : t("IA tradicional")}{c.motivo_reserva ? ` · ${t(MOTIVO[c.motivo_reserva] ?? c.motivo_reserva)}` : ""}</p>
+          <div className="flex flex-wrap justify-between gap-2"><strong>{nomeDoModo(c.modo, t)}</strong><span className="text-xs text-muted-foreground">{new Date(c.created_at).toLocaleString(idioma)} · {c.tempo_total_ms} ms</span></div>
+          <p>{t("Escolha final")}: {c.intent_final ?? t("Sem intenção")} · {t("Origem")}: {c.origem === "reserva" ? t("Reserva tradicional") : c.origem === "jev" ? "JEV" : t("IA tradicional")}{c.motivo_reserva ? ` · ${motivoDaReserva(c.motivo_reserva, t)}` : ""}</p>
           <p className="text-xs text-muted-foreground">{t("Histórico usado")}: {c.context_message_count} · {t("Intenção JEV")}: {c.intent_jev ?? "—"} · {t("Intenção tradicional")}: {c.intent_tradicional ?? "—"}</p>
           <p className="text-xs text-muted-foreground">JEV: {c.custo_jev_cents === null ? "—" : dinheiro.format(c.custo_jev_cents / 100)} · {t("Tradicional")}: {c.custo_tradicional_cents === null ? "—" : dinheiro.format(c.custo_tradicional_cents / 100)}{c.custo_incompleto ? ` · ${t("custo incompleto")}` : ""}</p>
           <div className="flex flex-wrap items-center gap-2">

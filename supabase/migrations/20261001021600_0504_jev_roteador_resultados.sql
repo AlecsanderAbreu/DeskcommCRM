@@ -79,3 +79,5 @@ $$;
 revoke all on function public.fn_expurgar_observacoes_do_jev(int,int) from public;
 revoke execute on function public.fn_expurgar_observacoes_do_jev(int,int) from anon, authenticated;
 grant execute on function public.fn_expurgar_observacoes_do_jev(int,int) to service_role;
+
+notify pgrst, 'reload schema';

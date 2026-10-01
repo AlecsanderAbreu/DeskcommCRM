@@ -2,6 +2,7 @@ import type pg from 'pg';
 import { costCents } from '@/lib/agent-engine/edge/llm/pricing';
 import type { EscolhaDoJev } from '@/lib/ai/decisao/roteador';
 import type { TurnAgentResolution } from './resolve-turn-agent';
+import { logger } from '@/lib/logger';
 
 /** Sem texto de cliente: a linha explica qual modo decidiu e quanto ele custou. */
 export async function registrarDecisaoDoRoteador(db: pg.Pool, dados: {
@@ -54,5 +55,8 @@ export async function registrarDecisaoDoRoteador(db: pg.Pool, dados: {
     );
   } catch {
     // Telemetria não pode impedir uma pessoa de receber resposta.
+    logger.warn('Não foi possível registrar a decisão do roteador', {
+      organization_id: dados.organizationId, router_id: dados.routerId,
+    });
   }
 }

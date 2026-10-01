@@ -160,6 +160,8 @@ async function apagarORoteador(): Promise<void> {
       "apagar a IA de sempre",
     );
   }
+  await ok(admin.from("jev_router_decisions" as "jev_observacoes").delete()
+    .eq("organization_id", orgId).eq("router_id", semeado.roteador), "apagar as decisões sintéticas");
   await ok(admin.from("ai_routers").delete().eq("id", semeado.roteador), "apagar o roteador");
   await ok(admin.from("ai_agents").delete().in("id", [semeado.vendas, semeado.suporte]), "apagar os agentes");
   await ok(admin.from("channel_sessions").delete().eq("id", semeado.sessao), "apagar o número");
@@ -379,10 +381,15 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       }).toPass();
       await page.reload();
       await expect(campo).toHaveValue("8");
+      await page.screenshot({ path: test.info().outputPath("jev-roteador-contexto.png"), fullPage: true });
     });
 
     await test.step("o administrador liga a decisão independente e alcança os resultados", async () => {
       const cartao = await abrirOCartao(page);
+      await cartao.getByRole("button", { name: "Usar histórico no roteador", exact: true }).click();
+      await expect(page.getByRole("alertdialog")).toContainText("até 16 mensagens anteriores");
+      await page.getByRole("button", { name: "Autorizar histórico do roteador", exact: true }).click();
+      await expect(cartao.getByTestId("jev-contexto-roteador")).toContainText("Histórico autorizado");
       await cartao.getByTestId("jev-tarefa-roteador").getByRole("button", { name: "Deixar o Jev decidir" }).click();
       await page.getByRole("alertdialog").getByRole("button", { name: "Deixar o Jev decidir" }).click();
       await expect(cartao.getByTestId("jev-tarefa-roteador")).toHaveAttribute("data-estado", "decidindo");
@@ -391,9 +398,29 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       const leitura = await page.request.get("/api/v1/ai/jev");
       expect((await leitura.json()).data.config.modo_roteador).toBe("sob_demanda");
       await page.screenshot({ path: test.info().outputPath("jev-roteador-sob-demanda.png"), fullPage: true });
+      // Casos sintéticos desta organização demonstram a revisão pela interface
+      // contra o banco real; não são medições de custo/acerto do fornecedor.
+      const decisao = randomUUID();
+      await ok(admin.from("jev_router_decisions" as "jev_observacoes").insert({
+        id: decisao, organization_id: orgId, router_id: semeado.roteador,
+        modo: "jev_sob_demanda", context_message_count: 8, origem: "jev",
+        intent_jev: "suporte", intent_final: "suporte", agent_id_final: semeado.suporte,
+        confianca_final: 0.92, modelo_jev: "jev-1.13.0", tempo_total_ms: 280,
+        custo_jev_cents: 0.0016, custo_tradicional_cents: 0, custo_incompleto: false,
+      } as never), "semear a decisão de demonstração");
       await page.getByRole("link", { name: "Ver resultados do roteamento" }).click();
       await expect(page.getByTestId("resultados-roteamento")).toBeVisible();
       await expect(page.getByRole("heading", { name: "Resultados do roteamento" })).toBeVisible();
+      const caso = page.getByTestId(`roteamento-${decisao}`);
+      await expect(caso).toContainText("suporte");
+      await caso.getByLabel("Revisão", { exact: true }).selectOption("correto");
+      await expect(async () => {
+        const { data, error } = await admin.from("jev_router_decisions" as "jev_observacoes")
+          .select("revisao").eq("organization_id", orgId).eq("id", decisao).single();
+        expect(error).toBeNull();
+        expect((data as unknown as { revisao: string }).revisao).toBe("correto");
+      }).toPass();
+      await expect(caso.getByLabel("Revisão", { exact: true })).toHaveValue("correto");
       await page.screenshot({ path: test.info().outputPath("jev-roteador-resultados.png"), fullPage: true });
     });
   });

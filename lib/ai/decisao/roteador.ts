@@ -163,6 +163,7 @@ async function perguntar(
   pergunta: Pergunta,
   deps: DependenciasDoPonto,
   comContexto: boolean,
+  limiteConsentido: number,
 ): Promise<RespostaDoJev> {
   const alvo = { organizationId: entrada.organizationId, tarefa: TAREFA_DO_ROTEADOR.id };
   if (!podeTentar(alvo)) return semRede("disjuntor_aberto");
@@ -173,7 +174,7 @@ async function perguntar(
       organizationId: entrada.organizationId,
       estado: comContexto && entrada.recentMessages?.length
         ? {
-            historico: contextoDoClassificador(entrada.recentMessages, entrada.contextMessageCount ?? CLASSIFIER_CONTEXT_MESSAGES).map((m) => ({
+            historico: contextoDoClassificador(entrada.recentMessages, Math.min(entrada.contextMessageCount ?? CLASSIFIER_CONTEXT_MESSAGES, limiteConsentido)).map((m) => ({
               autor: m.direction === "inbound" ? "cliente" : "agente",
               texto: scrubMessage(m.body),
             })),
@@ -378,6 +379,8 @@ export interface JevNoRoteador {
   estado: Promise<EstadoDaTarefa>;
   /** No modo sob demanda, o classificador convencional só roda se a escolha do Jev não bastar. */
   modo?: Promise<"comparacao" | "sob_demanda">;
+  /** Aceite antigo limita ambos os classificadores a quatro mensagens. */
+  contextoMaximo?: Promise<number | null>;
   /** A escolha dele, ou `null` quando não opinou. Nunca rejeita. */
   escolha: Promise<EscolhaDoJev | null>;
   /**
@@ -410,12 +413,14 @@ export function consultarJevNoRoteador(
     : configDaTarefaNoPool(pool, entrada.organizationId, TAREFA_DO_ROTEADOR);
   const estado: Promise<EstadoDaTarefa> = config.then((c) => estadoEfetivoDaTarefa(c, TAREFA_DO_ROTEADOR)).catch(() => 'desligada');
   const modo = config.then((c) => c.modo_roteador).catch(() => 'comparacao' as const);
+  const contextoMaximo = config.then((c) => c.contexto_roteador?.versao === 1 ? 4 : c.contexto_roteador?.versao === 2 ? 16 : null).catch(() => null);
   const resposta: Promise<RespostaDoJev> = config
     .then((c) => {
       const e = estadoEfetivoDaTarefa(c, TAREFA_DO_ROTEADOR);
       const comContexto = c.contexto_roteador != null && (entrada.recentMessages?.length ?? 0) > 0;
       const pergunta = e === "desligada" ? null : perguntaDoRoteador(entrada.membros, comContexto);
-      return e === "desligada" || pergunta === null ? SEM_OPINIAO : perguntar(pool, entrada, e, pergunta, deps, comContexto);
+      return e === "desligada" || pergunta === null ? SEM_OPINIAO : perguntar(pool, entrada, e, pergunta, deps, comContexto,
+        c.contexto_roteador?.versao === 1 ? 4 : 16);
     })
     // O turno espera esta promessa quando o Jev decide: rejeitada, ela levaria
     // o roteamento inteiro para o caminho de erro. Sem escolha, vale a de sempre.
@@ -430,6 +435,7 @@ export function consultarJevNoRoteador(
   return {
     estado,
     modo,
+    contextoMaximo,
     escolha,
     observar: ({ conversationId, messageId, rotuloDe, vereditoDaIa, decidiu, aIaCobriu }) => {
       void resposta

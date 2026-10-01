@@ -110,7 +110,7 @@ export const configDoJevSchema = z
       .object({
         em: z.string().datetime(),
         por: z.string().uuid(),
-        versao: z.literal(1),
+        versao: z.union([z.literal(1), z.literal(2)]),
       })
       .nullable()
       .optional()

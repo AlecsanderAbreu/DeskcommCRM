@@ -420,22 +420,31 @@ describe("contexto recente do roteador — o que efetivamente sai para o fornece
     { direction: "outbound" as const, body: "Prefere a primeira ou a segunda opção?" },
   ];
 
-  async function perguntarCom(contexto: unknown, mensagens = recentMessages) {
+  async function perguntarCom(contexto: unknown, mensagens = recentMessages, quantidade = 4) {
     const { pool, consultas } = poolCom({ jev: { ...LIGADO.jev, contexto_roteador: contexto } });
     const fetchImpl = vi.fn().mockResolvedValue(respostaCom("vendas"));
-    const jev = consultarJevNoRoteador(pool, { ...entrada(novaOrg(), "a primeira"), recentMessages: mensagens }, {
+    const jev = consultarJevNoRoteador(pool, { ...entrada(novaOrg(), "a primeira"), recentMessages: mensagens,
+      contextMessageCount: quantidade }, {
       buscarChave: async () => "tsk_x", fetchImpl,
     });
     await jev.escolha;
     return { corpo: JSON.parse(String(fetchImpl.mock.calls[0]![1].body)), consultas };
   }
 
-  it.each([undefined, null, true, { ...aceite, por: "ilegivel" }, { ...aceite, versao: 2 }])(
+  it.each([undefined, null, true, { ...aceite, por: "ilegivel" }, { ...aceite, versao: 3 }])(
     "sem aceite específico válido (%j), mantém somente a mensagem atual", async (aceiteInvalido) => {
       const { corpo } = await perguntarCom(aceiteInvalido);
       expect(corpo.state).toBe("a primeira");
     },
   );
+
+  it("aceite antigo limita a quatro; aceite renovado permite as oito configuradas", async () => {
+    const mensagens = Array.from({ length: 9 }, (_, i) => ({ direction: "inbound" as const, body: `Mensagem ${i}` }));
+    const antigo = await perguntarCom(aceite, mensagens, 8);
+    const novo = await perguntarCom({ ...aceite, versao: 2 }, mensagens, 8);
+    expect(antigo.corpo.state.historico).toHaveLength(4);
+    expect(novo.corpo.state.historico).toHaveLength(8);
+  });
 
   it("com aceite envia as quatro anteriores em ordem, identifica os autores e oculta dados nos dois sentidos", async () => {
     const { corpo, consultas } = await perguntarCom(aceite);

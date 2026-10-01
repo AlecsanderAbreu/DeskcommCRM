@@ -536,6 +536,7 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
       const { out, classifyIntent } = await rodar({ daIa: { intentName: 'vendas', confidence: 0.95 }, jev });
       expect(out.config?.agentId).toBe('agent-vendas');
       expect(classifyIntent).toHaveBeenCalledOnce();
+      expect(jev.jev.observar.mock.calls[0]![0].vereditoDaIa).toBeNull();
     }
   });
 

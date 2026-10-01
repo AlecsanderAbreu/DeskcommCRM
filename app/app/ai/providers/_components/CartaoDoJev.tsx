@@ -58,7 +58,7 @@ export interface DadosDoJev {
     modo: "observacao" | "decide";
     modo_roteador?: "comparacao" | "sob_demanda";
     aceite: { em: string; por: string } | null;
-    contexto_roteador?: { em: string; por: string; versao: 1 } | null;
+    contexto_roteador?: { em: string; por: string; versao: 1 | 2 } | null;
   };
   tarefas: Array<{ id: string; rotulo: string; oQueOJevFaz: string }>;
   /**
@@ -472,28 +472,34 @@ function ContextoDoRoteador({ dados, recarregar }: { dados: DadosDoJev; recarreg
   const { mudar, enviando } = useMudarOJev(recarregar);
   const [confirmando, setConfirmando] = useState(false);
   const ativo = dados.config.contexto_roteador != null;
+  const antigo = dados.config.contexto_roteador?.versao === 1;
   return (
     <div className="mt-4 space-y-2 border-t border-border pt-3" data-testid="jev-contexto-roteador">
       <p className="text-sm font-medium">{t("Contexto para escolher qual agente atende")}</p>
       <p className="text-sm text-muted-foreground">
         {ativo
-          ? t("Histórico autorizado: ao rotear, o Jev recebe até quatro mensagens anteriores, de clientes e atendentes, além da mensagem atual.")
+          ? antigo
+            ? t("Histórico autorizado anteriormente: o Jev recebe até quatro mensagens anteriores. Amplie a autorização para usar mais.")
+            : t("Histórico autorizado: o Jev recebe até 16 mensagens anteriores, conforme o limite do roteador.")
           : t("Histórico desativado: ao rotear, o Jev recebe só a mensagem atual do cliente.")}
       </p>
-      <p className="text-xs text-muted-foreground">{t("O histórico ajuda a interpretar respostas curtas. A IA de sempre continua sendo chamada e cobrada; o contexto também pode aumentar o custo do Jev.")}</p>
+      <p className="text-xs text-muted-foreground">{t("O histórico ajuda a interpretar respostas curtas. Mais mensagens podem aumentar custo e tempo.")}</p>
       {dados.pode_editar && (
-        <Button size="sm" variant="outline" disabled={enviando} onClick={() => ativo
-          ? void mudar({ contexto_roteador: false }, t("O histórico do roteador foi desativado."))
-          : setConfirmando(true)}>
-          {ativo ? t("Desativar histórico do roteador") : t("Usar histórico no roteador")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {antigo && <Button size="sm" variant="outline" disabled={enviando} onClick={() => setConfirmando(true)}>{t("Ampliar autorização do histórico")}</Button>}
+          <Button size="sm" variant="outline" disabled={enviando} onClick={() => ativo
+            ? void mudar({ contexto_roteador: false }, t("O histórico do roteador foi desativado."))
+            : setConfirmando(true)}>
+            {ativo ? t("Desativar histórico do roteador") : t("Usar histórico no roteador")}
+          </Button>
+        </div>
       )}
       <AlertDialog open={confirmando} onOpenChange={setConfirmando}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t("Usar histórico no roteador?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("Você autoriza enviar à TypeSafe AI, nos Estados Unidos, até quatro mensagens anteriores desta conversa, incluindo respostas de atendentes, junto da mensagem atual. Telefones, e-mails e CPFs reconhecidos são ocultados; outros dados podem permanecer no texto. O histórico serve apenas para escolher qual agente atende. Isso não liga o Jev nem muda quais tarefas decidem. Você pode desativar esta opção quando quiser.")}
+              {t("Você autoriza enviar à TypeSafe AI, nos Estados Unidos, até 16 mensagens anteriores desta conversa, incluindo respostas de atendentes, junto da mensagem atual. O limite é ajustado no roteador. Telefones, e-mails e CPFs reconhecidos são ocultados; outros dados podem permanecer no texto. O histórico serve apenas para escolher qual agente atende. Isso não liga o Jev nem muda quais tarefas decidem. Você pode desativar esta opção quando quiser.")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -785,7 +791,9 @@ function ProntoParaLigar({ dados, recarregar }: { dados: DadosDoJev; recarregar:
       <div className="rounded-md border border-border p-3 text-sm">
         <p>
           {dados.config.contexto_roteador != null
-            ? t("Ao ligar, as mensagens dos clientes vão para a TypeSafe AI, nos Estados Unidos. No roteador, também serão enviadas até quatro mensagens anteriores, incluindo respostas de atendentes, conforme a autorização de histórico registrada separadamente. CPF, telefone e e-mail reconhecidos são ocultados em cada texto. Com o Jev desligado, nada é enviado.")
+            ? dados.config.contexto_roteador.versao === 1
+              ? t("Ao ligar, as mensagens dos clientes vão para a TypeSafe AI, nos Estados Unidos. A autorização antiga do roteador permite até quatro mensagens anteriores. Amplie-a separadamente para usar mais. CPF, telefone e e-mail reconhecidos são ocultados em cada texto.")
+              : t("Ao ligar, as mensagens dos clientes vão para a TypeSafe AI, nos Estados Unidos. O roteador pode enviar até 16 mensagens anteriores, conforme o limite configurado e a autorização separada. CPF, telefone e e-mail reconhecidos são ocultados em cada texto.")
             : t(
                 "Ao ligar, cada mensagem que o cliente manda vai para a TypeSafe AI, nos Estados Unidos, uma de cada vez e sem o resto da conversa, para o Jev avaliar. Antes de sair, o sistema apaga CPF, telefone e e-mail do texto. Com o Jev desligado, nada é enviado.",
               )}

@@ -6,11 +6,14 @@ limitado por `context_message_count` do roteador (`lib/ai/classifier-context.ts`
 
 ## Contrato e compatibilidade
 
-- `organizations.settings.jev.contexto_roteador`: aceite opcional `{ em, por, versao: 1 }`.
-  Ausente, nulo ou ilegível: o Jev recebe somente a mensagem atual, como antes.
+- `organizations.settings.jev.contexto_roteador`: aceite opcional `{ em, por, versao: 1 | 2 }`.
+  Aceite V1 preserva o limite de quatro mensagens mesmo em roteadores configurados para mais;
+  V2 autoriza até 16, respeitando o limite do roteador. Ausente, nulo ou ilegível: o Jev
+  recebe somente a mensagem atual, como antes.
 - `PATCH /api/v1/ai/jev`: `contexto_roteador: true` exige `aceite_contexto_roteador: true`
-  para registrar um aceite novo. Repetir não regrava; `false` revoga, mesmo com o mestre
-  desligado. Só admin, tenant da sessão, guarda de suporte e auditoria existentes.
+  para registrar um aceite novo ou ampliar V1 para V2. Repetir V2 não regrava; `false`
+  revoga, mesmo com o mestre desligado. Só admin, tenant da sessão, guarda de suporte e
+  auditoria existentes.
 - Este aceite não muda `aceite.alcance` nem ativa tarefas. O interruptor mestre, o aceite
   geral e o estado da tarefa continuam obrigatórios. Um aceite amplo legado não substitui
   este opt-in específico. O frontend antigo não envia o campo; o backend antigo recusa
@@ -26,6 +29,8 @@ mensagem atual e entrega o recorte configurado, do mais antigo ao mais recente, 
 classificadores quando ambos são chamados. Roteadores já existentes continuam com quatro
 mensagens anteriores; roteadores novos começam com oito. O administrador pode escolher de
 zero a 16 no editor. `consultarJevNoRoteador` lê estado e aceite em uma única consulta.
+Com aceite V1, a janela comum de comparação fica em quatro até a autorização ser ampliada;
+sem aceite, a IA convencional usa o limite configurado e o Jev recebe só a mensagem atual.
 Com histórico autorizado e não vazio, envia `state: { historico: [{ autor, texto }],
 mensagem_atual }`. Cada corpo passa por `scrubMessage`, inclusive mensagens de atendentes.
 O scrub oculta padrões reconhecidos, não garante anonimização completa. Sem histórico,

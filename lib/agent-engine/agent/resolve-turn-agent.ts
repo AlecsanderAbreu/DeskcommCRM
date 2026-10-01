@@ -346,13 +346,16 @@ export async function resolveTurnAgent(
 
     // Em comparação, a classificação convencional começa em paralelo com o Jev.
     // Sob demanda, só há esta chamada se o Jev não trouxer intenção confiável.
-    const classificar = () => _classifyIntent(
-      db, llmCfg,
-      { tenantId: input.tenantId, leadId: input.leadId, jobId: input.jobId, router, signal: input.signal!, recentMessages },
-      { log: deps.log },
-    );
     const modo = await (jev.modo ?? Promise.resolve('comparacao'));
     const estadoLido = await jev.estado;
+    const limiteConsentido = await (jev.contextoMaximo ?? Promise.resolve(null));
+    const contextoTradicional = estadoLido !== 'desligada' && limiteConsentido === 4
+      ? contextoDoClassificador(recentMessages, 4) : recentMessages;
+    const classificar = () => _classifyIntent(
+      db, llmCfg,
+      { tenantId: input.tenantId, leadId: input.leadId, jobId: input.jobId, router, signal: input.signal!, recentMessages: contextoTradicional },
+      { log: deps.log },
+    );
     const independente = modo === 'sob_demanda' && estadoLido === 'decidindo';
     const comparacao = independente ? null : classificar();
     const escolhaIndependente = independente ? await jev.escolha : null;
@@ -380,7 +383,9 @@ export async function resolveTurnAgent(
       messageId: input.signalMessageId ?? null,
       rotuloDe: (v) => agenteDoDestino(router, destinoDoVeredito(router, stickyMember, input.stickyIntent, v)),
       // Sem resposta da IA não há par: a linha fica sem o lado dela, fora da concordância.
-      vereditoDaIa: iaRespondeu ? verdict : null,
+      // Reservas são uma amostra selecionada por falha/baixa confiança, não
+      // um par comparativo. Também ficam fora do indicador antigo do cartão.
+      vereditoDaIa: !independente && iaRespondeu ? verdict : null,
       decidiu: doJev !== null,
       // Decidindo, sem a escolha dele, valeu a da IA de sempre: é cobertura, e ela deixa rastro.
       aIaCobriu: estadoDoJev === 'decidindo' && doJev === null && iaRespondeu,
@@ -397,8 +402,8 @@ export async function resolveTurnAgent(
     await (deps.registrarDecisao ?? registrarDecisaoDoRoteador)(db, {
       organizationId: input.tenantId, routerId: router.id, conversationId: input.conversationId,
       messageId: input.signalMessageId ?? null, jobId: input.jobId,
-      modo: independente ? 'jev_sob_demanda' : estadoDoJev === 'decidindo' ? 'jev_comparacao' : 'tradicional_comparacao',
-      contextMessageCount: recentMessages.length,
+      modo: independente ? 'jev_sob_demanda' : estadoLido === 'decidindo' ? 'jev_comparacao' : 'tradicional_comparacao',
+      contextMessageCount: contextoTradicional.length,
       origem: independente ? doJev ? 'jev' : 'reserva' : doJev ? 'jev' : 'tradicional',
       motivoReserva,
       intentJev: escolhaIndependente?.veredito.intentName ?? doJev?.veredito.intentName ?? null,
