@@ -570,11 +570,20 @@ export const SITUACOES_DO_ACOMPANHAMENTO: Record<EnrollmentStatus, string> = {
   dead: "Parou por falha",
 };
 
-/** Como o acompanhamento terminou. Sem tradução em lugar nenhum do produto até aqui. */
+/**
+ * Como o acompanhamento terminou — na voz de quem opera o dossiê (#2014).
+ *
+ * Antes este mapa existia só para o teste. O desfecho agora sai por aqui na
+ * tela do dossiê, e o rótulo de `exhausted` diverge de `RESULTADOS_DO_FIM` de
+ * propósito: aqui é o desfecho VIVO (um follow-up que esgotou as tentativas de
+ * reenvio termina "Encerrado sem resposta"), enquanto lá é a opção do nó final
+ * no construtor, sob contrato do e2e ("Esgotado"). As duas palavras descrevem
+ * coisas diferentes — o operador vê uma, o dono do fluxo escolhe a outra.
+ */
 export const DESFECHOS: Record<EnrollmentOutcome, string> = {
   converted: "Convertido",
   replied: "O contato respondeu",
-  exhausted: "Esgotado",
+  exhausted: "Encerrado sem resposta",
   opted_out: "Pediu para parar",
   handoff: "Passou para um humano",
 };
