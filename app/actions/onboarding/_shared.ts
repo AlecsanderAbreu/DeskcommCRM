@@ -33,10 +33,30 @@ export interface OnboardingCtx {
   email: string;
 }
 
-export async function requireOnboardingCtx(): Promise<OnboardingCtx> {
+export async function requireOnboardingCtx(orgIdDaAba?: string): Promise<OnboardingCtx> {
   const user = await loadAuthUser();
   if (!user) throw new OnboardingError("auth_required", "Auth required.");
   if (supportWriteError(user.support)) throw new OnboardingError("forbidden", "Acompanhamento somente leitura ou encerrado.");
+
+  // A aba de boas-vindas foi aberta para UMA organização. Trocar de org ativa
+  // em outra aba (o cookie `active_org`) NÃO pode redirecionar este submit
+  // para a organização errada: o id vem da própria aba e só é aceito se for
+  // uma membership REAL do usuário. Um id arbitrário do corpo jamais alcança
+  // o `.eq("id", …)` do UPDATE — sem membership ele cai no caminho normal.
+  if (orgIdDaAba) {
+    const membro = user.organizations.find((o) => o.organization_id === orgIdDaAba);
+    if (membro) {
+      return {
+        userId: user.id,
+        orgId: membro.organization_id,
+        orgName: membro.organization_name,
+        role: membro.role,
+        fullName: user.full_name,
+        email: user.email,
+      };
+    }
+  }
+
   const activeOrg = await resolveActiveOrg(user);
   if (!activeOrg) throw new OnboardingError("no_active_org", "Sem organização ativa.");
   return {

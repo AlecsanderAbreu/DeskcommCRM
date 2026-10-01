@@ -17,9 +17,13 @@ export type AcceptWelcomeResult =
   | { ok: false; error: "auth_required" | "no_active_org" | "invalid_input" | "db_error"; details?: unknown };
 
 export async function acceptWelcome(formData: FormData): Promise<AcceptWelcomeResult> {
+  // A aba de boas-vindas foi aberta para UMA organização; é ela que este
+  // submit deve atingir, mesmo que a org ativa tenha mudado em outra aba.
+  const orgIdDaAba = String(formData.get("organization_id") ?? "").trim() || undefined;
+
   let ctx;
   try {
-    ctx = await requireOnboardingCtx();
+    ctx = await requireOnboardingCtx(orgIdDaAba);
   } catch (err) {
     if (err instanceof OnboardingError) return { ok: false, error: err.code as never };
     throw err;
