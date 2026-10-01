@@ -40,7 +40,7 @@ import { useT } from "@/hooks/i18n/useT";
 import { descreverErroDeValidacao } from "@/lib/ai/credenciais/erro-de-validacao";
 import type { EstadoDaTarefa } from "@/lib/ai/decisao/config";
 import { PROVEDOR_DO_JEV } from "@/lib/ai/decisao/credencial";
-import { TAREFA_DO_CLIMA, TAREFAS_DO_JEV, tarefaPodeDecidir } from "@/lib/ai/decisao/tarefas";
+import { ROTEADOR_SOB_DEMANDA, TAREFA_DO_CLIMA, TAREFAS_DO_JEV, tarefaPodeDecidir } from "@/lib/ai/decisao/tarefas";
 import { O_QUE_FAZER_DO_JEV } from "@/lib/ai/decisao/textos";
 
 /** O corpo de `GET /api/v1/ai/jev` (`app/api/v1/ai/jev/route.ts`). */
@@ -332,7 +332,8 @@ export function jevNoPonto(
   // A IA de sempre é a do clima (`tem_ia_de_sempre`), e só o clima decide sem ela (DEC-012 #5).
   if (!d.tem_ia_de_sempre && tarefa.id === TAREFA_DO_CLIMA.id) return "sozinho";
   if (tarefa.estado !== "decidindo") return "observacao";
-  const frase = doRegistro(tarefa.id)?.aoDecidirNoPonto;
+  const frase = tarefa.id === "roteador" && d.config.modo_roteador === "sob_demanda"
+    ? ROTEADOR_SOB_DEMANDA : doRegistro(tarefa.id)?.aoDecidirNoPonto;
   return frase === undefined ? null : { decide: frase };
 }
 
@@ -902,7 +903,8 @@ function Ligado({
       <ul className="divide-y divide-border rounded-md border border-border" data-testid="jev-tarefas">
         {tarefasDoCartao(dados).map((tarefa) => {
           const registro = doRegistro(tarefa.id);
-          const aoDecidir = registro?.aoDecidir;
+          const aoDecidir = tarefa.id === "roteador" && dados.config.modo_roteador === "sob_demanda"
+            ? ROTEADOR_SOB_DEMANDA : registro?.aoDecidir;
           const avisa = avisaAEquipe(tarefa.id);
           const climaSozinho = estado === "sozinho" && tarefa.id === TAREFA_DO_CLIMA.id;
           const climaSemIa = tarefa.id === TAREFA_DO_CLIMA.id && !dados.tem_ia_de_sempre;
@@ -1214,6 +1216,7 @@ function Ligado({
       </div>
 
       <ConfirmarDecidir
+        modoRoteador={dados.config.modo_roteador}
         pedido={aConfirmar}
         aoFechar={() => setAConfirmar((p) => p && { ...p, aberto: false })}
         aoConfirmar={(tarefa) =>
@@ -1233,17 +1236,20 @@ function Ligado({
  * o caminho de volta.
  */
 function ConfirmarDecidir({
+  modoRoteador,
   pedido,
   aoFechar,
   aoConfirmar,
 }: {
+  modoRoteador?: "comparacao" | "sob_demanda";
   pedido: { tarefa: TarefaNoCartao; aberto: boolean } | null;
   aoFechar: () => void;
   aoConfirmar: (tarefa: TarefaNoCartao) => void;
 }) {
   const t = useT();
   const tarefa = pedido?.tarefa ?? null;
-  const efeito = tarefa ? doRegistro(tarefa.id)?.aoConfirmarDecidir : undefined;
+  const efeito = tarefa?.id === "roteador" && modoRoteador === "sob_demanda"
+    ? ROTEADOR_SOB_DEMANDA : tarefa ? doRegistro(tarefa.id)?.aoConfirmarDecidir : undefined;
   const avisa = tarefa !== null && avisaAEquipe(tarefa.id);
   return (
     <AlertDialog open={pedido?.aberto === true} onOpenChange={(aberto) => !aberto && aoFechar()}>

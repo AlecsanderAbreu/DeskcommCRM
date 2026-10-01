@@ -13761,6 +13761,8 @@ export const DICIONARIO: Traducoes = {
   "Janela de histórico": { es: "Ventana de historial" },
   "A janela indica o histórico disponível. O JEV só recebe o que foi autorizado em Provedores.": { es: "La ventana indica el historial disponible. JEV solo recibe lo autorizado en Proveedores." },
 
+  "O JEV escolhe primeiro. A IA tradicional só entra em caso de falha, baixa confiança ou intenção inválida.": { es: "JEV elige primero. La IA tradicional solo interviene en caso de fallo, baja confianza o intención inválida." },
+
 };
 
 /**

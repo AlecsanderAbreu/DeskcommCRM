@@ -1433,6 +1433,15 @@ describe("modo independente do roteador", () => {
       oQueFaz: "Escolhe.", estado: "decidindo", novo: false }],
   });
 
+  it("explica o modo independente no cartão e no seletor do modelo, sem afirmar cobrança paralela", () => {
+    const d = comRoteador();
+    d.config.modo_roteador = "sob_demanda";
+    montar(d);
+    expect(screen.getByTestId("jev-decide-roteador")).toHaveTextContent("A IA tradicional só entra em caso de falha");
+    expect(screen.getByTestId("jev-decide-roteador")).not.toHaveTextContent("nunca só o Jev");
+    expect(jevNoPonto(d, "intent_router")).toEqual({ decide: "O JEV escolhe primeiro. A IA tradicional só entra em caso de falha, baixa confiança ou intenção inválida." });
+  });
+
   it("oferece comparar ou chamar a reserva sob demanda, e grava a escolha", async () => {
     montar(comRoteador());
     const modo = screen.getByLabelText("Como o roteador consulta as IAs");
