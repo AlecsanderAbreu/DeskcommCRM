@@ -43876,7 +43876,7 @@ create trigger trg_fechar_aviso_do_jev_ao_bloquear
 notify pgrst, 'reload schema';
 
 -- ---- a trava de imutabilidade da versão publicada cobre as duas colunas
--- que ficaram de fora (migration 0500, issue #2003) ----
+-- que ficaram de fora (migration 0503, issue #2003) ----
 -- A lista de `fn_ai_agent_version_content_immutable` é escrita à mão e, desde
 -- o último create or replace (que cobria knowledge_source_ids), ficaram de
 -- fora `proposal_ai_draft_enabled` (flag por-agente que a tela edita) e

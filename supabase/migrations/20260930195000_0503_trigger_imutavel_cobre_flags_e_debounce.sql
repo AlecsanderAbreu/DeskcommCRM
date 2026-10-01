@@ -1,5 +1,5 @@
 -- ═══ A trava de imutabilidade da versão publicada passa a cobrir as duas
--- colunas que ficaram de fora (0500, issue #2003) ═══
+-- colunas que ficaram de fora (0503, issue #2003) ═══
 --
 -- `fn_ai_agent_version_content_immutable` impede um UPDATE de conteúdo numa
 -- versão que já não é `draft` (a camada da app devolve 409; esta é a segunda
@@ -21,7 +21,7 @@
 -- o conjunto de conteúdo, para a próxima coluna não repetir o esquecimento.
 --
 -- Idempotente por construção (`create or replace`, `drop ... if exists` antes
--- do `create` do trigger): quem já aplicou a 0499 roda o apêndice do baseline
+-- do `create` do trigger): quem já aplicou esta migration roda o apêndice do baseline
 -- de novo e o trigger recria sem 'already exists'.
 
 create or replace function fn_ai_agent_version_content_immutable() returns trigger
