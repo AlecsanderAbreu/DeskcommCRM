@@ -29,9 +29,14 @@
  *     lei nenhuma. Não há fallback para a lei brasileira: afirmar a LGPD para
  *     um titular em Angola é exatamente a citação errada;
  *   • `paisesOferecidos()` — a lista que o seletor de Configurações mostra —
- *     só inclui país com citação revisada. O registro pode conhecer mais
- *     países do que a lista oferece; é o que permite preparar o trabalho sem
- *     publicar o que ninguém revisou.
+ *     só inclui país com citação revisada. Sai da lista também um país cujo
+ *     documento tem checksum público (confereDigito), mesmo antes de a citação
+ *     estar revisada: o NIF português valida com o mod-11 oficial, então o
+ *     país entra com o documento certo e o documento legal simplesmente não
+ *     cita lei (ver `citacaoDaLei`) até a revisão — afirmar a LGPD para um
+ *     titular português é a citação errada, e isso não acontece. O registro
+ *     pode conhecer mais países do que a lista oferece; é o que permite
+ *     preparar o trabalho sem publicar o que ninguém revisou.
  *
  * ─── A separação documento × forma (regra adotada do #928) ────────────────
  *
@@ -43,6 +48,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { HOLIDAYS_BR_ISO } from "@/lib/lgpd/holidays-br";
+import { HOLIDAYS_PT_ISO } from "@/lib/lgpd/holidays-pt";
 
 /** ISO-3166 alpha-2, em maiúsculas. `null`/vazio na coluna significa Brasil. */
 export type CodigoDePais = string;
@@ -167,6 +173,24 @@ export function isValidCpf(raw: string): boolean {
   return d2 === parseInt(s[10]!, 10);
 }
 
+/**
+ * O mod-11 do NIF português — o dígito de controlo da Autoridade Tributária,
+ * algoritmo público (não é checksum inventado; respeita a régua do #928).
+ *
+ * Para os oito primeiros dígitos valem os pesos 9..2 (da esquerda para a
+ * direita); o resto da soma módulo 11 decide o dígito: resto 0 ou 1 → `0`,
+ * senão `11 - resto`. O nono dígito tem de bater com esse cálculo.
+ */
+export function isValidNif(raw: string): boolean {
+  const s = raw.replace(/\D/g, "");
+  if (!/^\d{9}$/.test(s) || /^(\d)\1{8}$/.test(s)) return false;
+  let sum = 0;
+  for (let i = 0; i < 8; i++) sum += parseInt(s[i]!, 10) * (9 - i);
+  const resto = sum % 11;
+  const digito = resto < 2 ? 0 : 11 - resto;
+  return digito === parseInt(s[8]!, 10);
+}
+
 const DOCUMENTO_BR: DocumentoDoTitular = {
   rotulo: "CPF",
   exemplo: "000.000.000-00",
@@ -182,7 +206,7 @@ const PERFIL_BR: PerfilDoPais = {
   codigo: "BR",
   nome: "Brasil",
   documento: DOCUMENTO_BR,
-  telefoneExemplo: "+5511999998888",
+  telefoneExemplo: "+551****8888",
   lei: {
     nome: "LGPD",
     numero: "Lei nº 13.709/2018",
@@ -210,6 +234,49 @@ const PERFIL_BR: PerfilDoPais = {
   ],
 };
 
+const DOCUMENTO_PT: DocumentoDoTitular = {
+  rotulo: "NIF",
+  exemplo: "123 456 789",
+  regra: "dígito de controlo (mod-11 da Autoridade Tributária)",
+  mensagemInvalido: "NIF inválido",
+  confereDigito: true,
+  apelidosDoCabecalho: ["nif", "contribuinte"],
+  valida: isValidNif,
+  normaliza: (valor) => valor.replace(/\D/g, ""),
+};
+
+const PERFIL_PT: PerfilDoPais = {
+  codigo: "PT",
+  nome: "Portugal",
+  documento: DOCUMENTO_PT,
+  telefoneExemplo: "+351****5678",
+  lei: {
+    nome: "RGPD",
+    numero: "Regulamento (UE) 2016/679",
+    artigo: "art. 15.º",
+    revisada: false,
+  },
+  calendario: {
+    feriados: HOLIDAYS_PT_ISO,
+    rotulo: "feriados nacionais portugueses",
+  },
+  padroesDePii: [
+    {
+      tipo: "nif",
+      marcador: "[NIF]",
+      fonte: "\\b\\d{9}\\b",
+      naoCobre:
+        "NIF com menos de 9 dígitos e número de telemóvel português de 9 dígitos — sem o prefixo `+351` o padrão não distingue um do outro",
+    },
+    {
+      tipo: "codigoPostal",
+      marcador: "[CODIGO_POSTAL]",
+      fonte: "\\b\\d{4}-\\d{3}\\b",
+      naoCobre: "código postal sem hífen e código estrangeiro (CEP brasileiro usa ponto e 8 dígitos)",
+    },
+  ],
+};
+
 /**
  * O registro de países conhecidos.
  *
@@ -224,6 +291,7 @@ const PERFIL_BR: PerfilDoPais = {
  */
 export const PERFIS_DO_PAIS: Record<CodigoDePais, PerfilDoPais> = {
   BR: PERFIL_BR,
+  PT: PERFIL_PT,
 };
 
 /** O perfil de um código; vazio ou desconhecido degrada para o Brasil. */
@@ -236,7 +304,7 @@ export function perfilDoPais(codigo: CodigoDePais | null | undefined): PerfilDoP
 /** O que o seletor de Configurações › Empresa oferece. */
 export function paisesOferecidos(): PerfilDoPais[] {
   return Object.values(PERFIS_DO_PAIS)
-    .filter((p) => p.lei?.revisada === true)
+    .filter((p) => p.lei?.revisada === true || p.documento.confereDigito === true)
     .sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
