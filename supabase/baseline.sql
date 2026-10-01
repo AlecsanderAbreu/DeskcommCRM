@@ -44424,6 +44424,63 @@ alter table public.organizations
   drop column if exists ai_budget_cents,
   drop column if exists rate_limit_rps;
 
+-- ── B. a chave e o limite ────────────────────────────────────────────────────
+-- A régua SQL de "a cobrança está ligada": só `ligado` liga, como em
+-- lib/instalacao/modulos.ts (linha ausente ou outro valor = desligada).
+create or replace function public.fn_cobranca_ligada()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.platform_config c
+     where c.chave = 'MODULO_COBRANCA' and c.valor = 'ligado'
+  );
+$$;
+
+revoke execute on function public.fn_cobranca_ligada() from public, anon, authenticated;
+grant execute on function public.fn_cobranca_ligada() to service_role;
+
+-- O limite do plano para um recurso. NULL = sem limite: chave desligada, org sem
+-- assinatura (isenta) ou plano sem teto. O recurso é conferido ANTES da chave,
+-- para um literal errado estourar em qualquer instalação. Vale o plano_id, nunca
+-- o agendado (D-3). Os literais são RECURSOS_DO_PLANO (lib/cobranca/vocabulario.ts).
+create or replace function public.fn_limite_do_plano(p_org uuid, p_recurso text)
+returns integer
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_plano public.cobranca_planos%rowtype;
+begin
+  if p_recurso is null or p_recurso not in ('assentos', 'canais', 'ia_usd_cents') then
+    raise exception 'recurso_do_plano_invalido' using errcode = '22023';
+  end if;
+  if not public.fn_cobranca_ligada() then
+    return null;
+  end if;
+  select p.* into v_plano
+    from public.cobranca_assinaturas a
+    join public.cobranca_planos p on p.id = a.plano_id
+   where a.organization_id = p_org;
+  if not found then
+    return null;
+  end if;
+  return case p_recurso
+    when 'assentos' then v_plano.max_assentos
+    when 'canais' then v_plano.max_canais
+    else v_plano.teto_ia_usd_cents
+  end;
+end;
+$$;
+
+revoke execute on function public.fn_limite_do_plano(uuid, text) from public, anon, authenticated;
+grant execute on function public.fn_limite_do_plano(uuid, text) to service_role;
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria

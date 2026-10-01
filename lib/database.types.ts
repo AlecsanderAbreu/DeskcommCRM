@@ -10598,6 +10598,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      fn_cobranca_ligada: { Args: never; Returns: boolean }
       fn_configurar_pre_go_live_canal: {
         Args: {
           p_canal: string
@@ -10711,6 +10712,7 @@ export type Database = {
         }
         Returns: Json
       }
+      fn_limite_do_plano: { Args: { p_org: string; p_recurso: string }; Returns: number | null }
       fn_log_event: {
         Args: {
           p_event_type: string
