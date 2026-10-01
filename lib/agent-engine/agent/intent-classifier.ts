@@ -65,7 +65,7 @@ export function buildClassifierPrompt(
       ? [
           '',
           'Contexto recente da conversa (mais antiga primeiro — só pra desambiguar, NÃO é o que classificar):',
-          ...contextoDoClassificador(recentMessages).map((m) => `${m.direction === 'inbound' ? 'Lead' : 'Agente'}: ${m.body}`),
+          ...contextoDoClassificador(recentMessages, 16).map((m) => `${m.direction === 'inbound' ? 'Lead' : 'Agente'}: ${m.body}`),
         ]
       : [];
   return [

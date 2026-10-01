@@ -3,13 +3,14 @@
  * intenção aparecia com o módulo DESLIGADO — amarrar a um roteiro que a
  * instalação não roda.
  */
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { authMock, flowsMock, testeMock } = vi.hoisted(() => ({
+const { authMock, flowsMock, testeMock, updateMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   flowsMock: vi.fn(),
   testeMock: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, data: undefined as unknown })),
+  updateMock: vi.fn(async () => ({})),
 }));
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
@@ -20,7 +21,7 @@ vi.mock("@/hooks/ai/useRouters", () => {
   const mut = () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false });
   return {
     useRouter: () => ({ data: undefined }),
-    useUpdateRouter: mut,
+    useUpdateRouter: () => ({ mutate: vi.fn(), mutateAsync: updateMock, isPending: false }),
     useDeleteRouter: mut,
     useSaveMembers: mut,
     useTestRouter: testeMock,
@@ -79,6 +80,20 @@ describe("seletor de roteiro na intenção × módulo", () => {
     flowsMock.mockReturnValue({ data: [{ id: "f1", name: "Cadastro" }] });
     renderizar();
     expect(screen.getByTestId("seletor-de-roteiro")).toBeTruthy();
+  });
+});
+
+describe("tamanho do contexto do roteador", () => {
+  it("roteador legado mostra quatro mensagens e salva oito quando o admin escolhe", async () => {
+    authMock.mockReturnValue({ activeOrg: { modulos_ligados: [] } });
+    flowsMock.mockReturnValue({ data: undefined });
+    updateMock.mockClear();
+    renderizar();
+    const campo = screen.getByLabelText("Mensagens anteriores para o roteamento");
+    expect(campo).toHaveValue(4);
+    fireEvent.change(campo, { target: { value: "8" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+    expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ context_message_count: 8 }) }));
   });
 });
 

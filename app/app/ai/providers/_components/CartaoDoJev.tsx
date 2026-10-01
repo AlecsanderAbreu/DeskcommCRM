@@ -56,6 +56,7 @@ export interface DadosDoJev {
   config: {
     ligado: boolean;
     modo: "observacao" | "decide";
+    modo_roteador?: "comparacao" | "sob_demanda";
     aceite: { em: string; por: string } | null;
     contexto_roteador?: { em: string; por: string; versao: 1 } | null;
   };
@@ -1105,6 +1106,21 @@ function Ligado({
                     {t("Religar")}
                   </Button>
                 )}
+              </div>
+            )}
+            {tarefa.id === "roteador" && tarefa.estado === "decidindo" && rodando && (
+              <div className="mt-2 space-y-1 text-xs" data-testid="jev-modo-roteador">
+                <label htmlFor="jev-router-mode" className="font-medium">{t("Como o roteador consulta as IAs")}</label>
+                <select id="jev-router-mode" className="block rounded-md border bg-background p-2 text-sm"
+                  value={dados.config.modo_roteador ?? "comparacao"} disabled={!dados.pode_editar || enviando}
+                  onChange={(e) => void mudar({ modo_roteador: e.target.value }, t("Modo do roteador salvo."))}>
+                  <option value="comparacao">{t("Comparar JEV e IA tradicional")}</option>
+                  <option value="sob_demanda">{t("JEV; IA tradicional só como reserva")}</option>
+                </select>
+                <p className="text-muted-foreground">{dados.config.modo_roteador === "sob_demanda"
+                  ? t("A IA tradicional só é chamada se o JEV falhar ou estiver inseguro.")
+                  : t("As duas IAs respondem; a escolha do JEV decide.")}</p>
+                <Link href="/app/ai/runs?tab=roteamento" className="underline underline-offset-4">{t("Ver resultados do roteamento")}</Link>
               </div>
             )}
             {dados.pode_editar && rodando && tarefa.estado === "desligada" && climaSemIa && (

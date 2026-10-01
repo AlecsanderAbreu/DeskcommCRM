@@ -1426,6 +1426,29 @@ describe("histórico específico do roteador", () => {
   });
 });
 
+describe("modo independente do roteador", () => {
+  const comRoteador = (podeEditar = true) => dados({
+    config: { ligado: true, modo_roteador: "comparacao" }, pode_editar: podeEditar,
+    por_tarefa: [{ id: "roteador", ponto: "intent_router", rotulo: "Escolher qual agente atende",
+      oQueFaz: "Escolhe.", estado: "decidindo", novo: false }],
+  });
+
+  it("oferece comparar ou chamar a reserva sob demanda, e grava a escolha", async () => {
+    montar(comRoteador());
+    const modo = screen.getByLabelText("Como o roteador consulta as IAs");
+    expect(modo).toHaveValue("comparacao");
+    fireEvent.change(modo, { target: { value: "sob_demanda" } });
+    await waitFor(() => expect(chamadas.some((c) => c.metodo === "PATCH")).toBe(true));
+    expect(chamadas.find((c) => c.metodo === "PATCH")?.corpo).toEqual({ modo_roteador: "sob_demanda" });
+    expect(screen.getByRole("link", { name: "Ver resultados do roteamento" })).toHaveAttribute("href", "/app/ai/runs?tab=roteamento");
+  });
+
+  it("quem só consulta vê o modo, mas não o altera", () => {
+    montar(comRoteador(false));
+    expect(screen.getByLabelText("Como o roteador consulta as IAs")).toBeDisabled();
+  });
+});
+
 /**
  * A resposta ao follow-up SÓ OBSERVA nesta versão: a saída dela move o cliente
  * no fluxo. O cartão mostra a concordância (a mesma saída, em respostas), diz
@@ -1574,3 +1597,5 @@ describe("CartaoDoJev — a tarefa do follow-up, que só observa", () => {
     expect(screen.getByTestId("jev-so-observa-followup")).toHaveTextContent(/^En esta versión, Jev solo observa esta tarea/);
     expect(screen.getByTestId("jev-sem-fluxo-followup_2")).toHaveTextContent(/^No se ejecuta ahora: ningún seguimiento publicado/);
     expect(screen.getByTestId("jev-concordancia-followup")).toHaveTextContent(/pusieron la respuesta del cliente en la misma salida del flujo en 3 de 4 mensajes\./);
+  });
+});

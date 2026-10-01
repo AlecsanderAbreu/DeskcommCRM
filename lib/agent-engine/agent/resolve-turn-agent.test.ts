@@ -80,8 +80,8 @@ const baseInput = {
  * uma promessa que o teste controla. Por padrão, desligado — o roteamento de
  * sempre, que é o que os casos 1 a 16 medem.
  */
-function jevFalso(estado: EstadoDaTarefa = 'desligada', escolha: Promise<EscolhaDoJev | null> = Promise.resolve(null)) {
-  const jev = { estado: Promise.resolve(estado), escolha, observar: vi.fn<JevNoRoteador['observar']>() };
+function jevFalso(estado: EstadoDaTarefa = 'desligada', escolha: Promise<EscolhaDoJev | null> = Promise.resolve(null), modo: 'comparacao' | 'sob_demanda' = 'comparacao') {
+  const jev = { estado: Promise.resolve(estado), escolha, modo: Promise.resolve(modo), observar: vi.fn<JevNoRoteador['observar']>() };
   return { jev, consultarJev: vi.fn((): JevNoRoteador => jev) };
 }
 
@@ -378,7 +378,7 @@ describe('resolveConversationTurn — contexto curto do classificador', () => {
     expect(out.outcome).toBe('sticky');
     const [sql, values] = db.query.mock.calls.find(([q]) => q.includes('id<>$3'))!;
     expect(sql).toContain('organization_id=$1 and conversation_id=$2');
-    expect(values).toEqual(['org-1', 'conv-1', 'msg-atual', 4]);
+    expect(values).toEqual(['org-1', 'conv-1', 'msg-atual', 16]);
     expect(classifyIntent.mock.calls[0]![2]).toMatchObject({
       signal: 'Primeira',
       recentMessages: [
@@ -472,6 +472,7 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
       organizationId: 'org-1',
       mensagem: 'meu pedido não chegou',
       recentMessages: [{ direction: 'outbound', body: 'contexto' }],
+      contextMessageCount: 4,
       membros: members,
       contactId: 'lead-1',
       jobId: 'job-1',
@@ -519,6 +520,23 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
     expect(out.config?.agentId).toBe('agent-vendas');
     // A cobertura deixa rastro: é ela que o cartão conta.
     expect(jev.jev.observar.mock.calls[0]![0]).toMatchObject({ decidiu: false, aIaCobriu: true });
+  });
+
+  it('sob demanda: escolha confiável do Jev roteia sem chamar a IA tradicional', async () => {
+    const jev = jevFalso('decidindo', Promise.resolve(escolha('suporte', 0.9, 'decidindo')), 'sob_demanda');
+    const { out, classifyIntent } = await rodar({ daIa: { intentName: 'vendas', confidence: 0.99 }, jev });
+    expect(out.config?.agentId).toBe('agent-suporte');
+    expect(classifyIntent).not.toHaveBeenCalled();
+    expect(jev.jev.observar.mock.calls[0]![0]).toMatchObject({ decidiu: true, vereditoDaIa: null });
+  });
+
+  it('sob demanda: falha ou confiança baixa chama a IA tradicional uma vez', async () => {
+    for (const resposta of [null, escolha('suporte', 0.3, 'decidindo')]) {
+      const jev = jevFalso('decidindo', Promise.resolve(resposta), 'sob_demanda');
+      const { out, classifyIntent } = await rodar({ daIa: { intentName: 'vendas', confidence: 0.95 }, jev });
+      expect(out.config?.agentId).toBe('agent-vendas');
+      expect(classifyIntent).toHaveBeenCalledOnce();
+    }
   });
 
   describe('R2 — sem a IA de sempre, vale a regra de hoje, NUNCA o Jev', () => {

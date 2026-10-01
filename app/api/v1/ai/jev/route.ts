@@ -295,7 +295,7 @@ function irritadosPercebidos(linhas: ReadonlyArray<{ conversa: unknown; nota_do_
 }
 
 function configPublica(c: ConfigDoJev) {
-  return { ligado: c.ligado, modo: c.modo, aceite: c.aceite, contexto_roteador: c.contexto_roteador ?? null };
+  return { ligado: c.ligado, modo: c.modo, modo_roteador: c.modo_roteador, aceite: c.aceite, contexto_roteador: c.contexto_roteador ?? null };
 }
 
 function diasAtras(dias: number): string {
@@ -576,6 +576,7 @@ const corpoDoPatch = z
     ligado: z.boolean().optional(),
     /** O estado do clima, no nome da onda 1 — a imagem anterior também o entende. */
     modo: z.enum(["observacao", "decide"]).optional(),
+    modo_roteador: z.enum(["comparacao", "sob_demanda"]).optional(),
     /** A caixa marcada na tela. Só pesa ao ligar pela primeira vez. */
     aceite_lgpd: z.literal(true).optional(),
     contexto_roteador: z.boolean().optional(),
@@ -593,8 +594,8 @@ const corpoDoPatch = z
   .refine((c) => c.aceite_contexto_roteador === undefined || c.contexto_roteador === true, {
     message: "aceite de contexto exige ativar o contexto do roteador",
   })
-  .refine((c) => c.ligado !== undefined || c.modo !== undefined || c.tarefa !== undefined || c.contexto_roteador !== undefined, {
-    message: "informe `ligado`, `modo`, `tarefa` ou `contexto_roteador`",
+  .refine((c) => c.ligado !== undefined || c.modo !== undefined || c.modo_roteador !== undefined || c.tarefa !== undefined || c.contexto_roteador !== undefined, {
+    message: "informe `ligado`, `modo`, `modo_roteador`, `tarefa` ou `contexto_roteador`",
   });
 
 export async function PATCH(req: NextRequest): Promise<Response> {
@@ -626,6 +627,9 @@ export async function PATCH(req: NextRequest): Promise<Response> {
   const atual = lerConfigDoJev(orgAtual?.settings);
 
   const mudanca: MudancaDaConfig = {};
+  if (corpo.modo_roteador !== undefined && corpo.modo_roteador !== atual.modo_roteador) {
+    mudanca.modo_roteador = corpo.modo_roteador;
+  }
   // `modo` é o clima com o nome antigo: os dois pedidos chegam ao mesmo lugar.
   const pedido =
     corpo.tarefa !== undefined && corpo.estado !== undefined
@@ -707,7 +711,9 @@ export async function PATCH(req: NextRequest): Promise<Response> {
           ? "ai.jev.desligado"
           : corpo.modo !== undefined
             ? "ai.jev.modo_alterado"
-            : "ai.jev.tarefa_alterada",
+            : mudanca.modo_roteador !== undefined
+              ? "ai.jev.modo_roteador_alterado"
+              : "ai.jev.tarefa_alterada",
     organizationId: org.orgId,
     actorUserId: user.id,
     resourceType: "organization",
@@ -715,6 +721,10 @@ export async function PATCH(req: NextRequest): Promise<Response> {
     requestId,
     metadata: {
       modo: gravado.config.modo,
+      ...(mudanca.modo_roteador !== undefined ? {
+        modo_roteador: mudanca.modo_roteador,
+        modo_roteador_anterior: atual.modo_roteador,
+      } : {}),
       ...(gravado.config.modo !== atual.modo ? { modo_anterior: atual.modo } : {}),
       ...(mudanca.tarefas !== undefined && pedido
         ? { tarefa: pedido.tarefa, estado: pedido.estado, estado_anterior: estadoAnterior ?? null }

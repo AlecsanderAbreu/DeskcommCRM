@@ -82,6 +82,8 @@ export const configDoJevSchema = z
      * sempre decide. `decide`: o Jev decide. Gravar o clima grava os dois.
      */
     modo: z.enum(["observacao", "decide"]).default("observacao"),
+    /** Instalações existentes continuam comparando até o admin escolher o modo independente. */
+    modo_roteador: z.enum(["comparacao", "sob_demanda"]).default("comparacao"),
     /**
      * Quem aceitou mandar a mensagem ao fornecedor estrangeiro, e quando.
      * `alcance` ausente é o aceite da onda 1: cada mensagem, sozinha. Aceite
@@ -122,7 +124,7 @@ export const configDoJevSchema = z
 
 export type ConfigDoJev = z.infer<typeof configDoJevSchema>;
 
-const DESLIGADO: ConfigDoJev = { ligado: false, modo: "observacao", aceite: null };
+const DESLIGADO: ConfigDoJev = { ligado: false, modo: "observacao", modo_roteador: "comparacao", aceite: null };
 
 export function lerConfigDoJev(settings: unknown): ConfigDoJev {
   const jev =
@@ -137,7 +139,7 @@ export type ResultadoDeGravarConfig =
   | { ok: true; config: ConfigDoJev }
   | { ok: false; motivo: "leitura_falhou" | "config_invalida" | "escrita_recusada" };
 
-export type MudancaDaConfig = Partial<Pick<ConfigDoJev, "ligado" | "modo" | "aceite" | "contexto_roteador">> & {
+export type MudancaDaConfig = Partial<Pick<ConfigDoJev, "ligado" | "modo" | "modo_roteador" | "aceite" | "contexto_roteador">> & {
   /** Só as tarefas que mudam; as outras ficam como estão. */
   tarefas?: Partial<Record<IdDaTarefa, EstadoDaTarefa>>;
 };

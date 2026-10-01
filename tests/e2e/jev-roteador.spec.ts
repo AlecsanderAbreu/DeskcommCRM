@@ -364,5 +364,37 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       expect(erroCusto).toBeNull();
       expect(custos).toBeGreaterThanOrEqual(1);
     });
+
+    await test.step("o roteador legado começa com quatro mensagens e aceita oito pela tela", async () => {
+      await page.goto(`/app/ai/routers/${semeado.roteador}`);
+      const campo = page.getByLabel("Mensagens anteriores para o roteamento");
+      await expect(campo).toHaveValue("4");
+      await campo.fill("8");
+      await page.getByRole("button", { name: "Salvar", exact: true }).click();
+      await expect(async () => {
+        const r = await page.request.get(`/api/v1/ai/routers/${semeado.roteador}`);
+        expect(r.status()).toBe(200);
+        const j = await r.json() as { data: { router: { config: { context_message_count: number } } } };
+        expect(j.data.router.config.context_message_count).toBe(8);
+      }).toPass();
+      await page.reload();
+      await expect(campo).toHaveValue("8");
+    });
+
+    await test.step("o administrador liga a decisão independente e alcança os resultados", async () => {
+      const cartao = await abrirOCartao(page);
+      await cartao.getByTestId("jev-tarefa-roteador").getByRole("button", { name: "Deixar o Jev decidir" }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Deixar o Jev decidir" }).click();
+      await expect(cartao.getByTestId("jev-tarefa-roteador")).toHaveAttribute("data-estado", "decidindo");
+      await page.getByLabel("Como o roteador consulta as IAs").selectOption("sob_demanda");
+      await expect(page.getByText("A IA tradicional só é chamada se o JEV falhar ou estiver inseguro.")).toBeVisible();
+      const leitura = await page.request.get("/api/v1/ai/jev");
+      expect((await leitura.json()).data.config.modo_roteador).toBe("sob_demanda");
+      await page.screenshot({ path: test.info().outputPath("jev-roteador-sob-demanda.png"), fullPage: true });
+      await page.getByRole("link", { name: "Ver resultados do roteamento" }).click();
+      await expect(page.getByTestId("resultados-roteamento")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Resultados do roteamento" })).toBeVisible();
+      await page.screenshot({ path: test.info().outputPath("jev-roteador-resultados.png"), fullPage: true });
+    });
   });
 });

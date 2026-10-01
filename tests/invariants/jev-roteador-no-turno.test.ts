@@ -37,11 +37,12 @@ const MENSAGEM = "meu pedido não chegou, me liga no 11 98765-4321";
 
 const log: Logger = { info: () => undefined, warn: () => undefined, error: () => undefined };
 
-function settingsDoJev(estado?: "observando" | "decidindo" | "desligada") {
+function settingsDoJev(estado?: "observando" | "decidindo" | "desligada", modoRoteador?: "comparacao" | "sob_demanda") {
   return {
     jev: {
       ligado: true,
       aceite: { em: "2026-09-01T12:00:00.000Z", por: ADMIN },
+      ...(modoRoteador ? { modo_roteador: modoRoteador } : {}),
       ...(estado ? { tarefas: { roteador: { estado } } } : {}),
     },
   };
@@ -307,6 +308,36 @@ describe("o Jev no roteador, pelo caminho do turno", () => {
     const [obs] = await esperarObservacao(c.org);
     expect(obs).toMatchObject({ estado: "decidindo", rotulo_jev: c.agentes.suporte, rotulo_atual: c.agentes.vendas });
     expect(await chamadasDoJev(c.org)).toEqual([expect.objectContaining({ origem_da_escolha: "jev" })]);
+  });
+
+  it("sob demanda: o turno real escolhe o Jev sem consultar o classificador convencional", async () => {
+    const c = await cenario(settingsDoJev("decidindo", "sob_demanda"));
+    const jev = jevDuble("suporte");
+    const ia = iaDeSempre({ intentName: "vendas", confidence: 0.99 });
+    const r = await turno(c, { classifyIntent: ia, jev: jev.deps });
+    expect(r.config?.agentId).toBe(c.agentes.suporte);
+    expect(ia).not.toHaveBeenCalled();
+    const { rows } = await pool.query(
+      `select modo, origem, motivo_reserva, custo_tradicional_cents::float8 as custo_tradicional_cents
+       from public.jev_router_decisions where organization_id=$1 and message_id=$2`,
+      [c.org, c.mensagem],
+    );
+    expect(rows).toEqual([expect.objectContaining({ modo: "jev_sob_demanda", origem: "jev",
+      motivo_reserva: null, custo_tradicional_cents: 0 })]);
+  });
+
+  it("sob demanda: falha do Jev aciona e registra a reserva tradicional uma vez", async () => {
+    const c = await cenario(settingsDoJev("decidindo", "sob_demanda"));
+    const ia = iaDeSempre({ intentName: "vendas", confidence: 0.95 });
+    const r = await turno(c, { classifyIntent: ia, jev: jevDuble("suporte", { nuncaResponde: true }).deps });
+    expect(r.config?.agentId).toBe(c.agentes.vendas);
+    expect(ia).toHaveBeenCalledOnce();
+    const { rows } = await pool.query(
+      `select modo, origem, motivo_reserva from public.jev_router_decisions
+       where organization_id=$1 and message_id=$2`,
+      [c.org, c.mensagem],
+    );
+    expect(rows).toEqual([expect.objectContaining({ modo: "jev_sob_demanda", origem: "reserva", motivo_reserva: "falha_jev" })]);
   });
 
   it("decidindo, e o Jev passa do teto: a IA de sempre cobre, e o turno espera no máximo o teto dele", async () => {

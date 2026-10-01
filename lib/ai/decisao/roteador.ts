@@ -3,9 +3,9 @@
  * agente (`lib/agent-engine/agent/resolve-turn-agent.ts`).
  *
  * Com um roteador de intenção ativo no número, cada mensagem nova do cliente
- * passa por um modelo de linguagem que escolhe a intenção (`classifyIntent`,
- * ponto `intent_router`), e a intenção escolhe o agente. O Jev responde a MESMA
- * pergunta, entre as MESMAS intenções, ao mesmo tempo.
+ * passa por um classificador que escolhe a intenção (`intent_router`), e a
+ * intenção escolhe o agente. Em comparação, Jev e IA convencional recebem a
+ * mesma pergunta em paralelo. No modo sob demanda, o Jev responde primeiro.
  *
  * ═══ O QUE ELE PODE, EM CADA ESTADO ═══
  *
@@ -16,7 +16,7 @@
  *    e a cobertura deixa rastro: uma linha em `llm_calls` com a origem
  *    `reserva_do_jev`, a que o cartão conta em "Vezes que a IA de sempre cobriu
  *    o Jev" (`registrarCobertura`).
- *    O turno espera por ele o que ele passar da IA de sempre, que roda junto:
+ *    No modo comparação, o turno espera por ele o que ele passar da IA de sempre, que roda junto:
  *    a leitura do estado (pelo banco do turno, como as demais consultas dele) e,
  *    num prazo só de no máximo `TETO_PADRAO_MS`, a busca da chave e a resposta
  *    (`decidirNoPonto`).
@@ -45,7 +45,7 @@
  */
 import type pg from "pg";
 
-import { contextoDoClassificador, type ClassifierContextMessage } from "@/lib/ai/classifier-context";
+import { CLASSIFIER_CONTEXT_MESSAGES, contextoDoClassificador, type ClassifierContextMessage } from "@/lib/ai/classifier-context";
 import type { IntentVerdict } from "@/lib/agent-engine/agent/intent-classifier";
 import type { RouterMember } from "@/lib/agent-engine/agent/router-config";
 import { costCents } from "@/lib/agent-engine/edge/llm/pricing";
@@ -142,6 +142,7 @@ export interface EntradaDoRoteador {
   mensagem: string;
   /** Só sai para o fornecedor quando há aceite específico no banco. */
   recentMessages?: readonly ClassifierContextMessage[];
+  contextMessageCount?: number;
   membros: readonly RouterMember[];
   contactId: string | null;
   jobId: string | null;
@@ -172,7 +173,7 @@ async function perguntar(
       organizationId: entrada.organizationId,
       estado: comContexto && entrada.recentMessages?.length
         ? {
-            historico: contextoDoClassificador(entrada.recentMessages).map((m) => ({
+            historico: contextoDoClassificador(entrada.recentMessages, entrada.contextMessageCount ?? CLASSIFIER_CONTEXT_MESSAGES).map((m) => ({
               autor: m.direction === "inbound" ? "cliente" : "agente",
               texto: scrubMessage(m.body),
             })),
@@ -292,6 +293,7 @@ export interface RegistroDoRoteador {
     rotuloDoJev: string;
     /** O agente a que a da IA de sempre levou; `null` quando ela não decidiu. */
     rotuloDaIa: string | null;
+    intencaoDaIa?: string | null;
   } | null;
 }
 
@@ -334,8 +336,9 @@ export async function registrarRoteadorDoJev(pool: pg.Pool, r: RegistroDoRoteado
       `with observacao as (
          insert into public.jev_observacoes
            (organization_id, tarefa, estado, conversation_id, message_id, job_id,
-            rotulo_jev, probabilidade_jev, confianca_jev, rotulo_atual, modelo, latencia_ms)
-         values ($1, $10, $11, $12, $13, $3, $14, $15, $16, $17, $18, $8)
+            rotulo_jev, probabilidade_jev, confianca_jev, rotulo_atual, modelo, latencia_ms,
+            intencao_jev, intencao_atual)
+         values ($1, $10, $11, $12, $13, $3, $14, $15, $16, $17, $18, $8, $19, $20)
          -- O retry do job pergunta de novo sobre a MESMA mensagem: a primeira
          -- resposta fica, e o custo da segunda entra em llm_calls, porque houve.
          on conflict (organization_id, tarefa, message_id) where message_id is not null do nothing
@@ -352,6 +355,8 @@ export async function registrarRoteadorDoJev(pool: pg.Pool, r: RegistroDoRoteado
         r.jev.confianca,
         r.observacao.rotuloDaIa,
         r.jev.modelo,
+        r.jev.veredito.intentName,
+        r.observacao.intencaoDaIa ?? null,
       ],
     );
   } catch (erro) {
@@ -363,7 +368,7 @@ export async function registrarRoteadorDoJev(pool: pg.Pool, r: RegistroDoRoteado
   }
 }
 
-/** O Jev no roteador, começado JUNTO do classificador de sempre. */
+/** A consulta ao Jev no roteador; o turno escolhe quando chamar a IA convencional. */
 export interface JevNoRoteador {
   /**
    * O estado da tarefa, lido do banco — rápido, e é ele que diz se o turno
@@ -371,6 +376,8 @@ export interface JevNoRoteador {
    * quando a mensagem vem vazia).
    */
   estado: Promise<EstadoDaTarefa>;
+  /** No modo sob demanda, o classificador convencional só roda se a escolha do Jev não bastar. */
+  modo?: Promise<"comparacao" | "sob_demanda">;
   /** A escolha dele, ou `null` quando não opinou. Nunca rejeita. */
   escolha: Promise<EscolhaDoJev | null>;
   /**
@@ -401,7 +408,8 @@ export function consultarJevNoRoteador(
   const config = entrada.mensagem.trim() === ""
     ? Promise.resolve(lerConfigDoJev(null))
     : configDaTarefaNoPool(pool, entrada.organizationId, TAREFA_DO_ROTEADOR);
-  const estado: Promise<EstadoDaTarefa> = config.then((c) => estadoEfetivoDaTarefa(c, TAREFA_DO_ROTEADOR));
+  const estado: Promise<EstadoDaTarefa> = config.then((c) => estadoEfetivoDaTarefa(c, TAREFA_DO_ROTEADOR)).catch(() => 'desligada');
+  const modo = config.then((c) => c.modo_roteador).catch(() => 'comparacao' as const);
   const resposta: Promise<RespostaDoJev> = config
     .then((c) => {
       const e = estadoEfetivoDaTarefa(c, TAREFA_DO_ROTEADOR);
@@ -421,6 +429,7 @@ export function consultarJevNoRoteador(
   const escolha = resposta.then((r) => r.escolha);
   return {
     estado,
+    modo,
     escolha,
     observar: ({ conversationId, messageId, rotuloDe, vereditoDaIa, decidiu, aIaCobriu }) => {
       void resposta
@@ -440,6 +449,7 @@ export function consultarJevNoRoteador(
                   messageId,
                   rotuloDoJev: rotuloDe(jev.veredito),
                   rotuloDaIa: vereditoDaIa === null ? null : rotuloDe(vereditoDaIa),
+                  intencaoDaIa: vereditoDaIa?.intentName ?? null,
                 },
               }),
         )
