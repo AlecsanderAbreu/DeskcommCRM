@@ -44368,6 +44368,12 @@ notify pgrst, 'reload schema';
 -- `update` dela exige `updated_at = expected_updated_at`, então uma leitura velha
 -- vira conflito, não dado perdido. O `PATCH` do lead não tem esse controle.
 --
+-- ⚠️ Limite: o formulário do dossiê (`LeadFieldsForm`, `CRMSidePanel`) envia o
+-- objeto `custom_fields` INTEIRO que carregou ao abrir. Uma chave que a ficha
+-- não tinha ao abrir agora sobrevive à gravação dela; uma chave que a ficha já
+-- mostrava ainda volta ao valor velho do formulário. Esta função fecha a
+-- corrida no servidor, não o payload velho do cliente.
+--
 -- ─── Por que uma função, e não uma linha no handler ─────────────────────────
 --
 -- O handler grava pelo PostgREST (`supabase.update()`), e ele não sabe dizer
