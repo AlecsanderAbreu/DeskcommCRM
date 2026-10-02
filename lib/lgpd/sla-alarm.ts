@@ -18,7 +18,7 @@ import { sendEmail } from "@/lib/email/roteador";
 import { audit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { valorDaInstalacao } from "@/lib/instalacao/config";
-import { diasDeAtraso, prazoEmBr } from "./sla";
+import { diasAtePrazo, diasDeAtraso, prazoEmBr } from "./sla";
 import type { LgpdRequest } from "./types";
 
 export type AlarmThreshold = "data_request_d5" | "redact_d10";
@@ -83,7 +83,7 @@ export async function triggerSlaAlarm(
   // ──────────────────────────────────────────────────────────────────────────
   const daysOverdue = diasDeAtraso(request.due_at, new Date());
 
-  const daysToDue = -daysOverdue; // negative = overdue
+  const daysToDue = diasAtePrazo(request.due_at, new Date()); // negativo = atrasado
 
   // ──────────────────────────────────────────────────────────────────────────
   // 3. Sentry warning — zero PII in payload

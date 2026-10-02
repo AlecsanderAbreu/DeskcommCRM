@@ -17,14 +17,17 @@
  *
  * Isso não é um detalhe de implementação: é o contrato da coluna, e ele
  * precisa sobreviver a quem lê. Os dois últimos blocos deste arquivo existem
- * porque seis consumidores redesenhavam o instante no fuso de QUEM LÊ, e para
- * quem está a oeste de UTC o prazo aparecia um dia antes — inclusive no e-mail
- * que vai para o DPO e no balde `overdue` da API. Ver `diaCivilDe` e
- * `diasDeAtraso`; o teste `tests/unit/lgpd-prazo-e-dia-civil.test.ts` trava a
- * regra e vigia a lista de consumidores.
+ * porque os consumidores de `due_at` redesenhavam o instante no fuso de QUEM
+ * LÊ — e, para quem está a oeste de UTC, o prazo aparecia um dia antes,
+ * inclusive no e-mail que vai para o DPO e no balde `overdue` da API.
  *
- * Um único escritor de produto grava a coluna (`lib/lgpd/repository.ts`, a
- * partir daqui), o que torna a convenção verificável em vez de presumida.
+ * A lista viva desses consumidores, com o que já está corrigido e o que ainda
+ * está congelado (e por quê), não mora aqui: mora no teste que a vigia,
+ * `tests/unit/lgpd-prazo-e-dia-civil.test.ts`. Ele é o lugar onde uma afirmação
+ * de estado não envelhece — porque um consumidor novo o deixa vermelho.
+ *
+ * Um único escritor de produto grava a coluna (`lib/lgpd/repository.ts`), o que
+ * torna a convenção verificável em vez de presumida.
  */
 
 import { HOLIDAYS_BR_ISO } from "./holidays-br";
@@ -81,7 +84,7 @@ function utcDeDiaCivil(dia: string): number | null {
   const diaNum = Number(m[3]);
   // `Date.UTC` normaliza overflow em vez de recusar: "2026-13-45" voltaria como
   // janeiro de 2027, e um prazo lido torto viraria um prazo inventado. A volta
-  // checa o que oDate.UTC guardou.
+  // confere o que o `Date.UTC` guardou.
   const ms = Date.UTC(ano, mes - 1, diaNum);
   const guardado = new Date(ms);
   if (
@@ -150,7 +153,7 @@ export function diasDeAtraso(dueAt: string | Date | null | undefined, agora: Dat
  *
  * O espelho de {@link diasDeAtraso}, para quem precisa da outra ponta do
  * balde (`critical`, "vence em Nd"). Comparar dias civis em vez de milissegundos
- * é o que impede o balde de acender 27 horas antes do prazo.
+ * é o que impede o balde de acender 26 horas antes do prazo.
  */
 export function diasAtePrazo(dueAt: string | Date | null | undefined, agora: Date): number {
   const dias = diasDeAtraso(dueAt, agora);
@@ -169,8 +172,8 @@ export function diasAtePrazo(dueAt: string | Date | null | undefined, agora: Dat
 export function prazoEmBr(dueAt: string | Date | null | undefined): string | null {
   const dia = diaDoPrazo(dueAt);
   if (dia === null) return null;
-  const [ano, mes, dia_] = dia.split("-");
-  return `${dia_}/${mes}/${ano}`;
+  const [ano, mes, diaDoMes] = dia.split("-");
+  return `${diaDoMes}/${mes}/${ano}`;
 }
 
 /**

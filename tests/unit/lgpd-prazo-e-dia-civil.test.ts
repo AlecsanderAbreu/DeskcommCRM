@@ -43,6 +43,7 @@ import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { computeDueAt, diaDoPrazo, diasAtePrazo, diasDeAtraso, prazoEmBr } from "@/lib/lgpd/sla";
+import { computeSlaBucket } from "@/lib/lgpd/balde-de-sla";
 
 const RAIZ = process.cwd();
 const DIA_MS = 86_400_000;
@@ -116,9 +117,7 @@ describe("o dia do prazo não é atraso", () => {
   it("conta a partir do dia SEGUINTE ao prazo", () => {
     expect(diasDeAtraso(prazo, new Date("2026-10-06T00:00:00.000Z"))).toBe(1);
     expect(diasDeAtraso(prazo, new Date("2026-10-06T00:00:00.000Z"))).not.toBe(
-      Math.round(
-        (new Date("2026-10-06T12:00:00.000Z").getTime() - prazo.getTime()) / DIA_MS,
-      ) + 1,
+      Math.round((new Date("2026-10-06T12:00:00.000Z").getTime() - prazo.getTime()) / DIA_MS) + 1,
     );
     expect(diasDeAtraso(prazo, new Date("2026-10-07T23:00:00.000Z"))).toBe(2);
     expect(diasDeAtraso(prazo, new Date("2026-09-20T12:00:00.000Z"))).toBe(-15);
@@ -166,6 +165,47 @@ describe("valor ilegível nunca vira atraso nem deadline inventado", () => {
     // `Date.UTC(2026, 12, 45)` normaliza para janeiro de 2027 — um prazo
     // inventado a partir de lixo. Precisa devolver `null`, não uma data.
     expect(diaDoPrazo("2026-13-45T00:00:00.000Z")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// O BALDE DA LINHA — o defeito visto pelo lado de quem prioriza trabalho
+// ---------------------------------------------------------------------------
+
+describe("o balde de SLA da linha não acende antes do prazo", () => {
+  const recebido = "2026-09-14T12:00:00.000Z";
+  const prazo = computeDueAt(d("2026-09-14"), 15).toISOString(); // 2026-10-05T00:00:00Z
+  /** Balde como a versão em MILISSEGUNDOS decidia, para a comparação ser explícita. */
+  const baldeAntigo = (agora: Date): string => {
+    const ms = new Date(prazo).getTime() - agora.getTime();
+    if (ms < 0) return "overdue";
+    if (ms < 2 * DIA_MS) return "critical";
+    return "ok";
+  };
+
+  it("não diz 'Vencido' nas 26 horas em que o prazo ainda está por vir", () => {
+    // 04/10 21:30 em São Paulo = 05/10 00:30Z: a meia-noite UTC do dia do prazo
+    // JÁ PASSOU, e é isso que fazia a linha dizer "Vencido" com 26h30 pela frente.
+    const noiteVinteHoras = new Date("2026-10-05T00:30:00.000Z");
+    expect(emSaoPaulo(noiteVinteHoras)).toBe("2026-10-04");
+    expect(baldeAntigo(noiteVinteHoras)).toBe("overdue"); // o defeito
+    expect(computeSlaBucket(prazo, recebido, noiteVinteHoras)).not.toBe("overdue");
+  });
+
+  it("no dia do prazo é 'Crítico', e 'Vencido' só no dia seguinte", () => {
+    const manhaDoPrazo = new Date("2026-10-05T12:00:00.000Z"); // 09:00 em São Paulo
+    expect(computeSlaBucket(prazo, recebido, manhaDoPrazo)).toBe("critical");
+
+    const noiteDoPrazo = new Date("2026-10-05T23:30:00.000Z"); // 20:30 em São Paulo
+    expect(baldeAntigo(noiteDoPrazo)).toBe("overdue"); // o defeito
+    expect(computeSlaBucket(prazo, recebido, noiteDoPrazo)).toBe("critical");
+
+    const diaSeguinte = new Date("2026-10-06T12:00:00.000Z"); // 09:00 de 06/10
+    expect(computeSlaBucket(prazo, recebido, diaSeguinte)).toBe("overdue");
+  });
+
+  it("prazo ausente é 'ok' — quem não tem prazo não está vencendo nada", () => {
+    expect(computeSlaBucket(null, recebido, new Date("2026-12-01T00:00:00.000Z"))).toBe("ok");
   });
 });
 
@@ -221,12 +261,28 @@ function leDueAt(arquivo: string): string[] {
 }
 
 /**
+ * O arquivo SEM COMENTÁRIOS.
+ *
+ * Existe porque este módulo escreve o defeito antigo por extenso nos cabeçalhos
+ * — e um gate que caçasse `Math.round(... / 86_400_000` no fonte inteiro
+ * reprovaria o próprio comentário que explica por que ele saiu. Caçar em
+ * comentário é como o gate de espanhol caiu na armadilha que `vitest.cercas.ts`
+ * documenta: a régua precisa do código, não da prosa sobre o código.
+ */
+function codigoSemComentario(arquivo: string): string {
+  return readFileSync(join(RAIZ, arquivo), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
+}
+
+/**
  * Quem JÁ lê pelo helper. Entrar aqui é a forma de o código passar: casar é por
  * arquivo e a presença do import é conferida no teste do dente.
  */
 const LEEM_PELO_HELPER: readonly string[] = [
   "lib/lgpd/sla.ts",
   "lib/lgpd/sla-alarm.ts",
+  "lib/lgpd/balde-de-sla.ts",
   "lib/lgpd/repository.ts",
   "app/api/v1/lgpd/requests/route.ts",
 ];
@@ -315,12 +371,45 @@ describe("nenhum consumidor de due_at nasce fora da lista", () => {
     for (const arquivo of LEEM_PELO_HELPER) {
       if (arquivo === "lib/lgpd/sla.ts") continue; // o próprio dono dos helpers
       const fonte = readFileSync(join(RAIZ, arquivo), "utf8");
-      const usa = /diasDeAtraso|diasAtePrazo|diaDoPrazo|prazoEmBr|computeDueAt/.test(fonte);
+      const usa =
+        /diasDeAtraso|diasAtePrazo|diaDoPrazo|prazoEmBr|computeDueAt|computeSlaBucket/.test(fonte);
       expect(
         usa,
         `${arquivo} entrou na lista de quem lê pelo helper e não importa nenhum: ` +
           "ou ele lê o dia civil por outro caminho (declare por que), ou a lista mentiu.",
       ).toBe(true);
+    }
+  });
+
+  /**
+   * A SABOTAGEM, escrita como asserção.
+   *
+   * O teste acima só pega quem APAGA o import. Este pega quem mantém o import e
+   * volta a usar o instante ao lado dele — que é a forma do conserto regredir na
+   * prática. As duas expressões abaixo são literalmente as que a versão anterior
+   * usava, e o par `(arquivo, padrão)` é o que a sabotagem mede.
+   */
+  it("nenhum consumidor corrigido volta a formatar ou comparar due_at em ms (sabotagem)", () => {
+    const armadilhas: Array<[string, RegExp, string]> = [
+      [
+        "lib/lgpd/sla-alarm.ts",
+        /Math\.round\(\s*\(?[\s\S]{0,80}due[\s\S]{0,80}\/\s*86_400_000/,
+        "a contagem de atraso voltou a ser aritmética de milissegundos — um dia do prazo passa a contar como atraso a partir do meio-dia.",
+      ],
+      [
+        "lib/lgpd/sla-alarm.ts",
+        /toLocaleString\([\s\S]{0,200}timeZone/,
+        "o prazo voltou a ser formatado com fuso — para quem lê a oeste de UTC volta a sair o dia anterior.",
+      ],
+      [
+        "lib/lgpd/balde-de-sla.ts",
+        /Math\.round\(\s*\(?[\s\S]{0,80}due[\s\S]{0,80}\/\s*86_400_000/,
+        "o balde voltou a comparar instantes — 'Vencido' acende 26 horas antes do prazo.",
+      ],
+    ];
+    for (const [arquivo, padrao, porque] of armadilhas) {
+      const fonte = codigoSemComentario(arquivo);
+      expect(padrao.test(fonte), `${arquivo}: ${porque}`).toBe(false);
     }
   });
 });
