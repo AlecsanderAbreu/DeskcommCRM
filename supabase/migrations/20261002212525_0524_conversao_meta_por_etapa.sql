@@ -1,4 +1,4 @@
--- 0506 — Conversão da Meta por ETAPA do funil.
+-- 0524 — Conversão da Meta por ETAPA do funil.
 --
 -- Até aqui a Meta recebia um evento só: a compra, quando o negócio é ganho. O
 -- Google já tinha, desde a 0436, um evento por etapa ("quando o negócio ENTRAR
@@ -102,7 +102,7 @@ alter table public.ad_conversion_dispatches
   add column if not exists meta_event_name text;
 
 comment on column public.ad_conversion_dispatches.meta_event_name is
-  'Retrato do evento de etapa da Meta (0506): o nome que saiu no fio. Reenviar usa este, nunca a regra de agora.';
+  'Retrato do evento de etapa da Meta (0524): o nome que saiu no fio. Reenviar usa este, nunca a regra de agora.';
 
 -- O reenvio passa a aceitar os eventos de etapa da Meta, com a mesma exigência
 -- dos do Google: só reenvia o que tem o retrato (quando + qual evento) gravado.

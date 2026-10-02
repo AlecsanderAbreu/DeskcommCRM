@@ -51,7 +51,7 @@ export type PlataformaDeAnuncio = "meta_ads" | "google_ads";
 /**
  * Venda, qualificação e cada etapa configurada são resultados distintos e
  * deduplicados separadamente. `Etapa:<uuid>` vem das regras por etapa do Google
- * (0436) e `MetaEtapa:<uuid>` das da Meta (0506).
+ * (0436) e `MetaEtapa:<uuid>` das da Meta (0524).
  */
 export type NomeDoEvento =
   | "Purchase"

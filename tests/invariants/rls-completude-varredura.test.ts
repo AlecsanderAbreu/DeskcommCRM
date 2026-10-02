@@ -285,7 +285,7 @@ const PROVA_PROPRIA: readonly Excecao[] = [
       "tests/invariants/captura-de-clique-e-server-side.test.ts — RLS ligada, " +
       "zero policies, privilégios revogados e permission denied sob set role " +
       "anon/authenticated. O servidor aplica organization_id às regras por etapa " +
-      "da Meta (0506). tests/invariants/meta-regras-etapa-isoladas.test.ts prova a " +
+      "da Meta (0524). tests/invariants/meta-regras-etapa-isoladas.test.ts prova a " +
       "FK composta que recusa etapa de outra organização.",
   },
   {

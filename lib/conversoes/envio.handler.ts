@@ -72,7 +72,7 @@ const ok = (status: HandlerResult["status"], detail?: string): HandlerResult => 
 /**
  * O evento de ETAPA que acompanha o envio, quando não é a compra. Do Google
  * vem a ação de conversão (`googleActionId`); da Meta, o nome padrão do evento
- * (`eventoMeta`, 0506). Um dos dois — é ele que diz a plataforma da regra.
+ * (`eventoMeta`, 0524). Um dos dois — é ele que diz a plataforma da regra.
  */
 export interface EventoDeEtapa {
   ocorridoEm: string;

@@ -1,5 +1,5 @@
 /**
- * As regras de conversão da Meta por ETAPA do funil (migration 0506).
+ * As regras de conversão da Meta por ETAPA do funil (migration 0524).
  *
  * Uma regra diz: "quando um negócio entrar nesta etapa, mande este evento padrão
  * da Meta". É o par das regras do Google (`regras-google.ts`), com duas

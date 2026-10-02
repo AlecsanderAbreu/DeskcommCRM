@@ -42,7 +42,7 @@ export interface RegistroDeEnvio {
   solicitadoEm?: string | null;
   ocorridoEm?: string;
   googleActionId?: string;
-  /** Retrato do evento de etapa da Meta (0506): o nome que sai no fio. */
+  /** Retrato do evento de etapa da Meta (0524): o nome que sai no fio. */
   metaEventName?: string;
 }
 

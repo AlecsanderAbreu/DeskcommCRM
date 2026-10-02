@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Grava as regras de conversão da Meta por etapa (migration 0506).
+ * Grava as regras de conversão da Meta por etapa (migration 0524).
  *
  * O par de `salvarRegrasDeConversaoGoogle.ts`, com a mesma regra de ouro: a
  * tela manda a lista INTEIRA das etapas abertas, e a regra que some da lista é

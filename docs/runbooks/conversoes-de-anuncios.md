@@ -32,7 +32,7 @@ Fontes oficiais consultadas em 24/09/2026 UTC:
 
 Correção e evolução da integração já distribuída no núcleo. Reutiliza contatos, funil, eventos e configuração por organização. Não cria outro CRM nem transforma o envio em requisito para o atendimento.
 
-Esta entrega usa a origem capturada no contato, os eventos de venda `Purchase`, as etapas configuradas do Google (`QualifiedLead` e `Etapa:<uuid>`, 0436) e as etapas configuradas da Meta (`MetaEtapa:<uuid>`, 0506 — seção abaixo). Captura web completa para Meta, atribuição por nova jornada de cliente antigo, conversões otimizadas por dados pessoais e painéis de ROAS são evoluções separadas. Não são anunciados como implementados.
+Esta entrega usa a origem capturada no contato, os eventos de venda `Purchase`, as etapas configuradas do Google (`QualifiedLead` e `Etapa:<uuid>`, 0436) e as etapas configuradas da Meta (`MetaEtapa:<uuid>`, 0524 — seção abaixo). Captura web completa para Meta, atribuição por nova jornada de cliente antigo, conversões otimizadas por dados pessoais e painéis de ROAS são evoluções separadas. Não são anunciados como implementados.
 
 ## Captura Google e qualificação por etapa
 
@@ -46,7 +46,7 @@ CONFIRMADO no código desta entrega:
 - Qualificação envia uma vez por negócio, sem valor monetário; compra continua exigindo negócio ganho e valor positivo. Reentrada na etapa não gera uma segunda qualificação. Um novo negócio é outra conversão.
 - `QualifiedLead` é o nome interno do registro do Google, não um evento enviado à Meta. No Google, a ação escolhida define o resultado. A Meta tem regras de etapa próprias (seção seguinte).
 
-## Eventos por etapa para a Meta (0506)
+## Eventos por etapa para a Meta (0524)
 
 - Em **Configurações › Conversões**, com a conexão da Meta configurada, o cartão **O que cada etapa do funil informa à Meta** liga, por etapa aberta, um evento padrão: `LeadSubmitted`, `QualifiedLead`, `InitiateCheckout`, `AddToCart` ou `ViewContent` (lista em `lib/conversoes/regras-meta.ts`, repetida no CHECK da tabela). Ganho é a compra e perda não é conversão: nenhuma das duas aparece ali.
 - O consumidor é `conversoes.etapa_meta` (`lib/conversoes/etapa-meta.handler.ts`), em `lead.stage_changed` e `ad_conversion.retry_requested`. Envia uma vez por negócio, sem valor, e só quando a atribuição do contato é da Meta (clique-para-WhatsApp, ou página com `utm_source` da Meta). Lead do Google ou orgânico sai como `etapa_sem_origem_meta`/`sem_atribuicao`, sem linha no livro-razão.

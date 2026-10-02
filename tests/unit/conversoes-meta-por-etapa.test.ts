@@ -1,5 +1,5 @@
 /**
- * Eventos de ETAPA para a Meta (migration 0506).
+ * Eventos de ETAPA para a Meta (migration 0524).
  *
  * Os modos de falha que este arquivo vigia:
  *  - negócio de anúncio da Meta entra na etapa com regra e NADA sai;

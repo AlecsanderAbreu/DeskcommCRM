@@ -3,10 +3,10 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { GOV_LEAD, GOV_ORG, GOV_STAGE, seedGov, sql } from "./gov-helpers";
 beforeAll(seedGov);
 const migration = readFileSync(
-  "supabase/migrations/20261001190000_0506_conversao_meta_por_etapa.sql",
+  "supabase/migrations/20261002212525_0524_conversao_meta_por_etapa.sql",
   "utf8",
 );
-describe("regras da Meta por etapa (0506)", () => {
+describe("regras da Meta por etapa (0524)", () => {
   it("browser não lê nem altera regras; service role mantém acesso", () => {
     expect(
       sql(

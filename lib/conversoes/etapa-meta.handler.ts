@@ -1,5 +1,5 @@
 /**
- * O consumidor das conversões de ETAPA da Meta (migration 0506).
+ * O consumidor das conversões de ETAPA da Meta (migration 0524).
  *
  * O par de `qualificacao.handler.ts`, que faz o mesmo para o Google: quando um
  * negócio entra numa etapa com regra da Meta ligada, o evento padrão escolhido

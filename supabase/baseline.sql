@@ -44344,9 +44344,9 @@ create trigger trg_fechar_aviso_do_jev_ao_bloquear
 
 notify pgrst, 'reload schema';
 
--- ---- conversão da Meta por etapa do funil (migration 0506) ----
+-- ---- conversão da Meta por etapa do funil (migration 0524) ----
 --
--- Racional inteiro na migration 0506. Cria função, então fica ANTES da varredura de anon.
+-- Racional inteiro na migration 0524. Cria função, então fica ANTES da varredura de anon.
 create table if not exists public.meta_ads_conversion_rules (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -44420,7 +44420,7 @@ alter table public.ad_conversion_dispatches
   add column if not exists meta_event_name text;
 
 comment on column public.ad_conversion_dispatches.meta_event_name is
-  'Retrato do evento de etapa da Meta (0506): o nome que saiu no fio. Reenviar usa este, nunca a regra de agora.';
+  'Retrato do evento de etapa da Meta (0524): o nome que saiu no fio. Reenviar usa este, nunca a regra de agora.';
 
 -- O reenvio passa a aceitar os eventos de etapa da Meta, com a mesma exigência
 -- dos do Google: só reenvia o que tem o retrato (quando + qual evento) gravado.

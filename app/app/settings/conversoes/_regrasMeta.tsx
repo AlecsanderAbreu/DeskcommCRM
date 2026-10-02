@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * O que cada etapa do funil informa à Meta (migration 0506).
+ * O que cada etapa do funil informa à Meta (migration 0524).
  *
  * Uma linha por etapa ABERTA de cada funil: ligada, ela manda o evento padrão
  * escolhido quando um negócio entra ali. Ganho é a compra (cartão da conexão,
