@@ -56,10 +56,10 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<Response> {
     scope: "mcp:write",
   });
   if (!authz.ok) return authz.response;
-  // Rota que aceita Bearer (PUBLIC_PATHS): o que não for contado aqui não é
-  // contado em lugar nenhum — mesmo teto das irmãs que já aplicam sobre
-  // resolveAuthDual. Anexo de nota é escrita real no bucket e entra no teto
-  // como as demais rotas Bearer.
+  // Fora de PUBLIC_PATHS hoje: o proxy recusa Bearer sem cookie antes daqui.
+  // O teto é defesa em profundidade e passa a valer no dia em que a rota
+  // entrar na lista — mesmo teto das irmãs que já aplicam sobre
+  // resolveAuthDual. Anexo de nota é escrita real no bucket.
   const teto = await tetoDeEscritaDoToken(authz, "conversation_notes", requestId);
   if (teto) return teto;
   const t = (texto: string) => traduzir(texto, authz.idioma ?? IDIOMA_PADRAO);
