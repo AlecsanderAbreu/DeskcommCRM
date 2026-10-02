@@ -95,6 +95,12 @@ describe("a nova busca do pino", () => {
     expect(pinoReintentoHandler.events).toEqual(["message.location_retry_requested"]);
   });
 
+  // A cerca `dispatcher-org-parada` confere quem está na lista PULA, não o valor
+  // do campo: é aqui que "roda" no lugar de "pula" fica vermelho.
+  it("numa empresa suspensa, pula — pode chamar o Google", () => {
+    expect(pinoReintentoHandler.naOrgParada).toBe("pula");
+  });
+
   // A ingestão emite pela CONSTANTE, e `evento-comando-tem-consumidor.test.ts` só
   // enxerga `p_event_type: "<literal>"`: sem esta linha, tirar o consumidor do
   // barramento deixaria o pedido `pending` para sempre com a cerca verde.
