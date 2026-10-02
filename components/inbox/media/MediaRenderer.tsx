@@ -1,5 +1,6 @@
 "use client";
 import { useT } from "@/hooks/i18n/useT";
+import { MARCADOR_NAO_LIDA } from "@/lib/messaging/media/derivable";
 import type { Message } from "@/lib/types/messaging";
 
 import { AudioPlayer } from "./AudioPlayer";
@@ -27,10 +28,10 @@ export function MediaRenderer({ message }: { message: Message }) {
       return (
         <div className="flex flex-col gap-2">
           <AudioPlayer messageId={message.id} isOutbound={isOutbound} />
-          {pronto && transcricao ? (
+          {pronto && transcricao && transcricao !== MARCADOR_NAO_LIDA ? (
             <p
               data-testid="transcricao-de-audio"
-              className="text-sm leading-relaxed text-muted-foreground"
+              className="text-sm leading-relaxed opacity-80"
             >
               {transcricao}
             </p>
