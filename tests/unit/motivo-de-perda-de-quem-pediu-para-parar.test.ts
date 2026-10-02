@@ -27,8 +27,9 @@ function canonicosDoTrigger(sql: string): string[] {
   const corte = sql.lastIndexOf("create or replace function public.fn_validate_lost_reason_required()");
   expect(corte, "fn_validate_lost_reason_required não encontrada").toBeGreaterThan(-1);
   const declaracao = /v_canonical text\[\] := array\[([\s\S]*?)\];/.exec(sql.slice(corte));
-  expect(declaracao, "array v_canonical não encontrado").not.toBeNull();
-  return [...declaracao![1].matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  const lista = declaracao?.[1];
+  expect(lista, "array v_canonical não encontrado").toBeDefined();
+  return [...(lista ?? "").matchAll(/'([a-z_]+)'/g)].flatMap((m) => m[1] ?? []);
 }
 
 describe("motivo de perda de quem pediu para não receber mensagens", () => {
