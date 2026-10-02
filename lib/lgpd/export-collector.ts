@@ -77,9 +77,9 @@ export interface MessageRow {
    * Transcrição do áudio / texto extraído da mídia (OCR de imagem) que a IA
    * leu (migration 0497). A anonimização o APAGA quando o titular pede
    * eliminação (#1989/#1990); o Art. 18 II exige o oposto — quem pede os
-   * próprios dados recebe o áudio e a transcrição do que a organização leu
-   * dele. Sem esta coluna o export entregava a mídia mas não o texto que a IA
-   * efetivamente processou.
+   * próprios dados recebe o texto que a organização leu da mídia dele. O
+   * binário nunca vai no pacote (só `has_media`); sem esta coluna o export não
+   * trazia nem o texto que a IA efetivamente processou.
    */
   media_derived_text: string | null;
   sent_at: string | null;
