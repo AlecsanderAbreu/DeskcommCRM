@@ -27539,14 +27539,10 @@ create table if not exists public.organization_extensions (
   configuration jsonb not null check (
     jsonb_typeof(configuration) = 'object'
     and configuration ?& array['density','show_description']
-    and configuration - array['density','show_description','theme'] = '{}'::jsonb
+    and configuration - array['density','show_description'] = '{}'::jsonb
     and configuration->>'density' is not null
     and configuration->>'density' in ('comfortable','compact')
     and jsonb_typeof(configuration->'show_description') = 'boolean'
-    and (
-      not (configuration ? 'theme')
-      or configuration->>'theme' in ('sage','clay','mist','plum','olive')
-    )
   ),
   revision integer not null check (revision > 0),
   updated_by uuid references auth.users(id) on delete set null,
@@ -45877,3 +45873,27 @@ comment on column public.ai_agent_versions.inbound_debounce_ms is
 alter table public.ai_agent_versions
   add constraint ai_agent_versions_inbound_debounce_ms_check
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
+
+-- 0502 (#1095, de @webtecnica): o gancho de TEMA. A permissão `theme.apply`
+-- entra no conjunto fechado (`fn_extensions_permissoes_validas`, bloco acima) e
+-- a configuração do vínculo passa a admitir UMA chave opcional `theme` = a
+-- paleta escolhida pela organização. Par drop/add da CHECK para o `update.sh`
+-- reaplicar sem 'already exists' — quem aplica SÓ o baseline é justamente quem
+-- mais precisa desta definição, porque ali a cadeia de migrations não roda.
+alter table public.organization_extensions
+  drop constraint if exists organization_extensions_configuration_check;
+
+alter table public.organization_extensions
+  add constraint organization_extensions_configuration_check
+  check (
+    jsonb_typeof(configuration) = 'object'
+    and configuration ?& array['density','show_description']
+    and configuration - array['density','show_description','theme'] = '{}'::jsonb
+    and configuration->>'density' is not null
+    and configuration->>'density' in ('comfortable','compact')
+    and jsonb_typeof(configuration->'show_description') = 'boolean'
+    and (
+      not (configuration ? 'theme')
+      or configuration->>'theme' in ('sage','clay','mist','plum','olive')
+    )
+  );
