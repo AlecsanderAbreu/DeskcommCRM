@@ -140,7 +140,7 @@ const LINHA_DE_ASSINATURA = /^\*[^*\n]+\*\n/;
 
 /**
  * O texto sem a linha de assinatura do começo, se houver. Quem precisa é a
- * guarda de eco do WAHA (`lib/waha/ingest.ts`): o eco devolve o que SAIU
+ * guarda de eco da ingestão do canal: o eco devolve o que SAIU
  * (`*Nome*\ntexto`), e `messages.body` guarda só `texto`.
  */
 export function semAssinatura(texto: string): string {
