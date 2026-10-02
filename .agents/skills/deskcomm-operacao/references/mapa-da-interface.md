@@ -6,14 +6,15 @@
 ## Atendimento
 
 - **Inbox** — conversas de WhatsApp e atuação humano + IA.
+- **Agenda** — compromissos e horários do atendimento.
 - **Radar** — oportunidades/conversas que esfriaram e ainda pedem atenção.
 - **Respostas rápidas** — textos reutilizáveis no atendimento.
 
 ## CRM
 
-- **Kanban** — negócios/leads organizados por etapas do funil.
+- **Funis** — a lista dos funis de venda; clique em um para abrir o quadro de clientes por etapa.
 - **Contatos** — cadastro e histórico de pessoas/empresas.
-- **Funis** — etapas, vocabulário do negócio e motivos de perda.
+- **Etapas do funil** — em "Ver tudo em CRM", para gerente ou acima: colunas de cada funil, vocabulário do negócio e motivos de perda.
 
 ## Agente de IA
 
