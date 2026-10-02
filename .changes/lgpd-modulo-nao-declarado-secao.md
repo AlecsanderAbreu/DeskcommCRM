@@ -1,8 +1,10 @@
 ---
-impacto: capacidade_nova
+impacto: nada_mudou
 secao: adicionado
-titulo: Módulo que cria tabela com dado pessoal passa a ser checado para declarar a seção de LGPD
+titulo: Uma rede a mais para a LGPD alcançar os módulos instalados
 ---
-A atualização agora verifica, num banco descartável, se todo módulo instalado que cria tabela com dado pessoal ligada a `contacts` declarou a seção de LGPD. Quem não declara reprova antes de sair — sem isso, a anonimização devolvia sucesso com a linha legível e ninguém era avisado.
+Quando um módulo instalável cria uma tabela com dado de pessoa ligada a um contato, essa tabela precisa estar declarada para que a anonimização a alcance. Faltava uma verificação automática que recusasse um módulo novo sem essa declaração; agora ela roda a cada mudança no código, antes de qualquer versão sair.
+
+Nada muda para quem opera: é uma proteção contra um erro futuro, não a correção de um vazamento existente.
 
 Contribuição de @webtecnica (#2083).
