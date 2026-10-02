@@ -132,9 +132,12 @@ export const POLITICAS_DE_AVISO = {
   // As DUAS: numa empresa com IA, a conversa sem dono e sem silêncio é
   // classificada como `automatico` (comando-da-conversa.ts) e só cai na Fila
   // quando a empresa não tem atendimento automático.
+  // 0510: o aviso também nasce SEM conversa (agendamento de disparo único
+  // desligado, passo de follow-up descartado). A fila deles é a de
+  // IA › Follow-ups (QueueTab lê cron_jobs); a orientação nomeia os dois lugares.
   org_reativada: {
     refs: [],
-    orientacao: "A IA não respondeu nem vai responder sozinha às conversas que chegaram durante a suspensão. Abra o Inbox e procure-as nas abas Fila e Automático.",
+    orientacao: "A IA não respondeu nem vai responder sozinha às conversas que chegaram durante a suspensão: abra o Inbox e procure-as nas abas Fila e Automático. Os agendamentos e os passos de follow-up que este aviso cita também não voltam sozinhos: confira em IA › Follow-ups.",
     geral: { papel: "agent", href: "/app/inbox", rotulo: "Abrir o Inbox" },
   },
   other: { refs: ["lead", "channel_session", "appointment", "ai_agent", "ai_provider_credential", "agent_case"], orientacao: "Confira a situação descrita neste aviso com a pessoa responsável." },

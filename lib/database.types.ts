@@ -10598,6 +10598,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      fn_cobranca_liberar_suspensoes: { Args: { p_ator: string | null }; Returns: number }
       fn_cobranca_ligada: { Args: never; Returns: boolean }
       fn_configurar_pre_go_live_canal: {
         Args: {
