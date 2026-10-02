@@ -24,7 +24,7 @@ import { PONTO_POR_ID } from '@/lib/ai/pontos/registro';
 import { scrubMessage } from '@/lib/sentry/scrub';
 
 import type { Logger } from '../../obs/logger';
-import { decidirParaOSeam } from './binding-do-ponto';
+import { decidirParaOSeam, marcarEconomicoQueFalhou } from './binding-do-ponto';
 import { resolveOrgLlmConfig, type LlmEdgeConfig, type OrcamentoDaOrg } from './credentials';
 import {
   AVISO_CORPO,
@@ -701,27 +701,32 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
   // Grava e RELANÇA: quem chama continua decidindo o que fazer com a falha
   // (o worker reagenda, o dry-run mostra na tela). Engolir aqui trocaria uma
   // falha invisível por uma silenciosa, que é pior.
-  const registrarAFalha = async (inicio: number, err: unknown) => {
+  // `coberta`: a falha vai ser repetida no modelo de reserva. Ela ainda vira
+  // linha em llm_calls (é a régua de quanto o econômico falha), mas com origem
+  // própria e em `warn` — o erro de verdade só existe se a reserva também cair.
+  const registrarAFalha = async (inicio: number, err: unknown, coberta = false) => {
     await registrarFalha(db, {
       input,
       purpose,
       provider: config.provider,
       model,
-      origem,
+      origem: coberta ? 'economico_coberto_pela_reserva' : origem,
       latencyMs: Date.now() - inicio,
       erro: err,
     }).catch(() => {
       // O log da falha não pode causar uma segunda falha. Se o próprio INSERT
       // de erro falhar, o erro ORIGINAL é o que interessa a quem chamou.
     });
-    deps.log?.error('llm: chamada falhou', {
+    const campos = {
       organization_id: input.tenantId,
       purpose,
       provider: config.provider,
       model,
-      origem_da_escolha: origem,
+      origem_da_escolha: coberta ? 'economico_coberto_pela_reserva' : origem,
       ...normalizarErro(err),
-    });
+    };
+    if (coberta) deps.log?.warn('llm: chamada falhou', campos);
+    else deps.log?.error('llm: chamada falhou', campos);
   };
 
   let startedAt = Date.now();
@@ -730,19 +735,20 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
     input.abortSignal?.throwIfAborted();
     result = await chamar(model);
   } catch (err) {
-    await registrarAFalha(startedAt, err);
-    // O modelo econômico do classificador falhou: repete UMA vez no modelo
-    // que valia antes dele. Sem isto, um catálogo com um modelo que a chave
-    // não alcança deixaria o classificador falhando aberto em todo turno —
-    // sem erro na tela, só com a classificação sumindo.
+    // O modelo econômico do classificador foi RECUSADO pelo provedor: repete
+    // UMA vez no modelo que valia antes dele. Cobre recusa (modelo que a chave
+    // não alcança, indisponibilidade), não resposta fora do formato — por isso
+    // só entram no degrau econômico pontos que degradam sem repetir o turno.
     const reserva = decisao.reserva;
-    if (
-      reserva === undefined ||
-      input.abortSignal?.aborted === true ||
-      (config.enabledModels.length > 0 && !config.enabledModels.includes(reserva.modelId))
-    ) {
-      throw err;
-    }
+    const vaiParaAReserva =
+      reserva !== undefined &&
+      input.abortSignal?.aborted !== true &&
+      (config.enabledModels.length === 0 || config.enabledModels.includes(reserva.modelId));
+    await registrarAFalha(startedAt, err, vaiParaAReserva);
+    if (!vaiParaAReserva || reserva === undefined) throw err;
+    // Os próximos turnos desta organização param de tentar este econômico por
+    // um tempo — senão cada classificação pagaria a recusa antes da reserva.
+    marcarEconomicoQueFalhou(input.tenantId, config.provider, model, Date.now());
     deps.log?.warn('llm: o modelo econômico falhou — repetindo no modelo de antes', {
       organization_id: input.tenantId,
       purpose,

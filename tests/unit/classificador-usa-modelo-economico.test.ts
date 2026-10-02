@@ -1,8 +1,8 @@
 /**
  * O CLASSIFICADOR NÃO PAGA A TARIFA DO AGENTE.
  *
- * Sem knob nem binding, estágio, jailbreak, validação de fluxo e follow-up
- * herdavam o modelo do agente — Sonnet para devolver um rótulo, em todo turno.
+ * Sem knob nem binding, o classificador de estágio e o de manipulação herdavam
+ * o modelo do agente — Sonnet para devolver um rótulo, em todo turno.
  * Este arquivo prende três coisas:
  *
  *  1. A ESCOLHA (`escolherModeloEconomico`): o mais barato do mesmo provedor que
@@ -124,7 +124,7 @@ describe("a precedência com o degrau econômico", () => {
   });
 
   it("vale também para o padrão da organização (ponto sem agente que empreste)", () => {
-    const d = decidirBinding(entrada({ pontoId: "followup_classify", agentePublicado: null }));
+    const d = decidirBinding(entrada({ agentePublicado: null }));
     expect(d.modelId).toBe("claude-haiku-4-5");
     expect(d.reserva).toEqual({ modelId: "claude-sonnet-5", origem: "padrao_da_organizacao" });
   });
@@ -153,7 +153,17 @@ describe("a precedência com o degrau econômico", () => {
   });
 
   it("ponto que NÃO é classificação curta continua no modelo do agente", () => {
-    for (const pontoId of ["promise_semantic", "checkpoint", "compaction", "intent_router"]) {
+    // follow-up e validação de fluxo: saída fora do formato LANÇA (a fila repete
+    // o turno no mesmo modelo) ou vai para o cadastro — a reserva não os cobre.
+    for (const pontoId of [
+      "promise_semantic",
+      "checkpoint",
+      "compaction",
+      "intent_router",
+      "followup_classify",
+      "followup_decide_timing",
+      "flow_validate",
+    ]) {
       const d = decidirBinding(entrada({ pontoId }));
       expect(d.modelId, pontoId).toBe("claude-sonnet-5");
       expect(d.reserva, pontoId).toBeUndefined();
@@ -237,6 +247,7 @@ const cfg = { anthropicApiKey: "chave-anthropic", openaiApiKey: "chave-openai", 
 
 async function rodar(purpose: string, pool: ReturnType<typeof poolFalso>, falhaEm?: ReadonlySet<string>) {
   const { registry, chamadas } = registrySpiao(falhaEm);
+  const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   const r = await runModelCall(
     pool.pool,
     cfg,
@@ -247,9 +258,9 @@ async function rodar(purpose: string, pool: ReturnType<typeof poolFalso>, falhaE
       llmOverride: { provider: "anthropic", credentialId: null },
       messages: [{ role: "user", content: "oi" }],
     },
-    { registry, log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never },
+    { registry, log: log as never },
   );
-  return { r, chamadas };
+  return { r, chamadas, log };
 }
 
 describe("o seam aplica o econômico e tem reserva", () => {
@@ -272,13 +283,28 @@ describe("o seam aplica o econômico e tem reserva", () => {
 
   it("o econômico falhou ⇒ repete no modelo de antes, e llm_calls grava quem respondeu", async () => {
     const pool = poolFalso();
-    const { r, chamadas } = await rodar("stage_classifier", pool, new Set(["claude-haiku-4-5"]));
+    const { r, chamadas, log } = await rodar("stage_classifier", pool, new Set(["claude-haiku-4-5"]));
     expect(chamadas).toEqual(["claude-haiku-4-5", "claude-sonnet-5"]);
     expect(r.model).toBe("claude-sonnet-5");
     expect(r.origem).toBe("herdado_de_quem_chamou");
-    // Uma linha de erro (o econômico) e uma de sucesso (a reserva).
     const sucesso = pool.inserts.find((i) => i.sql.includes("'ok'"));
     expect(sucesso?.params).toContain("claude-sonnet-5");
+    // A falha coberta é registrada com origem própria — Execuções não mostra a
+    // consequência de negócio de uma falha que não aconteceu para o cliente —
+    // e não vira log de erro.
+    const falha = pool.query.mock.calls.find(
+      (c: unknown[]) => String(c[0]).includes("insert into llm_calls") && (c[1] as unknown[]).includes("claude-haiku-4-5"),
+    );
+    expect(falha?.[1]).toContain("economico_coberto_pela_reserva");
+    expect(log.error).not.toHaveBeenCalled();
+  });
+
+  it("depois de uma recusa, os turnos seguintes da organização vão direto ao modelo de antes", async () => {
+    const pool = poolFalso();
+    await rodar("stage_classifier", pool, new Set(["claude-haiku-4-5"]));
+    const { chamadas } = await rodar("jailbreak_detect", pool, new Set(["claude-haiku-4-5"]));
+    // Sem o castigo, toda classificação pagaria a recusa antes da reserva.
+    expect(chamadas).toEqual(["claude-sonnet-5"]);
   });
 
   it("a reserva também falhou ⇒ o erro sobe (quem chama decide, como antes)", async () => {
@@ -286,6 +312,11 @@ describe("o seam aplica o econômico e tem reserva", () => {
     await expect(
       rodar("stage_classifier", pool, new Set(["claude-haiku-4-5", "claude-sonnet-5"])),
     ).rejects.toThrow(/claude-sonnet-5/);
+    // Aqui sim é erro de verdade: a linha da reserva leva a origem de sempre.
+    const daReserva = pool.query.mock.calls.find(
+      (c: unknown[]) => String(c[0]).includes("insert into llm_calls") && (c[1] as unknown[]).includes("claude-sonnet-5"),
+    );
+    expect(daReserva?.[1]).toContain("herdado_de_quem_chamou");
   });
 
   it("sem catálogo legível, segue no modelo herdado — mais caro, nunca quebrado", async () => {

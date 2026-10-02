@@ -25,6 +25,11 @@
  *  5. **Padrão da organização** — `organizations.settings.llm`, o que sempre
  *     valeu quando ninguém disse nada.
  *
+ * Sobre 4 e 5, um degrau só para as classificações curtas
+ * (`PONTOS_DE_TIER_ECONOMICO`): sem binding nem knob, o modelo mais barato do
+ * MESMO provedor, com a mesma credencial — e o que valeria sem ele fica como
+ * reserva, para o seam repetir a chamada se o provedor recusar o econômico.
+ *
  * A decisão devolve a ORIGEM junto com o valor. Isso não é enfeite: é o que
  * permite a tela responder "este ponto está usando X **porque**…" e o log
  * registrar a razão da escolha. Um resolvedor que devolvesse só o modelo
@@ -47,6 +52,12 @@ export type OrigemDaEscolha =
   | "herdado_de_quem_chamou"
   /** Classificador sem escolha explícita: o modelo mais barato do MESMO provedor de quem chamou. */
   | "economico_do_provedor"
+  /**
+   * Linha de ERRO do modelo econômico que a reserva cobriu: a chamada se
+   * repetiu no modelo de antes. Sem origem própria, Execuções mostraria a
+   * consequência de negócio da falha num atendimento que seguiu normal.
+   */
+  | "economico_coberto_pela_reserva"
   | "padrao_da_organizacao"
   /** O Jev mediu e a nota dele decidiu. Também a linha de falha do clima sem reserva (ver Execuções). */
   | "jev"
@@ -77,6 +88,8 @@ export const EXPLICACAO_DA_ORIGEM: Record<OrigemDaEscolha, string> = {
     "Herdado de quem disparou a chamada — o agente publicado, ou o roteador de intenção.",
   economico_do_provedor:
     "Modelo mais econômico do mesmo provedor — esta tarefa é uma classificação curta e não precisa do modelo do agente. Escolha outro no painel se preferir.",
+  economico_coberto_pela_reserva:
+    "O modelo econômico não respondeu; a chamada se repetiu no modelo de antes e nada se perdeu.",
   padrao_da_organizacao: "Usando o padrão da organização.",
   fixo_do_produto: "O produto resolve este ponto sozinho — não há modelo a escolher.",
   // Duas origens, uma por desfecho: a frase única ("se ele está em observação,
@@ -219,7 +232,15 @@ export const PONTOS_QUE_HERDAM_DO_AGENTE: ReadonlySet<string> = new Set([
  * catálogo: a tarifa do classificador era 2× (Anthropic), 10× (OpenAI) e 15×
  * (Google) a do modelo econômico do mesmo provedor, em TODO turno.
  *
- * Fora daqui de propósito:
+ * Só entram pontos cuja saída ruim DEGRADA sem repetir nada: o estágio vira
+ * "sem sugestão" e a manipulação vira "sem veredito" naquele turno. A reserva
+ * do seam cobre recusa do PROVEDOR, não resposta fora do formato — por isso:
+ *  - `followup_classify`/`followup_decide_timing`: classe fora da lista LANÇA
+ *    e a fila repete o turno, decidindo de novo o mesmo modelo econômico.
+ *  - `flow_validate`: JSON com vários campos que vai para o cadastro do lead.
+ * Entram quando houver medição da taxa de saída ilegível no modelo econômico.
+ *
+ * Fora daqui de propósito, também:
  *  - `promise_semantic`: guardrail de compliance sem `catch` no envio; trocar o
  *    modelo dele exige golden set e reserva testados antes.
  *  - `checkpoint`, `compaction`, `flush`: são a memória do lead; um modelo
@@ -231,9 +252,6 @@ export const PONTOS_QUE_HERDAM_DO_AGENTE: ReadonlySet<string> = new Set([
 export const PONTOS_DE_TIER_ECONOMICO: ReadonlySet<string> = new Set([
   "stage_classifier",
   "jailbreak_detect",
-  "flow_validate",
-  "followup_classify",
-  "followup_decide_timing",
 ]);
 
 /**

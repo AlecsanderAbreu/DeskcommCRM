@@ -3940,6 +3940,9 @@ export const DICIONARIO: Traducoes = {
   "Modelo mais econômico do mesmo provedor — esta tarefa é uma classificação curta e não precisa do modelo do agente. Escolha outro no painel se preferir.": {
     es: "Modelo más económico del mismo proveedor: esta tarea es una clasificación corta y no necesita el modelo del agente. Elige otro en el panel si lo prefieres.",
   },
+  "O modelo econômico não respondeu; a chamada se repetiu no modelo de antes e nada se perdeu.": {
+    es: "El modelo económico no respondió; la llamada se repitió con el modelo anterior y no se perdió nada.",
+  },
   "Usando o padrão da organização.": {
     es: "Usando el valor predeterminado de la organización.",
   },

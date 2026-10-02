@@ -51,6 +51,18 @@ interface ModeloDoCatalogo {
   context_window: number | null;
 }
 
+/** O knob de ambiente dos pontos do degrau econômico — o mesmo que `lib/agent-engine/env.ts` lê no worker. */
+function knobDoPontoEconomico(pontoId: string): string | undefined {
+  const nome =
+    pontoId === "stage_classifier"
+      ? "STAGE_CLASSIFIER_MODEL"
+      : pontoId === "jailbreak_detect"
+        ? "JAILBREAK_CLASSIFIER_MODEL"
+        : undefined;
+  const valor = nome === undefined ? undefined : process.env[nome]?.trim();
+  return valor ? valor : undefined;
+}
+
 export async function GET(): Promise<Response> {
   const authz = await requireRole("manager", { resource: "ai_providers" });
   if (!authz.ok) return authz.response;
@@ -143,7 +155,10 @@ export async function GET(): Promise<Response> {
       // `lib/instalacao/ambiente.ts` já faz para as chaves.
       // Enquanto ficar `undefined`, a origem "veio da instalação" nunca aparece
       // nesta tela, mesmo quando é ela que vale em runtime.
-      modeloDeAmbiente: undefined,
+      // Os dois pontos do degrau econômico leem o knob: com ele preenchido, o
+      // motor roda o knob e a tela anunciaria o econômico. Os demais seguem a
+      // dívida descrita acima.
+      modeloDeAmbiente: knobDoPontoEconomico(ponto.id),
       padraoDaOrganizacao,
       // A MESMA escolha econômica do seam (`binding-do-ponto.ts`), sobre o mesmo
       // catálogo e a mesma restrição de modelos habilitados — senão a tela

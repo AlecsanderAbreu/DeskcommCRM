@@ -37,9 +37,34 @@ import {
 const TTL_DO_CATALOGO_MS = 10 * 60_000;
 let catalogoEmMemoria: { lidoEm: number; linhas: ModeloDoCatalogoEconomico[] } | null = null;
 
-/** Só para teste — zera o memo entre casos. */
+/**
+ * O econômico que FALHOU nesta organização, por um tempo. Sem isto, um modelo
+ * que a chave não alcança (acesso bloqueado no projeto, região) seria tentado
+ * em TODO turno: uma ida ao provedor perdida, uma linha de erro e a espera da
+ * reserva, para sempre. Com isto, a primeira falha devolve o ponto ao modelo
+ * de antes por `TTL_DA_FALHA_MS`, e a tentativa seguinte confere se voltou.
+ * ponytail: em processo, por worker; cada um descobre a falha sozinho na 1ª tentativa.
+ */
+const TTL_DA_FALHA_MS = 30 * 60_000;
+const economicosQueFalharam = new Map<string, number>();
+const chaveDaFalha = (org: string, provider: string, modelo: string) => `${org}|${provider}|${modelo}`;
+
+export function marcarEconomicoQueFalhou(org: string, provider: string, modelo: string, agora: number): void {
+  economicosQueFalharam.set(chaveDaFalha(org, provider, modelo), agora + TTL_DA_FALHA_MS);
+}
+
+function economicoEstaDeCastigo(org: string, provider: string, modelo: string, agora: number): boolean {
+  const ate = economicosQueFalharam.get(chaveDaFalha(org, provider, modelo));
+  if (ate === undefined) return false;
+  if (ate > agora) return true;
+  economicosQueFalharam.delete(chaveDaFalha(org, provider, modelo));
+  return false;
+}
+
+/** Só para teste — zera os memos entre casos. */
 export function esquecerCatalogoEconomico(): void {
   catalogoEmMemoria = null;
+  economicosQueFalharam.clear();
 }
 
 async function catalogoEconomico(db: pg.Pool, agora: number): Promise<ModeloDoCatalogoEconomico[]> {
@@ -148,8 +173,18 @@ export async function decidirParaOSeam(
     padraoDaOrganizacao: entrada.padraoDaOrganizacao,
     ...(catalogo !== null
       ? {
-          economicoDoProvedor: (provider: string, modeloAtual: string | null) =>
-            escolherModeloEconomico(catalogo ?? [], provider, modeloAtual, entrada.modelosHabilitados ?? []),
+          economicoDoProvedor: (provider: string, modeloAtual: string | null) => {
+            const escolhido = escolherModeloEconomico(
+              catalogo ?? [],
+              provider,
+              modeloAtual,
+              entrada.modelosHabilitados ?? [],
+            );
+            return escolhido !== null &&
+              economicoEstaDeCastigo(entrada.organizationId, provider, escolhido, Date.now())
+              ? null
+              : escolhido;
+          },
         }
       : {}),
   });
