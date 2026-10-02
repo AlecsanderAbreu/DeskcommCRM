@@ -3,7 +3,7 @@
 -- Medido numa loja que vende pelo WhatsApp (28/09/2026): 10 de 47 conversas do
 -- mês tiveram pino de localização, e os 10 chegaram só com coordenadas. O agente
 -- lia um link e não sabia em que cidade o cliente estava. Com uma chave da
--- Geocoding API do Google, o pino ganha rua, bairro, cidade e região aproximados
+-- Geocoding API do Google, o pino ganha rua, cidade e região aproximados
 -- (`lib/mapas/`). Opcional: sem linha aqui, nada muda.
 --
 -- Server-side only, como `ad_insights_connections` (0214): RLS ligada, zero
@@ -32,7 +32,7 @@ create unique index if not exists map_provider_credentials_org_provider_uk
   on public.map_provider_credentials (organization_id, provider);
 
 comment on table public.map_provider_credentials is
-  'Chave de mapas da organização (hoje: Google Geocoding API), usada para transformar o pino de localização do WhatsApp em rua/bairro/cidade aproximados. Opcional. Server-side only: RLS ligada sem policies e grants revogados de anon/authenticated. A chave nunca volta ao browser.';
+  'Chave de mapas da organização (hoje: Google Geocoding API), usada para transformar o pino de localização do WhatsApp em rua/cidade/região aproximados. Opcional. Server-side only: RLS ligada sem policies e grants revogados de anon/authenticated. A chave nunca volta ao browser.';
 comment on column public.map_provider_credentials.api_key_encrypted is
   'Cifrado por fn_encrypt_oauth (pgp_sym/aes256), a mesma cifra de channel_sessions e ad_platform_connections.';
 

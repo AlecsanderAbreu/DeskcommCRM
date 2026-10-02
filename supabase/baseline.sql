@@ -45873,7 +45873,7 @@ alter table public.ai_agent_versions
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
 
 -- ---- a chave de mapas da organização (migration 0504) ----
--- Pino do WhatsApp → rua/bairro/cidade aproximados (lib/mapas/). Server-side only.
+-- Pino do WhatsApp → rua/cidade/região aproximados (lib/mapas/). Server-side only.
 create table if not exists public.map_provider_credentials (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -45893,7 +45893,7 @@ create unique index if not exists map_provider_credentials_org_provider_uk
   on public.map_provider_credentials (organization_id, provider);
 
 comment on table public.map_provider_credentials is
-  'Chave de mapas da organização (hoje: Google Geocoding API), usada para transformar o pino de localização do WhatsApp em rua/bairro/cidade aproximados. Opcional. Server-side only: RLS ligada sem policies e grants revogados de anon/authenticated. A chave nunca volta ao browser.';
+  'Chave de mapas da organização (hoje: Google Geocoding API), usada para transformar o pino de localização do WhatsApp em rua/cidade/região aproximados. Opcional. Server-side only: RLS ligada sem policies e grants revogados de anon/authenticated. A chave nunca volta ao browser.';
 comment on column public.map_provider_credentials.api_key_encrypted is
   'Cifrado por fn_encrypt_oauth (pgp_sym/aes256), a mesma cifra de channel_sessions e ad_platform_connections.';
 
