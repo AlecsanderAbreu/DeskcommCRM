@@ -61,7 +61,7 @@
  * É por empresa, e não por instalação, porque numa VPS com várias empresas a
  * clínica que atende pelo celular o dia inteiro e a loja que responde de vez
  * em quando querem prazos diferentes. O ajuste é lido por TODO canal cuja
- * ingestão reconhece saída feita fora do CRM (WhatsApp, Meta, Zernio), porque
+ * ingestão reconhece saída feita fora do CRM (qualquer provedor), porque
  * todos passam por `pausarIaPorAtendimentoManual`.
  *
  * ## Cada mensagem nova do humano RENOVA o prazo
