@@ -87,8 +87,8 @@ export function buildClassifierPrompt(
 }
 
 /**
- * Parse tolerante (padrão de flywheel/live.ts): indexOf('{')/lastIndexOf('}') +
- * JSON.parse em try/catch. NUNCA lança — qualquer saída inesperada do modelo
+ * Parse tolerante via `extrairJsonDoTexto` (cerca de código, prosa em volta e
+ * repetição do objeto). NUNCA lança — qualquer saída inesperada do modelo
  * vira { intentName: null, confidence: 0 }. Intenção fora de `members` é
  * recusada (defesa contra alucinação): o chamador não pode rotear pra um
  * agentId que o parse inventou.

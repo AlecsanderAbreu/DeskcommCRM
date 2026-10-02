@@ -1,11 +1,11 @@
 ---
 impacto: nada_mudou
 secao: corrigido
-titulo: "OpenRouter: leitura de JSON de auxiliares do agente tolera cerca de codigo, prosa e repeticao"
+titulo: "OpenRouter: quatro auxiliares do agente leem o JSON do modelo mesmo com cerca de código, prosa ou repetição"
 ---
 
-O seam de modelo nao envia `response_format`: os auxiliares do agente pedem JSON no prompt e parseiam o texto de volta. Modelos roteados por OpenRouter produzem a mesma saida com cerca de codigo (```json), objeto no meio de prosa ou — principalmente — repetindo o JSON. O parser antigo (`indexOf('{')` ate `lastIndexOf('}')`) pegava do primeiro `{` ao ultimo `}` e, na duplicacao, apanhava objetos demais, anulando o parse (sintoma relatado: "JSON invalido em 7 de 11 checagens" e "texto repetido").
+Os auxiliares do agente pedem JSON no prompt e leem o texto de volta, porque o seam de modelo não envia `response_format`. Modelos roteados pelo OpenRouter às vezes respondem com cerca de código (```json), com o objeto no meio de prosa ou com o JSON repetido. A leitura antiga recortava do primeiro `{` ao último `}`. Quando o objeto vinha repetido, o recorte pegava as duas cópias e o parse falhava (sintoma relatado: "JSON inválido em 7 de 11 checagens").
 
-Novo `extrairJsonDoTexto` (lib/agent-engine/texto/): retira a cerca, tenta o texto inteiro e, senao, devolve o primeiro bloco JSON top-level que parsear (varredura ciente de strings, com PII com `{`/`}`/`"`). Nunca lanca — um auxiliar nao derruba o turno. Os quatro pontos que leem JSON de modelo (checkpoint, compactacao, roteador de intencao e o flywheel de propostas) passam a rotear por ele, protegidos por teste do gate do dono (cerca anti-regressao).
+O novo `extrairJsonDoTexto` (lib/agent-engine/texto/) tenta o texto inteiro e, se não der, devolve o primeiro objeto `{...}` que parsear. A varredura respeita strings, então `{`, `}` e `"` dentro do texto do cliente não a confundem. Ela nunca lança. Se um objeto não fecha até o fim do texto, a busca para e devolve nada. Assim uma saída truncada continua sendo recusada no fechamento do turno, em vez de gravar um checkpoint vazio. Quatro auxiliares do turno do agente passam a ler por ele: checkpoint, compactação, roteador de intenção e o flywheel de propostas. Um teste de cerca impede a volta do recorte antigo nesses quatro. Outros seis leitores com o mesmo recorte ainda não foram migrados.
 
 Contribuição de @webtecnica (PR #2096).
