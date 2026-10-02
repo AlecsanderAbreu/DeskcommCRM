@@ -1,13 +1,9 @@
 ---
 impacto: nada_mudou
 secao: corrigido
-titulo: Reverter ou criar agente pela porta MCP não perdia mais anotações internas
+titulo: Reverter uma versão ou criar um agente pela tela não desliga mais o follow-up automático
 ---
 
-Ao reverter para uma versão antiga ou criar um agente pela porta MCP, campos de
-configuração da versão (anotação interna e o rascunho com IA da proposta) algumas
-vezes não eram copiados para a versão nova — o agente nascia/voltava com esses
-ajustes no padrão, sem aviso. Agora todo caminho que grava uma versão carrega todas
-as chaves de configuração, e um teste novo trava a próxima fenda desse tipo.
+Ao reverter para uma versão antiga pelo Histórico ou ao criar um agente pela tela, a versão nova nascia com o follow-up automático no padrão (desligado), sem aviso. Ao criar uma versão pela API, a opção de o agente rascunhar proposta com IA voltava a ficar ligada, mesmo quando a chamada pedia desligada. Agora esses caminhos levam a configuração inteira da versão, e um teste reprova a próxima chave que for esquecida neles. Não é preciso fazer nada na instalação.
 
-Contribuição de @webtecnica (#2004).
+Contribuição de @webtecnica (#2011), fechando a #2004.
