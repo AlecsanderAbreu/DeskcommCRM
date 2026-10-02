@@ -1,13 +1,14 @@
 ---
 impacto: nada_mudou
 secao: corrigido
-titulo: As frases da passagem para humano perdem o travessão (português, espanhol e o mesmo aviso nos dois mundos)
+titulo: O aviso ao cliente na passagem para atendente humano não usa mais travessão
 ---
 
-O aviso enviado ao lead quando a conversa passa para um atendente humano usava
-travessão em duas frases. O travessão pode soar impessoal e o texto seguia
-aberto; as frases agora usam ponto e vírgula, mantendo a mesma leitura.
-Nenhuma configuração nova: é a alternativa mínima que o #1881 permite.
+Quando a conversa passa da IA para uma pessoa da equipe, o cliente recebe um
+aviso automático. Duas das frases em português usavam travessão, e há marcas
+cuja regra de estilo proíbe esse sinal em mensagem ao cliente. As duas agora
+usam ponto ou ponto e vírgula, com o mesmo sentido. As frases em espanhol já
+não tinham travessão. Não é preciso fazer nada na instalação.
 
 Refs #1881.
 
