@@ -1,13 +1,11 @@
 ---
-impacto: exige_acao
+impacto: nada_mudou
 secao: corrigido
-titulo: A recuperação de senha volta a funcionar na instalação single-server
+titulo: O link de "esqueci a senha" da instalação single-server passa a abrir a troca de senha
 ---
 
-Quem instala agora pelo `install-single-server.sh` recebe os dois modelos de e-mail do GoTrue apontando para o app, gravados no `.env` do Supabase antes de o serviço `auth` subir: `https://SEUDOMINIO/email-templates/recovery` e `https://SEUDOMINIO/email-templates/confirmation`. Sem essas duas linhas o GoTrue manda o link no modelo padrão do Supabase, que devolve a sessão depois do `#` da URL — e fragmento não chega ao servidor: o clique em "esqueci minha senha" abria a tela de login com "link inválido". Como não existe troca de senha estando logado, quem perdia a senha ficava fora do sistema. Agora o link sai com `token_hash`, o servidor lê e `/login/reset` abre.
+Numa instalação single-server, o GoTrue mandava os e-mails de acesso no modelo padrão do Supabase, e o clique em "esqueci a senha" terminava na tela de login com "link inválido". Como não existe troca de senha estando logado, quem perdia a senha ficava fora do sistema. Agora o `.env` do Supabase recebe os dois modelos do app (`https://SEUDOMINIO/email-templates/recovery` e `/email-templates/confirmation`), e o override do kit os entrega ao serviço `auth`. O link sai com `token_hash` e `/login/reset` abre.
 
-Contribuição de @webtecnica (PR #2153, refs #2109).
+Quem instala agora recebe as duas chaves pelo `install-single-server.sh`. Quem já instalou recebe pelo `update.sh`, que as grava a partir do `SITE_URL` do Supabase antes de subir o `auth` de novo. Nas duas pontas, um modelo que o operador já tenha apontado é preservado.
 
-## Requer atenção
-
-Quem já instalou antes desta versão precisa acrescentar ao serviço `auth` do Supabase as duas variáveis `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` e `GOTRUE_MAILER_TEMPLATES_RECOVERY` apontando para `https://SEUDOMINIO/email-templates/confirmation` e `/recovery`, e reiniciar o `auth`. O `healthcheck.sh` já imprime os valores exatos do seu domínio quando o GoTrue está no modelo padrão, e re-rodar o `install-single-server.sh` também os grava.
+Contribuição de @webtecnica (#2153), sobre o diagnóstico de @brunno-soaress na #2109.
