@@ -267,7 +267,8 @@ const PERFIL_PT: PerfilDoPais = {
       tipo: "codigoPostal",
       marcador: "[CODIGO_POSTAL]",
       fonte: "\\b\\d{4}-\\d{3}\\b",
-      naoCobre: "código postal sem hífen e código estrangeiro (CEP brasileiro usa ponto e 8 dígitos)",
+      naoCobre:
+        "código postal sem hífen e código estrangeiro (CEP brasileiro usa ponto e 8 dígitos)",
     },
   ],
 };

@@ -58,7 +58,9 @@ describe("perfil de Portugal (issue #1946)", () => {
     // O exemplo é o placeholder do campo e entra na mensagem de erro: um valor
     // que o PHONE_REGEX recusa (ex.: mascarado com `*`) ensina o que a tela barra.
     for (const perfil of Object.values(PERFIS_DO_PAIS)) {
-      const r = contactCreateSchemaDoPais(perfil).safeParse({ phone_number: perfil.telefoneExemplo });
+      const r = contactCreateSchemaDoPais(perfil).safeParse({
+        phone_number: perfil.telefoneExemplo,
+      });
       expect(r.success, `${perfil.codigo}: ${perfil.telefoneExemplo}`).toBe(true);
     }
   });
@@ -112,7 +114,11 @@ describe("perfil de Portugal (issue #1946)", () => {
     expect(HOLIDAYS_PT_ISO).toContain("2027-03-26"); // Sexta-feira Santa (Páscoa 28/03)
     expect(HOLIDAYS_PT_ISO).not.toContain("2026-02-17"); // Terça de Carnaval, art. 235.º
     // Pedido na segunda 16/02/2026 com 1 dia útil vence na terça 17/02, não na quarta.
-    const vence = computeDueAt(new Date("2026-02-16T10:00:00Z"), 1, new Set(perfilDoPais("PT").calendario.feriados));
+    const vence = computeDueAt(
+      new Date("2026-02-16T10:00:00Z"),
+      1,
+      new Set(perfilDoPais("PT").calendario.feriados),
+    );
     expect(vence.toISOString().slice(0, 10)).toBe("2026-02-17");
   });
 });
