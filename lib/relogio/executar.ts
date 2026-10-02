@@ -16,7 +16,7 @@ import { enviarTextoFixoPendente } from "@/lib/followup/enviar-texto-fixo";
 import type { EnrollmentRow } from "@/lib/followup/node-handlers";
 import { createSupabaseSilenceSweepDb, runSilenceSweep } from "@/lib/followup/silence-sweep";
 import { logger } from "@/lib/logger";
-import { ehOperante, statusDaOrgEmbutida } from "@/lib/organizacao/operante";
+import { STATUS_OPERANTE, ehOperante, statusDaOrgEmbutida } from "@/lib/organizacao/operante";
 import { runRoutingWorker } from "@/lib/routing/worker";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -46,16 +46,19 @@ async function enfileirarFollowup(job: FollowupJobRequest): Promise<void> {
  */
 export async function aplicarRespostasQueChegaram(admin: SupabaseClient, deps: TickDeps): Promise<number> {
   // Org parada não avança fluxo (migration 0501 — o claim do motor também a pula).
-  // O status da org vem embutido no `select` e quem decide é `ehOperante` — nunca
-  // uma lista de ids negada na URL, que cortaria em `max_rows` sem aviso e faria
-  // a org parada voltar a avançar fluxo.
+  // O corte é no banco, ANTES do `limit`: o embed `!inner` + o filtro de
+  // status. Filtrar só em memória deixaria as linhas da org parada (suspender não
+  // mexe nelas) ocuparem a janela de 40. Nunca uma lista de ids negada na URL —
+  // ela cortaria em `max_rows` sem aviso e a org parada voltaria a avançar fluxo.
   const { data, error } = await admin
     .from("followup_enrollments")
-    .select("*, organizations:organization_id(status)")
+    .select("*, organizations:organization_id!inner(status)")
     .in("status", ["waiting_reply"])
+    .eq("organizations.status", STATUS_OPERANTE)
     .limit(40);
   if (error) throw new Error(error.message);
   let n = 0;
+  // ponytail: cinto — o banco já cortou; isto só segura quem tirar o filtro acima.
   const linhas = (data ?? []).filter((row) =>
     ehOperante(
       statusDaOrgEmbutida(
