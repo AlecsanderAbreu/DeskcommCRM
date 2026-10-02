@@ -1324,6 +1324,8 @@ export const DICIONARIO: Traducoes = {
   "Sem pedidos.": { es: "Sin pedidos." },
   "Sem atividade.": { es: "Sin actividad." },
   "Nova tag…": { es: "Nueva etiqueta…" },
+  // lib/atendimento/proximo-passo-padrao.ts — o texto que o banco grava na demanda nova
+  "Responder à nova mensagem do cliente": { es: "Responder al nuevo mensaje del cliente" },
   "Sem próximo passo definido": { es: "Sin siguiente paso definido" },
   "Marcar próximo passo": { es: "Definir siguiente paso" },
   Lead: { es: "Lead" },
@@ -5154,6 +5156,39 @@ export const DICIONARIO: Traducoes = {
   "Últimos recebimentos": { es: "Últimos recibidos" },
   "Ainda não chegou nada por aqui.": { es: "Todavía no ha llegado nada por aquí." },
   "assinatura inválida": { es: "firma inválida" },
+  // Assinatura HMAC da fonte de captação, na tela de detalhe da fonte.
+  "Assinatura (HMAC)": { es: "Firma (HMAC)" },
+  "Com assinatura ativa, teste a partir do sistema que envia os dados.": {
+    es: "Con la firma activa, prueba desde el sistema que envía los datos.",
+  },
+  // O NOME do cabeçalho não entra na frase: ele é contrato de fio e sai da
+  // constante de lib/webhooks/assinatura.ts, renderizada ao lado deste texto.
+  "Sem assinatura, quem descobrir o endereço consegue criar leads. Com ela, quem envia assina o corpo cru da requisição com HMAC-SHA256 e manda o resultado em hexadecimal — hex puro, sem prefixo — neste cabeçalho:":
+    {
+      es: "Sin firma, quien descubra la dirección puede crear leads. Con ella, quien envía firma el cuerpo crudo de la solicitud con HMAC-SHA256 y manda el resultado en hexadecimal — hex puro, sin prefijo — en esta cabecera:",
+    },
+  "<HMAC-SHA256 do corpo, em hex, com o seu segredo>": {
+    es: "<HMAC-SHA256 del cuerpo, en hex, con tu secreto>",
+  },
+  "Gerar segredo": { es: "Generar secreto" },
+  "Trocar segredo": { es: "Cambiar secreto" },
+  "Remover segredo": { es: "Quitar secreto" },
+  // "Segredo copiado." já existe mais abaixo (tronco SIP) — chave repetida é
+  // erro de compilação, e o texto é o mesmo nos dois lugares.
+  "Guarde agora. Ele não será mostrado de novo.": {
+    es: "Guárdalo ahora. No se mostrará de nuevo.",
+  },
+  "Assinatura ligada.": { es: "Firma activada." },
+  "Segredo trocado.": { es: "Secreto cambiado." },
+  "Assinatura removida.": { es: "Firma quitada." },
+  "Trocar o segredo desta fonte?": { es: "¿Cambiar el secreto de esta fuente?" },
+  "Integrações que usam o segredo atual vão parar de funcionar até serem atualizadas.": {
+    es: "Las integraciones que usan el secreto actual dejarán de funcionar hasta que se actualicen.",
+  },
+  "Remover a assinatura desta fonte?": { es: "¿Quitar la firma de esta fuente?" },
+  "O endereço volta a aceitar envios sem assinatura — só o endereço secreto passa a protegê-lo.": {
+    es: "La dirección vuelve a aceptar envíos sin firma — solo la dirección secreta pasa a protegerla.",
+  },
   "Fonte ativa": { es: "Fuente activa" },
   "Pausada, ela para de aceitar novos envios.": { es: "Pausada, deja de aceptar nuevos envíos." },
   "Fonte ativada.": { es: "Fuente activada." },
@@ -9543,6 +9578,9 @@ export const DICIONARIO: Traducoes = {
   },
   "Para ligar o Jev, cole a chave dele em Credenciais e espere o teste da chave passar.": {
     es: "Para activar Jev, pega su clave en Credenciales y espera a que pase la prueba de la clave.",
+  },
+  "Se a sua empresa é da área da saúde: as mensagens que o Jev lê podem conter dado de saúde, que a LGPD trata como sensível. Antes de ligar, confira com quem cuida da LGPD da empresa se o contrato da TypeSafe cobre esse tipo de dado.": {
+    es: "Si tu empresa es del área de la salud: los mensajes que lee Jev pueden contener datos de salud, que la LGPD trata como sensibles. Antes de activarlo, consulta con quien se encarga de la LGPD en la empresa si el contrato de TypeSafe cubre ese tipo de dato.",
   },
   "Não consegui checar o pedido de atualização.": { es: "No pude verificar la solicitud de actualización." },
   "Não consegui finalizar a atualização.": { es: "No pude finalizar la actualización." },
