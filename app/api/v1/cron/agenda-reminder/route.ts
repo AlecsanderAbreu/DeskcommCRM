@@ -75,7 +75,7 @@ import { logger } from "@/lib/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { moldeDoDegrau } from "@/lib/agenda/lembretes";
 import { autorizaCron } from "@/lib/auth/cron-auth";
-import { OrgNaoOperanteError, ehOperante, statusDaOrgEmbutida } from "@/lib/organizacao/operante";
+import { OrgNaoOperanteError, STATUS_OPERANTE, ehOperante, statusDaOrgEmbutida } from "@/lib/organizacao/operante";
 
 export const dynamic = "force-dynamic";
 
@@ -269,9 +269,12 @@ async function handle(req: NextRequest): Promise<Response> {
     .from("calendar_appointments")
     .select(
       "id, organization_id, contact_id, title, starts_at, location_details, reminder_sent_offsets_minutes, " +
-        "calendar_event_types!inner(name, reminder_enabled, reminder_minutes_before, reminder_extra_offsets_minutes, reminder_template_name, reminder_body, reminder_bodies, location_details), organizations:organization_id(status)",
+        "calendar_event_types!inner(name, reminder_enabled, reminder_minutes_before, reminder_extra_offsets_minutes, reminder_template_name, reminder_body, reminder_bodies, location_details), organizations:organization_id!inner(status)",
     )
     .eq("status", "confirmed")
+    // Org parada sai no banco, ANTES do `limit`: filtrar só em memória a deixaria
+    // ocupar a janela da varredura enquanto a org segue parada.
+    .eq("organizations.status", STATUS_OPERANTE)
     .eq("calendar_event_types.reminder_enabled", true)
     .not("contact_id", "is", null)
     // ⚠️ NÃO se filtra por `reminder_sent_at is null` aqui, e a ausência é a
@@ -296,8 +299,9 @@ async function handle(req: NextRequest): Promise<Response> {
 
   // Organização parada (suspensa, redigida, arquivada) não recebe lembrete: é
   // mensagem que sai para o cliente dela (spec §1.3, "nada roda e nada sai").
-  // O status da org vem embutido no `select` acima e quem decide é `ehOperante`
-  // — nunca uma lista de ids de paradas negada na URL (cortaria em `max_rows`).
+  // O corte já saiu no banco (o embed `!inner` + o filtro de status, acima);
+  // o `ehOperante` mais abaixo é cinto. Nunca uma lista de ids de paradas negada
+  // na URL — ela cortaria em `max_rows` sem aviso.
 
   const linhas = (data ?? []) as unknown as CompromissoAVencer[];
   let enviados = 0;

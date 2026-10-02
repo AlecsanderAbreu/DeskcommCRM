@@ -34,13 +34,20 @@ const CHAMADORES = [
 /** O anti-padrão que a issue #2015 quer ver fora dos chamadores. */
 const PROIBIDOS = [/\bidsDeOrgsParadas\(/g, /\.not\("organization_id",\s*"in"/g, /<> all\(\$/g];
 
-/** O que cada chamador PRECISA usar para filtrar no banco, no lugar da lista. */
+/**
+ * O que cada chamador PRECISA usar para filtrar no banco, no lugar da lista: o
+ * embed com `!inner` E o filtro `organizations.status` na própria consulta — é o
+ * que faz o corte sair ANTES do `limit` (filtrar só em memória deixa a linha da
+ * org parada ocupar a janela). O `ehOperante` em memória fica como cinto.
+ */
+const EMBED_INNER = /organizations:organization_id!inner\(status\)/;
+const FILTRO_NO_BANCO = /\.eq\("organizations\.status",\s*STATUS_OPERANTE\)/;
 const EXIGIDO: Record<(typeof CHAMADORES)[number], RegExp[]> = {
-  "lib/campanhas/rodada.ts": [/organizations:organization_id\(status\)/, /\behOperante\(/, /\.eq\("organizations\.status",\s*STATUS_OPERANTE\)/],
+  "lib/campanhas/rodada.ts": [EMBED_INNER, FILTRO_NO_BANCO, /\behOperante\(/],
   "lib/prospecting/worker.ts": [/fn_org_operante\(/],
-  "lib/relogio/executar.ts": [/organizations:organization_id\(status\)/, /\behOperante\(/],
-  "app/api/v1/cron/agenda-reminder/route.ts": [/organizations:organization_id\(status\)/, /\behOperante\(/],
-  "app/api/v1/cron/kb-conversations-batch/route.ts": [/organizations:organization_id\(status\)/, /\behOperante\(/],
+  "lib/relogio/executar.ts": [EMBED_INNER, FILTRO_NO_BANCO, /\behOperante\(/],
+  "app/api/v1/cron/agenda-reminder/route.ts": [EMBED_INNER, FILTRO_NO_BANCO, /\behOperante\(/],
+  "app/api/v1/cron/kb-conversations-batch/route.ts": [EMBED_INNER, FILTRO_NO_BANCO, /\behOperante\(/],
 };
 
 function fonteDe(rel: string): string {

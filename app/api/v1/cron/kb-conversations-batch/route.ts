@@ -20,7 +20,7 @@ import { audit } from "@/lib/audit";
 import { ingestConversationsBatch } from "@/lib/ai/rag/ingest/conversations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { autorizaCron } from "@/lib/auth/cron-auth";
-import { ehOperante, statusDaOrgEmbutida } from "@/lib/organizacao/operante";
+import { STATUS_OPERANTE, ehOperante, statusDaOrgEmbutida } from "@/lib/organizacao/operante";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +45,9 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   const { data: agentRows, error: agentErr } = await admin
     .from("ai_agents")
-    .select("id, organization_id, organizations:organization_id(status)")
-    .eq("is_active", true);
+    .select("id, organization_id, organizations:organization_id!inner(status)")
+    .eq("is_active", true)
+    .eq("organizations.status", STATUS_OPERANTE);
 
   if (agentErr) {
     console.error("[kb-conversations-cron] agent list failed", agentErr.message);
@@ -54,8 +55,9 @@ export async function GET(req: NextRequest): Promise<Response> {
   }
 
   // Organização parada (suspensa, redigida, arquivada) não gasta embedding: o
-  // provedor cobra por token, e quem paga é o dono da instalação. O status vem
-  // embutido no `select` e quem decide é `ehOperante` — nunca uma lista de ids.
+  // provedor cobra por token, e quem paga é o dono da instalação. O corte sai no
+  // banco (o embed `!inner` + o filtro de status); o `ehOperante` abaixo é
+  // cinto. Nunca uma lista de ids de paradas negada na URL.
 
   const agents = (agentRows ?? []) as AgentRow[];
   // Pick one agent per org (first active wins) to avoid double-ingesting.

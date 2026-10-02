@@ -25,10 +25,15 @@ vi.mock("@/lib/ai/rag/ingest/conversations", () => ({ ingestConversationsBatch: 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: () => ({
-      select: () => ({
-        eq: async () =>
-          mocks.erro ? { data: null, error: mocks.erro } : { data: mocks.agentes, error: null },
-      }),
+      select: () => {
+        // Cadeia de `eq` (is_active + organizations.status) que resolve na lista do teste.
+        const c: Record<string, unknown> = {
+          eq: () => c,
+          then: (r: (v: unknown) => unknown) =>
+            Promise.resolve(mocks.erro ? { data: null, error: mocks.erro } : { data: mocks.agentes, error: null }).then(r),
+        };
+        return c;
+      },
     }),
   }),
 }));
