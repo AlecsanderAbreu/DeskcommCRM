@@ -217,12 +217,32 @@ describe("GET /api/v1/products — o catálogo inteiro, não os 500 primeiros", 
     expect(consulta.or[0]?.split(",")).toHaveLength(4);
   });
 
-  it("termo feito só de pontuação não vira `%%` (que devolveria o catálogo inteiro)", async () => {
-    vi.mocked(createClient).mockResolvedValue(supabaseDeLeitura([], 0) as never);
+  // O banco do mock TEM produto: se a rota consultar sem filtro, `data` volta
+  // cheio. Medir só a ausência do `.or()` deixava passar justamente isso — o
+  // catálogo inteiro no seletor da proposta, que busca a cada tecla.
+  it.each(["c", ", ,", "()"])(
+    "termo abaixo do piso (%j) devolve lista vazia, sem ir ao banco — como a busca de contatos",
+    async (termo) => {
+      vi.mocked(createClient).mockResolvedValue(supabaseDeLeitura([{ id: "p1" }], 1) as never);
+      const { GET } = await import("./route");
+
+      const res = await GET(listar(`?busca=${encodeURIComponent(termo)}`));
+      const corpo = await res.json();
+
+      expect(corpo.data).toEqual([]);
+      expect(consulta.limit).toBeNull();
+      expect(consulta.range).toBeNull();
+    },
+  );
+
+  it("termo abaixo do piso com `pagina` devolve lista vazia COM `meta`", async () => {
+    vi.mocked(createClient).mockResolvedValue(supabaseDeLeitura([{ id: "p1" }], 1) as never);
     const { GET } = await import("./route");
 
-    await GET(listar(`?busca=${encodeURIComponent(", ,")}`));
+    const res = await GET(listar("?busca=c&pagina=2"));
+    const corpo = await res.json();
 
-    expect(consulta.or).toHaveLength(0);
+    expect(corpo.data).toEqual([]);
+    expect(corpo.meta).toEqual({ total: 0, pagina: 2, por_pagina: 50, has_more: false });
   });
 });

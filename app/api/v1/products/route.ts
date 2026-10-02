@@ -38,6 +38,17 @@ export async function GET(req: NextRequest): Promise<Response> {
   // linhas, sem `meta`) — o seletor de produtos da proposta lê esta rota assim.
   const paginado = params.has("pagina");
   const pagina = paginaDaUrl(params.get("pagina"));
+
+  // Termo digitado abaixo do piso (`"c"`, `", ,"`, `"()"`) NÃO vai ao banco e
+  // devolve lista vazia — o desfecho da busca de contatos
+  // (`app/api/v1/contacts/_handler.ts`). Sem esta guarda, `filtro === null`
+  // consultava SEM filtro, e o seletor de produtos da proposta, que busca a
+  // cada tecla, mostrava até 500 produtos sem relação com a primeira letra.
+  if (filtro === null && (params.get("busca")?.trim() ?? "") !== "") {
+    if (!paginado) return ok([], { requestId });
+    return ok([], { requestId, meta: { total: 0, pagina, por_pagina: PRODUTOS_POR_PAGINA, has_more: false } });
+  }
+
   const supabase = await createClient();
 
   let q = supabase
