@@ -8247,7 +8247,6 @@ export const DICIONARIO: Traducoes = {
     es: "Cómo se distribuyen las conversaciones nuevas entre los asesores de la organización.",
   },
   "Modo": { es: "Modo" },
-  "Balanceamento por carga (em breve)": { es: "Balanceo de carga (próximamente)" },
   "Tentativas máx.": { es: "Intentos máx." },
   "Backoff (s)": { es: "Backoff (s)" },
   "Atendentes": { es: "Asesores" },

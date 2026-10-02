@@ -136,7 +136,7 @@ describe("modo load — roteia por menor carga (issue #1539)", () => {
       now: NOW,
     });
 
-  it("o schema ACEITA o modo load (era o 'inalcável' pós-MVP do G1-06b)", () => {
+  it("o schema ACEITA o modo load (era o 'inalcançável' pós-MVP do G1-06b)", () => {
     expect(configLoad.mode).toBe("load");
   });
 
