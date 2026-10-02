@@ -3,8 +3,6 @@ impacto: nada_mudou
 secao: corrigido
 titulo: Quem tem acesso só de leitura ao painel de plataforma deixa de conseguir alterar empresas e outros dados pela API
 ---
-# organizations: platform admin com `support_readonly` não escreve pelo PostgREST
-
 `fn_is_platform_admin()` ignorava o scope do JWT. Um platform admin com `scope=support_readonly` alterava colunas de exibição e `settings` de organizations (e escrevia em outras tabelas admin de plataforma) com o próprio token, sem passar por `security definer` nem gatilho.
 
 - Cria `fn_is_platform_admin_full()` — idêntica à atual, exigindo `scope='full'`.
