@@ -160,7 +160,7 @@ describe("GET /api/v1/ai/followup-flows — roteiros fora da lista de follow-ups
   });
 
   it("GET: com Bearer mcp:read, requireRole (sessão) não é consultado — org vem do token", async () => {
-    const { client } = clientDaLista();
+    const { filtros, client } = clientDaLista();
     // Ramo do token usa createAdminClient() (não a sessão de navegador).
     deps.admin.mockReturnValue(client);
     deps.validateBearerToken.mockResolvedValue({
@@ -180,6 +180,8 @@ describe("GET /api/v1/ai/followup-flows — roteiros fora da lista de follow-ups
     expect(deps.role).not.toHaveBeenCalled();
     expect(deps.client).not.toHaveBeenCalled();
     expect(deps.admin).toHaveBeenCalled();
+    // O client do token é o admin (sem RLS): o filtro de org é a ÚNICA cerca.
+    expect(filtros).toContainEqual(["eq", "organization_id", ORG_DO_TOKEN]);
   });
 });
 
@@ -204,6 +206,15 @@ describe("auth-dual (issue #1875) — Bearer token nas portas de follow-up", () 
     const res = await POST(request);
     expect(res.status).toBe(403);
     expect(deps.role).not.toHaveBeenCalled();
+  });
+
+  it("token com papel abaixo de manager é recusado com 403, mesmo com mcp:write", async () => {
+    deps.admin.mockReturnValue(clientFake().client);
+    const { request, token } = tokenReq({ name: "Via API" }, ["mcp:read", "mcp:write"], "agent");
+    deps.validateBearerToken.mockResolvedValue(token as never);
+
+    const res = await POST(request);
+    expect(res.status).toBe(403);
   });
 
   it("sem sessão nem Bearer → requireRole (sessão) responde 401 antes do efeito", async () => {
