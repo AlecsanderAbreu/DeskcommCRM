@@ -218,7 +218,7 @@ function poolFalso(opts: { catalogo?: ModeloDoCatalogoEconomico[]; erroNoCatalog
   return { pool: { query } as never, inserts, query };
 }
 
-function registrySpiao(falhaEm: ReadonlySet<string> = new Set()) {
+function registrySpiao(falhaEm: ReadonlySet<string> = new Set(), instavelEm: ReadonlySet<string> = new Set()) {
   const chamadas: string[] = [];
   const fabrica = (provider: string) => (_apiKey: string, modelId: string) => {
     chamadas.push(modelId);
@@ -227,7 +227,8 @@ function registrySpiao(falhaEm: ReadonlySet<string> = new Set()) {
       provider,
       modelId,
       doGenerate: async () => {
-        if (falhaEm.has(modelId)) throw new Error(`404 model not found: ${modelId}`);
+        if (falhaEm.has(modelId)) throw Object.assign(new Error(`model not found: ${modelId}`), { statusCode: 404 });
+        if (instavelEm.has(modelId)) throw Object.assign(new Error("overloaded"), { statusCode: 503 });
         return {
           content: [{ type: "text", text: "ok" }],
           finishReason: { unified: "stop", raw: undefined },
@@ -245,8 +246,13 @@ function registrySpiao(falhaEm: ReadonlySet<string> = new Set()) {
 
 const cfg = { anthropicApiKey: "chave-anthropic", openaiApiKey: "chave-openai", cacheTtl: "1h" as const };
 
-async function rodar(purpose: string, pool: ReturnType<typeof poolFalso>, falhaEm?: ReadonlySet<string>) {
-  const { registry, chamadas } = registrySpiao(falhaEm);
+async function rodar(
+  purpose: string,
+  pool: ReturnType<typeof poolFalso>,
+  falhaEm?: ReadonlySet<string>,
+  instavelEm?: ReadonlySet<string>,
+) {
+  const { registry, chamadas } = registrySpiao(falhaEm, instavelEm);
   const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   const r = await runModelCall(
     pool.pool,
@@ -317,6 +323,16 @@ describe("o seam aplica o econômico e tem reserva", () => {
       (c: unknown[]) => String(c[0]).includes("insert into llm_calls") && (c[1] as unknown[]).includes("claude-sonnet-5"),
     );
     expect(daReserva?.[1]).toContain("herdado_de_quem_chamou");
+  });
+
+  it("instabilidade do provedor (5xx) NÃO troca de modelo — o classificador degrada como antes", async () => {
+    const pool = poolFalso();
+    await expect(rodar("jailbreak_detect", pool, undefined, new Set(["claude-haiku-4-5"]))).rejects.toThrow(
+      "overloaded",
+    );
+    const { chamadas } = await rodar("jailbreak_detect", pool);
+    // Uma chamada só no instável, e nenhum castigo: o próximo turno volta ao econômico.
+    expect(chamadas).toEqual(["claude-haiku-4-5"]);
   });
 
   it("sem catálogo legível, segue no modelo herdado — mais caro, nunca quebrado", async () => {

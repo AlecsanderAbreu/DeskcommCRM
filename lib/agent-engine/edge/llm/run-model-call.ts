@@ -762,12 +762,20 @@ export async function runModelCall(db: pg.Pool, cfg: LlmEdgeConfig, input: RunMo
     result = await chamar(model);
   } catch (err) {
     // O modelo econômico do classificador foi RECUSADO pelo provedor: repete
-    // UMA vez no modelo que valia antes dele. Cobre recusa (modelo que a chave
-    // não alcança, indisponibilidade), não resposta fora do formato — por isso
-    // só entram no degrau econômico pontos que degradam sem repetir o turno.
+    // UMA vez no modelo que valia antes dele. Só para a recusa que é do
+    // MODELO — não existe para esta chave (404) ou o acesso a ele foi negado
+    // (403). Instabilidade (5xx, 429) não troca de modelo: o classificador já
+    // degrada sozinho, como degradava no modelo do agente, e repetir dobraria a
+    // espera justo quando o provedor está mal. Orçamento nunca se repete.
+    // Resposta fora do formato também não é coberta — por isso só entram no
+    // degrau econômico pontos que degradam sem repetir o turno.
     const reserva = decisao.reserva;
+    const { error_code: codigoDaFalha, http_status: statusDaFalha } = normalizarErro(err);
+    const recusaDoModelo = codigoDaFalha === 'modelo_inexistente' || statusDaFalha === 403;
     const vaiParaAReserva =
       reserva !== undefined &&
+      recusaDoModelo &&
+      !(err instanceof LlmBudgetExceededError) &&
       input.abortSignal?.aborted !== true &&
       (config.enabledModels.length === 0 || config.enabledModels.includes(reserva.modelId));
     await registrarAFalha(startedAt, err, vaiParaAReserva);
