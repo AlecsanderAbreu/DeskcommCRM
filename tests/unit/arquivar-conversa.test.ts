@@ -244,8 +244,9 @@ describe("PATCH /conversations/[id] — arquivar (#923)", () => {
     const res = await PATCH(patchReq({ status: "archived", expected_revision: 3 }), params);
 
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = (await res.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe("conflict");
+    expect(body.error.message).toBe("O atendimento mudou. Atualize e tente novamente.");
     expect(acoesAuditadas()).not.toContain("conversation.archived");
   });
 

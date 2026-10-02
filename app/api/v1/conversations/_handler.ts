@@ -494,7 +494,8 @@ export async function patchConversationHandler(
     // PT409: revisão obsoleta (migration 0514). 40001: contato trocou no meio, ou banco anterior à 0514.
     const conflito = statusError?.code === "PT409" || statusError?.code === "40001";
     if (statusError) throw new ApiError(conflito ? 409 : statusError.code === "P0002" ? 404 : 500,
-      conflito ? "conflict" : statusError.code === "P0002" ? "not_found" : "internal_error", undefined, ctx.requestId, statusError.message);
+      conflito ? "conflict" : statusError.code === "P0002" ? "not_found" : "internal_error", undefined, ctx.requestId,
+      conflito ? traduzir("O atendimento mudou. Atualize e tente novamente.", ctx.idioma ?? "pt-BR") : statusError.message);
   }
   if (input.tags !== undefined) {
     update.tags = input.tags;
