@@ -127,7 +127,6 @@ async function enviar(
     customData.value = conversao.valorCentavos / 100;
     customData.currency = conversao.moeda.toUpperCase();
   }
-  if (conversao.produto) customData.content_name = conversao.produto;
 
   const corpo: Record<string, unknown> = {
     data: [

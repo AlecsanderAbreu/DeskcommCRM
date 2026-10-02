@@ -160,8 +160,6 @@ export async function processarConversao(
   let valorDaVenda: number | null =
     lead.value_cents !== null && lead.value_cents > 0 ? lead.value_cents : null;
   let moedaDaVenda: string | null = lead.currency;
-  /** O que foi vendido, quando a conversa disse — vai no evento da Meta. */
-  let produto: string | null = null;
   /** De onde veio o valor (ou por que faltou), quando ele foi lido da conversa. */
   let detalheDoValor: string | null = null;
 
@@ -220,12 +218,20 @@ export async function processarConversao(
   // humano, então o valor DITO na conversa vale como valor da venda. Só o dito —
   // `valor-da-conversa.ts` recusa o que não consegue mostrar escrito, e aí a
   // pendência `sem_valor` segue, agora com o motivo no Histórico.
-  if (
+  //
+  // Mas só DEPOIS de saber que a venda tem para onde ir — a conexão direta
+  // ligada, ou o canal da conversa com a chave ligada. Ler antes gastava uma
+  // chamada de IA e 80 mensagens em toda venda sem valor de contato atribuído à
+  // Meta, inclusive na instalação que nunca conectou a Meta (o padrão), e fazia
+  // a chave do canal, desligada, deixar de valer "nem as conversas são lidas".
+  // Por isso a decisão da Meta sem valor também espera a credencial.
+  const valorPodeVirDaConversa =
     !qualificacao &&
     !registro?.remote_request_id &&
     valorDaVenda === null &&
-    plataforma === "meta_ads"
-  ) {
+    plataforma === "meta_ads";
+  let semValor = !qualificacao && !registro?.remote_request_id && valorDaVenda === null;
+  const lerOValorNaConversa = async () => {
     const lido = await lerValorDaConversa(
       admin,
       row.organization_id,
@@ -235,14 +241,18 @@ export async function processarConversao(
     if (lido.ok) {
       valorDaVenda = lido.valorCentavos;
       moedaDaVenda = lido.moeda;
-      produto = lido.produto;
-      detalheDoValor = `Valor lido da conversa: "${lido.trecho}"`;
+      // O produto fica no Histórico (banco da organização) e NÃO vai para a
+      // Meta: é texto livre do modelo, ao lado do telefone em hash — numa
+      // clínica, é dado de saúde.
+      detalheDoValor = lido.produto
+        ? `Valor lido da conversa (${lido.produto}): "${lido.trecho}"`
+        : `Valor lido da conversa: "${lido.trecho}"`;
     } else {
       detalheDoValor = lido.motivo;
     }
-  }
-  const semValor = !qualificacao && !registro?.remote_request_id && valorDaVenda === null;
-  if (semValor && plataforma !== "google_ads") {
+    semValor = valorDaVenda === null;
+  };
+  if (semValor && plataforma !== "google_ads" && !valorPodeVirDaConversa) {
     await registra("skipped", "sem_valor");
     return ok("skipped", "sem_valor");
   }
@@ -270,14 +280,14 @@ export async function processarConversao(
     // deduplicação não casassem do outro lado.
     //
     // Protocolo pendente (`remote_request_id`) é do transporte direto, e só ele
-    // sabe consultá-lo: fica fora. O `value_cents` não nulo já está garantido
-    // pelo `sem_valor` acima; a checagem só estreita o tipo.
+    // sabe consultá-lo: fica fora. Sem valor no negócio, a conversa só é lida
+    // depois que a chave está ligada E o canal existe — antes, não há destino.
     if (
       credencial.motivo === "sem_conexao" &&
       plataforma === "meta_ads" &&
       EVENTO === "Purchase" &&
       !registro?.remote_request_id &&
-      valorDaVenda !== null
+      (valorDaVenda !== null || valorPodeVirDaConversa)
     ) {
       // A chave vem ANTES de tudo (doc 76): desligada — o padrão —, nem as
       // conversas são lidas, e nada sai para o provedor.
@@ -295,7 +305,8 @@ export async function processarConversao(
           detail: `leitura do canal falhou: ${err instanceof Error ? err.message : String(err)}`,
         };
       }
-      if (canal) {
+      if (canal && valorPodeVirDaConversa) await lerOValorNaConversa();
+      if (canal && valorDaVenda !== null) {
         const pelo = await canal.reportar({
           event: EVENTO,
           eventId: `${lead.id}:${EVENTO}`,
@@ -312,7 +323,13 @@ export async function processarConversao(
     return ok("skipped", semValor ? "sem_valor" : credencial.motivo);
   }
 
-  const modoDeValor = credencial.credencial.google?.modoDeValorDaVenda ?? "obrigatorio";
+  if (valorPodeVirDaConversa) await lerOValorNaConversa();
+  // O modo de valor é do Google (0436). A Meta exige valor na compra sempre —
+  // agora que a decisão dela também passa por aqui, a plataforma é explícita.
+  const modoDeValor =
+    plataforma === "google_ads"
+      ? (credencial.credencial.google?.modoDeValorDaVenda ?? "obrigatorio")
+      : "obrigatorio";
   if (semValor && modoDeValor === "obrigatorio") {
     await registra("skipped", "sem_valor");
     return ok("skipped", "sem_valor");
@@ -364,7 +381,6 @@ export async function processarConversao(
     // linha que teve a moeda apagada à mão.
     moeda: moedaDaVenda ?? "BRL",
     valorCentavos: qualificacao ? null : valorDaVenda,
-    produto,
     // O nome no fio do evento de etapa da Meta: o retrato, e só na falta dele a
     // regra — mudar a regra depois não rebatiza uma conversão já registrada.
     eventoNaPlataforma: qualificacao?.eventoMeta

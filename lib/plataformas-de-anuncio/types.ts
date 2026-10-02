@@ -95,8 +95,6 @@ export interface ConversaoOffline {
   telefone: string | null;
   valorCentavos: number | null;
   moeda: string;
-  /** O que foi vendido, quando se sabe (lido da conversa). Nunca dado pessoal. */
-  produto?: string | null;
   /**
    * O nome do evento NO FIO, quando ele não é o `evento` do livro-razão — o
    * evento padrão de uma regra de etapa da Meta (`InitiateCheckout`,
