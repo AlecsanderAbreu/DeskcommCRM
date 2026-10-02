@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 describe("normalizarModeloId — o id chega em formas que a tabela não conhece", () => {
-  it("id canônico bare passa intacto (só o sufixo é recortado)", () => {
+  it("id canônico bare passa intacto", () => {
     expect(normalizarModeloId("claude-sonnet-5")).toEqual(["claude-sonnet-5"]);
   });
 
@@ -74,16 +74,17 @@ describe("normalizarModeloId — o id chega em formas que a tabela não conhece"
     expect(normalizarModeloId("anthropic/claude-haiku-4.5:beta:free")).toContain(
       "anthropic/claude-haiku-4-5",
     );
-    expect(normalizarModeloId("anthropic/claude-haiku-4.5:beta:free")).not.toEqual(
-      expect.arrayContaining([expect.stringContaining(":")]),
-    );
+    // Só o primeiro candidato (o id cru) carrega o sufixo.
+    const c = normalizarModeloId("anthropic/claude-haiku-4.5:beta:free");
+    expect(c.slice(1).some((x) => x.includes(":"))).toBe(false);
   });
 
   it("candidatos saem do mais específico para o generalista — o exato vence", () => {
     // A ordem importa: o match tenta o primeiro. O listado mais específico é o
-    // id completo (com prefixo) na grafia que chegou, antes do recorte.
+    // id CRU, com o sufixo, como chegou — `<m>:free` tem linha própria.
     const c = normalizarModeloId("anthropic/claude-haiku-4.5:free");
-    expect(c[0]).toBe("anthropic/claude-haiku-4.5");
+    expect(c[0]).toBe("anthropic/claude-haiku-4.5:free");
+    expect(c[1]).toBe("anthropic/claude-haiku-4.5");
     expect(c).toContain("claude-haiku-4-5");
   });
 });
@@ -105,7 +106,7 @@ describe("computeCostCents — três caminhos da issue #1931", () => {
     vi.mocked(createAdminClient).mockReturnValue(adminComCatalogo(CATALOGO) as never);
     const custo = await computeCostCents({
       provider: "openrouter",
-      model: "anthropic/claude-haiku-4.5:free",
+      model: "anthropic/claude-haiku-4.5:beta",
       inputTokens: 1_000_000,
       outputTokens: 1_000_000,
     });
@@ -173,5 +174,93 @@ describe("computeCostCents — três caminhos da issue #1931", () => {
       outputTokens: 1_000_000,
     });
     expect(custo).toBeNull();
+  });
+
+  it("4) `<m>:free` com linha própria custa 0, e `<m>` segue custando o pago", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      adminComCatalogo([
+        {
+          provider: "openrouter",
+          model_id: "meta-llama/llama-3.3-70b-instruct:free",
+          input_price_per_million_cents: 0,
+          output_price_per_million_cents: 0,
+        },
+        {
+          provider: "openrouter",
+          model_id: "meta-llama/llama-3.3-70b-instruct",
+          input_price_per_million_cents: 13,
+          output_price_per_million_cents: 40,
+        },
+      ]) as never,
+    );
+    const uso = { provider: "openrouter", inputTokens: 1_000_000, outputTokens: 1_000_000 };
+    expect(await computeCostCents({ ...uso, model: "meta-llama/llama-3.3-70b-instruct:free" })).toBe(0);
+    expect(await computeCostCents({ ...uso, model: "meta-llama/llama-3.3-70b-instruct" })).toBe(53);
+  });
+
+  it("5) `:free` sem linha própria NÃO herda o preço do pago — nem pelo fallback de outro provider", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      adminComCatalogo([
+        {
+          provider: "openrouter",
+          model_id: "anthropic/claude-haiku-4-5",
+          input_price_per_million_cents: 100,
+          output_price_per_million_cents: 500,
+        },
+        {
+          provider: "requesty",
+          model_id: "anthropic/claude-haiku-4.5",
+          input_price_per_million_cents: 100,
+          output_price_per_million_cents: 500,
+        },
+      ]) as never,
+    );
+    const custo = await computeCostCents({
+      provider: "openrouter",
+      model: "anthropic/claude-haiku-4.5:free",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+    expect(custo).toBeNull();
+  });
+
+  it("5b) `:free` com a linha paga SÓ sob outro provider também é null", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      adminComCatalogo([
+        {
+          provider: "requesty",
+          model_id: "anthropic/claude-haiku-4-5",
+          input_price_per_million_cents: 100,
+          output_price_per_million_cents: 500,
+        },
+      ]) as never,
+    );
+    const custo = await computeCostCents({
+      provider: "openrouter",
+      model: "anthropic/claude-haiku-4.5:free",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+    expect(custo).toBeNull();
+  });
+
+  it("6) 0/0 é grátis de verdade: custa 0, não null", async () => {
+    vi.mocked(createAdminClient).mockReturnValue(
+      adminComCatalogo([
+        {
+          provider: "openrouter",
+          model_id: "google/gemma-3-27b-it",
+          input_price_per_million_cents: 0,
+          output_price_per_million_cents: 0,
+        },
+      ]) as never,
+    );
+    const custo = await computeCostCents({
+      provider: "openrouter",
+      model: "google/gemma-3-27b-it",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+    expect(custo).toBe(0);
   });
 });

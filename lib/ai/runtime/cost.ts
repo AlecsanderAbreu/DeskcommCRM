@@ -70,7 +70,9 @@ export interface ComputeCostInput {
  * (`anthropic/claude-haiku-4-5`). O id que chega pode trazer três variações que
  * o catálogo não conhece e que a normalização absorve:
  *
- *  - sufixo de variante do roteador (`:beta`, `:free`);
+ *  - sufixo de variante do roteador (`:beta`, `:free`) — mas o id CRU, com o
+ *    sufixo, é sempre o primeiro candidato: `<m>:free` tem linha própria no
+ *    catálogo da OpenRouter, com preço 0, e ela vence a linha paga `<m>`;
  *  - prefixo `provider/` já embutido no `model` (issue #1929);
  *  - a versão grafada com ponto (`claude-haiku-4.5`) em vez do hífen do
  *    catálogo (`claude-haiku-4-5`) — o caso desta issue (#1931).
@@ -84,7 +86,8 @@ export function normalizarModeloId(model: string): string[] {
 
   const candidatos: string[] = [];
   const ordem = [
-    comPrefixo, // como veio, só com o sufixo recortado
+    model.trim(), // como veio, com o sufixo — o exato vence
+    comPrefixo, // só com o sufixo recortado
     comPrefixo.replace(/\./g, "-"), // grafia do catálogo com hífen
     nome, // recorte do prefixo
     nome.replace(/\./g, "-"), // recorte do prefixo + hífen
@@ -100,6 +103,14 @@ function acharLinha(
   input: ComputeCostInput,
 ): ModelPricingRow | undefined {
   const candidatos = normalizarModeloId(input.model);
+
+  // 0) Variante gratuita (`<m>:free`) só casa a PRÓPRIA linha. Recortar o
+  //    sufixo herdaria o preço do `<m>` pago — e o fallback do passo 2, que
+  //    procura em qualquer provider, também. Sem linha própria, o preço é
+  //    desconhecido: null, nem o do pago nem um 0 inventado.
+  if (input.model.split(":").slice(1).includes("free")) {
+    return pricing.get(key(input.provider, candidatos[0] ?? ""));
+  }
 
   // 1) id exato sob o provider do chamador.
   for (const c of candidatos) {
@@ -144,16 +155,16 @@ export async function computeCostCents(input: ComputeCostInput): Promise<number 
     avisarSemPreco(input.provider, input.model);
     return null;
   }
-  const inputRate = Number(row.input_price_per_million_cents ?? 0);
-  const outputRate = Number(row.output_price_per_million_cents ?? 0);
-  // Catálogo que conhece o modelo mas não tem preço (ambos null/zero, ex.
+  // Catálogo que conhece o modelo mas não tem preço (as duas taxas null, ex.
   // linha aberta pela OpenRouter com `pricing: null`) não é melhor que
-  // ausência: zero aqui seria inventar "de graça". Mesmo desfecho da legacy
-  // `precoDoCatalogo`.
-  if (inputRate === 0 && outputRate === 0) {
+  // ausência: null. Já 0/0 é grátis DE VERDADE — `precoParaCentavosPorMilhao`
+  // (lib/ai/catalogo/openrouter.ts) grava 0 de propósito para os gratuitos.
+  if (row.input_price_per_million_cents == null && row.output_price_per_million_cents == null) {
     avisarSemPreco(input.provider, row.model_id);
     return null;
   }
+  const inputRate = Number(row.input_price_per_million_cents ?? 0);
+  const outputRate = Number(row.output_price_per_million_cents ?? 0);
   const cents =
     ((input.inputTokens ?? 0) * inputRate) / 1_000_000 +
     ((input.outputTokens ?? 0) * outputRate) / 1_000_000;
