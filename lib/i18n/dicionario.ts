@@ -2465,6 +2465,26 @@ export const DICIONARIO: Traducoes = {
     es: "Si el caso se resuelve antes, el seguimiento se cancela solo.",
   },
   "Minutos de silêncio": { es: "Minutos de silencio" },
+  // ─── gatilho de silêncio — pausa de reentrada (lib/followup/pausa-de-reentrada.ts) ───
+  "Pausa antes de recomeçar (horas)": { es: "Pausa antes de volver a empezar (horas)" },
+  "Silêncio máximo, em minutos (opcional)": { es: "Silencio máximo, en minutos (opcional)" },
+  "Da última mensagem do cliente": { es: "Desde el último mensaje del cliente" },
+  "Do último envio deste fluxo": { es: "Desde el último envío de este flujo" },
+  "Contar a pausa a partir do último envio deste fluxo (e não da última mensagem do cliente)": {
+    es: "Contar la pausa desde el último envío de este flujo (y no desde el último mensaje del cliente)",
+  },
+  "no máximo 1× a cada": { es: "como máximo 1× cada" },
+  "Precisa ser maior que o mínimo e no máximo 10080 (7 dias).": {
+    es: "Tiene que ser mayor que el mínimo y como máximo 10080 (7 días).",
+  },
+  "Com um máximo, o fluxo só começa enquanto o silêncio for recente — por exemplo, entre 10 e 60 minutos depois da última mensagem do cliente. Quem está calado há mais tempo fica de fora. 0 = sem máximo.": {
+    es: "Con un máximo, el flujo solo empieza mientras el silencio sea reciente — por ejemplo, entre 10 y 60 minutos después del último mensaje del cliente. Quien lleva más tiempo callado queda afuera. 0 = sin máximo.",
+  },
+  "Use de 0 a 2160 horas (90 dias).": { es: "Usa de 0 a 2160 horas (90 días)." },
+  "pausa de": { es: "pausa de" },
+  "Vale para quem já passou por este fluxo e respondeu ou chegou ao fim: ele só recomeça depois deste tempo sem o cliente escrever. Quem nunca passou por ele entra no tempo de silêncio de sempre. 0 = sem pausa.": {
+    es: "Vale para quien ya pasó por este flujo y respondió o llegó al final: solo vuelve a empezar después de este tiempo sin que el cliente escriba. Quien nunca pasó por él entra en el tiempo de silencio de siempre. 0 = sin pausa.",
+  },
   "Mínimo de": { es: "Mínimo de" },
   "minutos.": { es: "minutos." },
   "Segmentos (tags, opcional)": { es: "Segmentos (tags, opcional)" },
