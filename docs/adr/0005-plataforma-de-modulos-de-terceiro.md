@@ -270,10 +270,27 @@ Estes pontos não são detalhe de implementação; cada um muda uma garantia e a
    `fn_*_provisionar`, e o compilador cria uma função nova.
 2. O **despacho da reaplicação** nas atualizações por coluna de origem do módulo, não por
    `to_regprocedure`, que não distingue oficial de terceiro.
-3. **Se um módulo de terceiro suspenso reprova a atualização do núcleo.** Hoje a conferência levanta
-   `ERROR` e faz o `update.sh` morrer, deixando o app antigo sobre o banco novo. Para terceiro isso é
-   desproporcional: ele deve **suspender o módulo, avisar e seguir**, com o `ERROR` reservado ao
-   módulo oficial, que é do mesmo release.
+3. **Se um módulo de terceiro suspenso reprova a atualização do núcleo.** Isto **não é hipótese**: o
+   custo de reprovar já foi pago em produção, e com o módulo OFICIAL. Na v1.61.0, a conferência de
+   isolamento do `update.sh` montava a lista esperada lendo o `baseline.sql` como TEXTO, e por isso
+   cobrava as oito regras de honorários — que moram **dentro do corpo** da provisionadora e só
+   existem depois de `fn_modulo_instalar`. Em **toda instalação sem o módulo** a atualização parou:
+   site em 503, o run preso em `dispatched` com o agente do host repetindo a tentativa a cada 5
+   minutos (desfazendo até a volta manual para a versão anterior), e o contêiner de manutenção de pé
+   depois de a tela dizer que o sistema tinha voltado (issues #1897 e #1878, medido em instalação
+   real em 28/09/2026).
+
+   Consertado no PR #1906: a régua passa a cobrar **só policy cuja relação já existe no banco** —
+   mais genérico que caçar `$f$` no texto —, com `tests/shell/regras-isolamento-sem-modulo.test.sh` de
+   guarda, e com o cuidado de **não filtrar** quando a consulta ao banco vem vazia (surdo nunca).
+
+   Duas consequências para esta ADR, e as duas são reforço, não dúvida: **(a)** a decisão fica
+   escrita como "módulo de terceiro suspende, avisa e segue", porque o precedente mostra que derrubar
+   a atualização por causa de um módulo custa instalação fora do ar com repetição automática; **(b)**
+   o princípio que o #1906 estabeleceu — o kit confere o que existe no banco, não o que está escrito
+   no arquivo — passa a ser **requisito da onda 1**: nenhuma peça de módulo pode entrar numa
+   conferência que o kit faça por leitura do `baseline.sql`. O compilador multiplicaria esse defeito
+   por módulo instalado.
 4. **Reaplicação por hash do artefato**, para não alongar a janela de indisponibilidade quando nada
    mudou.
 5. A reemissão da **cascata de LGPD** como última definição do apêndice do baseline, e o alcance da
