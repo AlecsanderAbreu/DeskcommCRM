@@ -1,30 +1,28 @@
 ---
 impacto: nada_mudou
 secao: corrigido
-titulo: O teste do kit "instalar sem chave de IA" não depende mais do ambiente para decidir o aviso da tela final (intermitência da #1570)
+titulo: O teste do kit "instalar sem chave de IA" para de reprovar por acaso (intermitência da #1570)
 ---
 
 O caso `instalar SEM chave de IA — a tela final avisa` (`hostgator-setup-kit/test-validators.sh`,
 integração da #670) reprovou o `verify-parte (3)` com intermitência, no run 35948236372, com
-`✗ a tela final não avisa que a IA ainda não atende` — numa suíte que já rodava hermetizada para
-quem tem chave no terminal (PR #1599). A causa-raiz não era o ambiente de quem roda mas uma JANELA
-de não-determinismo no próprio latch do aviso: `pendencia_da_ia` (`install.sh`) decide a pendência de IA
-da tela final lendo `ANTHROPIC_API_KEY` / `AI_GATEWAY_API_KEY` **do ambiente do processo** — e o caso
-zerava as chaves só por herança global da suíte, sem garantir no ENV da invocação do `install.sh`.
+`✗ a tela final não avisa que a IA ainda não atende` — e o mesmo SHA passou na reexecução.
 
-Medido, de forma determinística: com a chave hostil no ambiente do install, o mesmo caso reproduz o
-sintoma exato do CI — instalação chega a `Instalação concluída` mas o aviso de IA some da tela.
+A causa não era chave de IA no ambiente: o CI não exporta nenhuma, e a suíte já zera as quatro
+no topo desde o #1599. Era o cano das asserções. A suíte roda com `set -o pipefail`, e as
+asserções liam a saída com `printf '%s' "$saida" | grep -q '...'`. O `grep -q` sai assim que
+acha a frase; se o `printf` ainda está escrevendo, ele leva SIGPIPE (status 141), o `pipefail`
+derruba o pipeline e o `!` lê isso como "a frase não está lá".
 
-A correção fecha a janela na raiz, sem encobrir:
-- `rodar_sem_ia` agora zera as quatro chaves de IA **no `env` da invocação** (o mesmo padrão que a linha
-  `SUPABASE_ACCESS_TOKEN=` já usa por chamada), de modo que o `install.sh` nasce sem chave
-  independentemente do ambiente da suíte; e
-- a asserção do aviso procura na **saída inteira** (em vez de derivar o "rabo" depois da última
-  "Instalação concluída"), ficando imune a ordem de flush, e imprime as últimas linhas se reprovar —
-  para o próximo diagnóstico nascer de dado, não de chute.
+Medido num `ubuntu:24.04` com bash 5.2 e 1 CPU, sobre a saída real do próprio caso: pelo cano,
+taxas baixas e variáveis de falso vermelho (de 1 a 6 em 6000, conforme a asserção), todas com
+status `141/0`; com here-string (`grep -q '...' <<<"$saida"`), zero em 6000.
 
-Verificado com o caso isolado em ambiente hostil (repro N vezes verdes), com o fluxo do #1599 e com a
-suíte fechando em laço.
+O conserto troca as 45 asserções `printf '%s' "$var" | grep -q` do arquivo por here-string —
+sem cano, não há quem leve SIGPIPE — e mantém a medição na tela final (depois de
+"Instalação concluída"). Ficam também as duas melhorias do PR original: o `install.sh` desse
+caso recebe as quatro chaves de IA zeradas no próprio `env` da chamada (defesa extra), e,
+quando o caso reprova, ele imprime as últimas linhas da saída para o diagnóstico nascer de dado.
 
 Refs #1570.
-Contribuição de @webtecnica (#2033).
+Contribuição de @webtecnica (#2033), construído sobre o diagnóstico e a hermetização dele.
