@@ -119,6 +119,36 @@ set_env_var "$supabase_env" SUPABASE_PUBLIC_URL "https://${domain}"
 set_env_var "$supabase_env" API_EXTERNAL_URL "https://${domain}/auth/v1"
 set_env_var "$supabase_env" SITE_URL "https://${domain}"
 set_env_var "$supabase_env" ADDITIONAL_REDIRECT_URLS "https://${domain}/auth/confirm,https://${domain}/**"
+# ── E-mails de acesso: o GoTrue busca o MOLDE no app (#2109) ────────────────
+# O molde padrao do GoTrue linka para `/auth/v1/verify`, que devolve a sessao
+# no FRAGMENTO da URL — e fragmento nunca chega ao servidor. `app/auth/confirm`
+# nao acha `code` nem `token_hash` e manda o clique para
+# `/login?error=link_invalido`: a recuperacao de senha quebra para TODO MUNDO, e
+# so aparece no clique, quando quem instalou ja saiu da frente do terminal. As
+# rotas do app ja existem e respondem 200 (`/email-templates/recovery` e
+# `/email-templates/confirmation`), e o `marca-emails.sh` ja imprime estas duas
+# linhas como instrucao — so nao sao aplicadas.
+#
+# O compose oficial do Supabase nao mapeia estas chaves para o servico `auth`
+# (ele so mapeia GOTRUE_SMTP_* e GOTRUE_MAILER_URLPATHS_*), entao elas valem
+# DUAS vezes: aqui, no .env que o compose interpola, e no
+# `supabase-single-server.override.yml`, que e quem as entrega ao contêiner.
+# Gravadas ANTES do `dc_supabase up -d --wait` de baixo: no primeiro boot o
+# auth ja nasce configurado, e numa re-execucao o compose recria o contêiner
+# cujo ambiente mudou.
+#
+# Valor ja presente — no .env do Supabase ou no ambiente de quem instala —
+# manda: o instalador nao sobrescreve um molde que o operador ja apontou.
+gravar_modelo_do_gotrue() {  # gravar_modelo_do_gotrue <chave> <caminho do molde>
+  local chave="$1" caminho="$2" atual
+  atual="$(ler_env "$supabase_env" "$chave")"
+  [ -n "$atual" ] && return 0
+  atual="${!chave:-}"
+  [ -n "$atual" ] || atual="https://${domain}${caminho}"
+  set_env_var "$supabase_env" "$chave" "$atual"
+}
+gravar_modelo_do_gotrue GOTRUE_MAILER_TEMPLATES_CONFIRMATION /email-templates/confirmation
+gravar_modelo_do_gotrue GOTRUE_MAILER_TEMPLATES_RECOVERY /email-templates/recovery
 # Confirmacao de e-mail fica LIGADA: sem ela qualquer pessoa cria conta com
 # um e-mail que nao e dela. Fixada aqui, e nao herdada do default do Supabase,
 # para que um bump do SUPABASE_REF nao a desligue calado. Vigiado por
