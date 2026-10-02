@@ -16,11 +16,15 @@
  *
  * O `app/globals.css` declara as MESMAS custom properties em `:root` (claro) e
  * em `[data-theme="dark"]` (escuro) — fundo, superfície e texto têm valores
- * distintos por tema. Um mapa plano por token não conseguiria dizer \"o fundo
- * claro é #faf9f6 e o escuro é #161510\" sem inventar nome de token. Dois mapas,
+ * distintos por tema. Um mapa plano por token não conseguiria dizer "o fundo
+ * claro é #faf9f6 e o escuro é #161510" sem inventar nome de token. Dois mapas,
  * um por tema, espelham exatamente como o produto já separa os dois blocos. Os
- * tokens do accent (os 11 stops + papéis) valem nos dois temas e o autor pode
- * pô-los em qualquer um dos mapas — o hoist é o mesmo `--color-accent-NNN`.
+ * 11 stops da rampa (`--color-accent-NNN`) têm o mesmo valor nos dois temas e
+ * podem ir só no `claro`. Todo o resto (fundo, superfície, texto, borda e os
+ * papéis `--color-accent`/`-fg`/`-soft`/`-hover`) muda com o tema no
+ * `globals.css`, e por isso o que for declarado no `claro` tem de vir também no
+ * `escuro`: o bloco claro (`body:has([data-tema-extensao])`) casa também no
+ * modo escuro, e um `--color-bg` só no claro deixaria o fundo claro no escuro.
  *
  * ── A régua de FORMA é a do branding, não uma cópia ─────────────────────────
  *
@@ -28,9 +32,6 @@
  * allowlist de forma de `lib/branding/formas-de-valor.ts`, que `css.ts` também
  * usa. Um valor fora dessa forma é recusado AQUI e no manifesto (`esquemaDa
  * ContribuicaoDeTema`): duas validações, uma régua.
- *
- * ── Cuidado com a ordem do backtick no docstring ────────────────────────────
- * (nada aqui é executável — só texto já filtrado.)
  */
 
 import { z } from "zod";
@@ -40,7 +41,7 @@ import { ehFormaDeValorPermitida, ehNomeDeToken } from "@/lib/branding/formas-de
 /**
  * As paletas que uma extensão pode oferecer como tema. São as MESMAS cinco do
  * laboratório `app/design/lib/tokens.ts` (PALETTES), vertidas para cá como a
- * lista FECHADA de chave — o \"gancho\" referencia uma paleta, o valor de cada
+ * lista FECHADA de chave — o "gancho" referencia uma paleta, o valor de cada
  * token é validado pela régua de forma. O default do produto é `sage`.
  */
 export const PALETAS_DE_TEMA = ["sage", "clay", "mist", "plum", "olive"] as const;
@@ -52,7 +53,7 @@ export function ehPaletaDeTema(valor: unknown): valor is PaletaDeTema {
 
 /**
  * A allowlist de CHAVE do tema de extensão: só estes tokens podem ser
- * sobrescritos. É o subconjunto do `globals.css` que define o \"visual\" — as
+ * sobrescritos. É o subconjunto do `globals.css` que define o "visual" — as
  * superfícies, o texto, as bordas e a rampa de accent — SEM os tokens de estado
  * (`--color-success` e irmãs) e sem os neutros, que têm par por tema e seriam
  * os primeiros a quebrar contraste se uma extensão os empurrasse cego.
@@ -113,13 +114,37 @@ const mapDeTokens = () =>
  * (`lib/extensions/manifest.ts`) o importa — uma só régua para o que o pacote
  * declara e para o que o host revalida ao ler o artefato gravado.
  */
+/**
+ * As chaves do `claro` que mudam com o tema e não têm par no `escuro` — as que
+ * vazariam o valor claro para o modo escuro (ver o cabeçalho). Os stops da
+ * rampa ficam de fora porque o `globals.css` dá a eles o mesmo valor nos dois.
+ */
+export function chavesSemParNoEscuro(tema: {
+  readonly claro: Readonly<Record<string, unknown>>;
+  readonly escuro: Readonly<Record<string, unknown>>;
+}): string[] {
+  return Object.keys(tema.claro).filter(
+    (chave) => !/^--color-accent-\d+$/.test(chave) && !(chave in tema.escuro),
+  );
+}
+
 export const esquemaDaContribuicaoDeTema = z
   .object({
     palette: z.enum(PALETAS_DE_TEMA),
     claro: mapDeTokens(),
     escuro: mapDeTokens(),
   })
-  .strict();
+  .strict()
+  .superRefine((tema, ctx) => {
+    const semPar = chavesSemParNoEscuro(tema);
+    if (semPar.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["escuro"],
+        message: `token declarado no claro sem valor no escuro: ${semPar.join(", ")}`,
+      });
+    }
+  });
 
 export type TemaDeExtensao = z.infer<typeof esquemaDaContribuicaoDeTema>;
 
@@ -148,7 +173,11 @@ function paraDiagnostico(valor: string): string {
 }
 
 export type MotivoDoTema = {
-  readonly codigo: "chave_fora_da_allowlist" | "valor_fora_da_régua" | "saida_suspeita";
+  readonly codigo:
+    | "chave_fora_da_allowlist"
+    | "valor_fora_da_régua"
+    | "sem_par_no_escuro"
+    | "saida_suspeita";
   readonly alvo: string;
   readonly detalhe: string;
 };
@@ -183,6 +212,16 @@ export function cssDaExtensaoDeTema(
 ): CssDoTemaDeExtensao {
   const motivos: MotivoDoTema[] = [];
   if (tema === null) return { css: null, motivos };
+
+  const semPar = chavesSemParNoEscuro(tema);
+  if (semPar.length > 0) {
+    motivos.push({
+      codigo: "sem_par_no_escuro",
+      alvo: semPar.join(", "),
+      detalhe: "token que muda com o tema declarado só no claro vazaria para o modo escuro",
+    });
+    return { css: null, motivos };
+  }
 
   const claras = declaracoesDe(tema.claro);
   const escuras = declaracoesDe(tema.escuro);
@@ -309,5 +348,8 @@ export function linhaBrutaDeTema(linha: unknown): LeituraDeTemaDaOrganizacao | n
   const manifest = (artefato as Record<string, unknown>).manifest;
   if (typeof manifest !== "object" || manifest === null) return null;
 
-  return { configuracao: { theme: config.theme }, contribuicao: manifest };
+  return {
+    configuracao: { theme: config.theme },
+    contribuicao: (manifest as Record<string, unknown>).contributions,
+  };
 }

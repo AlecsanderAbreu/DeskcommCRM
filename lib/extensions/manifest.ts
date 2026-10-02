@@ -38,7 +38,7 @@ export type LocalizedText = { "pt-BR": string; es?: string };
 export type ExtensionConfiguration = {
   density: "comfortable" | "compact";
   show_description: boolean;
-  /** A paleta de tema escolhida (opcional) — o \"qual paleta\" da organização. */
+  /** A paleta de tema escolhida (opcional) — o "qual paleta" da organização. */
   theme?: PaletaDeTema;
 };
 

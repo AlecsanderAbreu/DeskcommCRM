@@ -6,6 +6,7 @@ import {
   cssDaExtensaoDeTema,
   ESCOPO_DO_TEMA_DA_ORGANIZACAO,
   esquemaDaContribuicaoDeTema,
+  linhaBrutaDeTema,
   temaAplicavel,
   type TemaDeExtensao,
 } from "@/lib/extensions/tema";
@@ -39,9 +40,7 @@ const temaMinimo: TemaDeExtensao = {
   escuro: { "--color-bg": "#11151c", "--color-accent-400": "#8fa8be" },
 };
 
-const temaComTodasAsChaves: TemaDeExtensao = {
-  palette: "olive",
-  claro: Object.fromEntries(
+const todasAsChaves = Object.fromEntries(
     CHAVES_DE_TOKEN_DO_TEMA.map((chave) => [
       chave,
       chave.startsWith("--color-accent-") && chave !== "--color-accent-soft"
@@ -54,10 +53,12 @@ const temaComTodasAsChaves: TemaDeExtensao = {
               ? "var(--color-accent-100)"
               : "#f5f5ef",
     ]),
-  ) as TemaDeExtensao["claro"],
-  escuro: {
-    "--color-bg": "#141611",
-  },
+) as TemaDeExtensao["claro"];
+
+const temaComTodasAsChaves: TemaDeExtensao = {
+  palette: "olive",
+  claro: todasAsChaves,
+  escuro: { ...todasAsChaves, "--color-bg": "#141611" },
 };
 
 function sujeito(
@@ -182,5 +183,67 @@ describe("gancho de tema — o manifesto: allowlist de chave e régua de forma",
     );
     expect(semPermissao.compatible).toBe(false);
     expect(semPermissao.reason).toBe("permission_unsupported");
+  });
+});
+
+describe("gancho de tema — o caminho de produção (select do layout → CSS)", () => {
+  // A linha no formato que o select de `app/app/layout.tsx` devolve: o tema mora
+  // em `manifest.contributions.theme`, não em `manifest.theme`.
+  function linhaDoSelect(
+    configuracao: Record<string, unknown>,
+    artefatos: unknown = { manifest: { contributions: { crm_cards: [], theme: temaMinimo } } },
+  ) {
+    return {
+      configuration: { density: "comfortable", show_description: true, ...configuracao },
+      extension_installations: { extension_artifacts: artefatos },
+    };
+  }
+
+  it("a paleta escolhida, lida pelo select, aplica o tema", () => {
+    const linha = linhaBrutaDeTema(linhaDoSelect({ theme: "mist" }));
+    expect(temaAplicavel([linha!])).toEqual(temaMinimo);
+    expect(cssDaExtensaoDeTema(temaAplicavel([linha!])).css).toContain("--color-bg: #f6f6f4");
+  });
+
+  it("o mesmo vale quando o PostgREST embute o artefato como array", () => {
+    const linha = linhaBrutaDeTema(
+      linhaDoSelect({ theme: "mist" }, [
+        { manifest: { contributions: { crm_cards: [], theme: temaMinimo } } },
+      ]),
+    );
+    expect(temaAplicavel([linha!])).toEqual(temaMinimo);
+  });
+
+  it("sem `theme` na configuração, a linha não vira candidato", () => {
+    expect(linhaBrutaDeTema(linhaDoSelect({}))).toBeNull();
+  });
+});
+
+describe("gancho de tema — o claro não vaza para o modo escuro", () => {
+  // O bloco claro (`body:has([data-tema-extensao])`) casa também no escuro; um
+  // token que muda com o tema declarado só no claro pintaria o escuro de claro.
+  const soNoClaro: TemaDeExtensao = {
+    palette: "mist",
+    claro: { "--color-bg": "#f6f6f4" },
+    escuro: {},
+  };
+
+  it("o CSS recusa um token de fundo declarado só no claro", () => {
+    const saida = cssDaExtensaoDeTema(soNoClaro);
+    expect(saida.css).toBeNull();
+    expect(saida.motivos[0]?.codigo).toBe("sem_par_no_escuro");
+  });
+
+  it("o manifesto recusa o mesmo tema", () => {
+    expect(esquemaDaContribuicaoDeTema.safeParse(soNoClaro).success).toBe(false);
+  });
+
+  it("um stop da rampa só no claro passa — o globals.css dá o mesmo valor nos dois temas", () => {
+    const saida = cssDaExtensaoDeTema({
+      palette: "mist",
+      claro: { "--color-accent-600": "#33475b" },
+      escuro: {},
+    });
+    expect(saida.css).not.toBeNull();
   });
 });
