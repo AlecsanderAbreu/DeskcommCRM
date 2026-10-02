@@ -1283,6 +1283,8 @@ export const DICIONARIO: Traducoes = {
   "Em atendimento": { es: "En atención" },
   "Aguardando atendente": { es: "Esperando asesor" },
   "Automático atendendo": { es: "Automático atendiendo" },
+  "Sem atendente": { es: "Sin asesor" },
+  Encerrada: { es: "Cerrada" },
   "Automático pausado": { es: "Automático pausado" },
   // Os motivos do silêncio (lib/inbox/comando-da-conversa.ts). "Automático
   // pausado" sozinho respondia a três situações que pedem ações diferentes:
@@ -2497,6 +2499,7 @@ export const DICIONARIO: Traducoes = {
   "Nenhum agente fixado": { es: "Ningún agente fijado" },
   "Começou": { es: "Empezó" },
   "Passos dados": { es: "Pasos dados" },
+  "Etapas executadas": { es: "Etapas ejecutadas" },
   "Onde está agora": { es: "Dónde está ahora" },
   passo: { es: "paso" },
   "não existe mais na versão publicada deste fluxo": { es: "ya no existe en la versión publicada de este flujo" },
@@ -2507,7 +2510,13 @@ export const DICIONARIO: Traducoes = {
   "Desfecho": { es: "Resultado" },
   Motivo: { es: "Motivo" },
   "Última falha": { es: "Último error" },
+  "Falha ao processar a etapa": { es: "Error al procesar la etapa" },
   tentativa: { es: "intento" },
+  "nova tentativa automática": { es: "nuevo intento automático" },
+  "Encerrado sem conversão": { es: "Cerrado sin conversión" },
+  "Pediu para parar": { es: "Pidió que se detenga" },
+  "Passou para um humano": { es: "Pasó a un humano" },
+  "O contato respondeu": { es: "El contacto respondió" },
   "O automático está executando este follow-up agora — as ações abaixo podem ser recusadas por alguns instantes.": {
     es: "El proceso automático está ejecutando este seguimiento ahora. Es posible que las acciones de abajo se rechacen durante unos instantes.",
   },
