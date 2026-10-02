@@ -313,6 +313,7 @@ para reproduzir o teste local.
 | J6.2 | "Enviar lead de teste" | toast de sucesso + lead visível no Kanban + feed atualiza |
 | J6.3 | POST externo real (curl de "Zapier") | lead entra; feed mostra recebimento; idempotência por external_id |
 | J6.4 | HMAC: fonte com secret + assinatura errada | 401; feed marca inválido |
+| J6.17 | **`[P0]` Ligar a assinatura da fonte pela tela, e ela valer de verdade** | quem administra gera o segredo em Automações › Receber dados, vê o valor UMA vez e copia. Com o valor lido da própria tela: sem segredo → 200 (controle), com segredo e sem assinar → 401, assinatura de outro segredo → 401, assinado → 200. Reabrir mostra o estado e nenhum valor; remover devolve o 200 · `tests/e2e/fonte-de-captacao-assina-os-envios.spec.ts` (SPECS_PARTE_6) + `tests/unit/fonte-de-webhook-assinatura-hmac.test.tsx` (12 casos). Evidência: `evidence/assinatura-da-fonte-de-captacao/1-assinatura-desligada.png`, `evidence/assinatura-da-fonte-de-captacao/2-segredo-uma-vez.png`, `evidence/assinatura-da-fonte-de-captacao/3-reaberto-sem-valor.png`, `evidence/assinatura-da-fonte-de-captacao/4-assinatura-removida.png`. **Achado da própria execução:** o rig do e2e não gravava `nuvemshop_oauth_key` em `private.app_secrets` — a chave que o `install.sh` cria em toda VPS —, então "Gerar segredo" respondia 422 `encryption_unavailable` aqui e funcionaria no cliente. O rig media um produto que não existe; corrigido em `scripts/gerar-env-e2e.sh` |
 | J6.5 | Criar regra: lead com utm instagram → tag | regra nasce pausada; ativar pelo switch |
 | J6.6 | Drain roda → regra executa | tag aplicada; aba Atividade mostra run Sucesso |
 | J6.7 | Ação call_webhook → receiver local REAL | payload chega no receiver; envelope sem org_id/cpf |
@@ -1288,6 +1289,44 @@ mesma busca que a IA usa; a pergunta vira linha em `knowledge_searches` com
 
 **Não coberto:** a busca com material indexado e chave de embedding real (nenhum
 e2e do CI tem chave); o gráfico "Consultas da equipe ao acervo" em tela.
+
+## J37 — Suspender uma empresa cala a IA e os envios dela `[P0]` (2026-09-29)
+
+**Origem:** PR 1 da cobrança do revendedor
+(`docs/superpowers/specs/2026-09-29-cobranca-do-revendedor-design.md`, §1.3, §4 e §9).
+Antes, suspender só tirava a pessoa da tela: a IA, o follow-up, as automações,
+o token de API e o MCP seguiam funcionando, e quem tinha acesso só de leitura ao
+painel suspendia e reativava empresas.
+
+| Caso | Spec | Estado |
+|---|---|---|
+| Quem só tem leitura clica em Suspender: a resposta é 403 `forbidden_scope`, a tela mostra o erro, e a empresa segue ativa | `tests/e2e/suspensao-administrativa.spec.ts` | CI (PARTE_6) |
+| O dono suspende pela tela; o turno agendado e a resposta na fila viram `failed`; o gate (pelo PostgREST real) passa a negar | idem | CI (PARTE_6) |
+| Status, fila e evento mudam numa transação só (`fn_suspender_organizacao`): dentro dela o evento já existe, e o rollback desfaz status, evento e o turno agendado juntos. A tela só confere o resultado depois | `tests/invariants/org-suspensa.test.ts` | test:db |
+| A admin da empresa suspensa cai no hub: pedido de LGPD abrindo no próprio hub; o clique em "Voltar para" a empresa que opera leva ao inbox dela | `tests/e2e/suspensao-administrativa.spec.ts` | CI (PARTE_6) |
+| `/app/inbox` volta para o hub; o token `dsk_` da empresa responde 403 `org_suspended` | idem | CI (PARTE_6) |
+| A captação por `webhooks/in/[token]` é gravada durante a suspensão; nenhuma `llm_calls` nem mensagem de saída nasce | idem | CI (PARTE_6) |
+| A atendente da empresa suspensa lê "Avise o administrador da sua empresa", sem LGPD; "Sair" encerra a sessão e `/app` manda ao login | idem | CI (PARTE_6) |
+| O dono reativa: nada sai em rajada, e a Central mostra o aviso que leva ao Inbox | idem | CI (PARTE_6) |
+| O aviso de reativação conta só conversa que não é de grupo, diz só o fato, e a orientação manda procurar nas abas Fila e Automático (numa empresa com IA a conversa sem dono está em Automático) | `tests/invariants/org-suspensa.test.ts`, `lib/ai/inbox-destino.ts` | test:db |
+| Hub: empresa que opera volta para `/app`, pedido inválido cai na lista, leitura que falha lança | `app/account-suspended/page.test.tsx` | unit |
+| O aviso de reativação leva ao Inbox só para quem atende, e nunca por referência | `lib/ai/inbox-destino.test.ts` | unit |
+| O agendador pula o follow-up da empresa parada, no Postgres real | `tests/invariants/cron-org-parada.test.ts` | test:db |
+| O lembrete da agenda não sai nem abre conversa para a empresa parada | `tests/unit/lembrete-pula-org-parada.test.ts` | unit |
+| Suspensão no meio do envio não pausa a prospecção nem tira o destinatário da campanha | `tests/unit/prospecting-worker.test.ts`, `tests/unit/suspensao-nao-dispara-campanha.test.ts` | unit |
+| Quem tem acesso só de leitura ao painel e é membro comum de uma empresa não apaga os dados dela | `tests/unit/zona-de-perigo-apaga-so-a-propria-org.test.ts` | unit |
+
+**Não coberto pela tela:** a suspensão por falta de pagamento e o painel de
+pagamento no hub (PR 3a); a IA calada com um agente publicado de verdade (a
+spec não publica agente — quem prova o veto é `lib/ai/elegibilidade/gate.test.ts`,
+`tests/invariants/org-suspensa.test.ts` e o controle do gate na própria spec);
+APROVAR um pedido de LGPD pelo hub (a spec abre o pedido, não aprova).
+
+**Evidência:** `evidence/suspensao-administrativa/leitura-recusada.png`,
+`evidence/suspensao-administrativa/hub-admin.png`,
+`evidence/suspensao-administrativa/hub-pedido-lgpd.png`,
+`evidence/suspensao-administrativa/hub-atendente.png`,
+`evidence/suspensao-administrativa/central-apos-reativar.png`.
 
 ## Jornadas exercitadas (instalação final, virgem)
 
