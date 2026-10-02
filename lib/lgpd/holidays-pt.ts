@@ -2,12 +2,17 @@
  * Feriados nacionais de Portugal 2026-2030.
  * Usados pelo cálculo do prazo do RGPD para saltar dias não úteis.
  *
- * Conjunto de 2026-2030 (13 feriados): o decreto de 2022 cortou quatro
- * (Carnaval, Corpo de Deus, Todos os Santos, Restauração); o decreto de 2025
- * repô-los para este quinquénio. Aqui moram os dez fixos e os três móveis.
+ * São os feriados obrigatórios do Código do Trabalho (art. 234.º). Quatro deles
+ * — Corpo de Deus, 5 de Outubro, 1 de Novembro e 1 de Dezembro — foram
+ * suspensos pela Lei n.º 23/2012 a partir de 2013 e repostos pela Lei n.º
+ * 8/2016. Aqui moram os dez fixos e os dois móveis que podem cair em dia útil
+ * (Sexta-feira Santa e Corpo de Deus); o Domingo de Páscoa também é
+ * obrigatório, mas cai sempre a domingo, que o prazo já salta.
  *
- * Fixos são a mesma data todos os anos; móveis (Sexta-feira Santa, Carnaval,
- * Corpo de Deus) saem da data da Páscoa e ficam listados à mão para 2026-2030,
+ * A Terça-feira de Carnaval NÃO entra: é feriado facultativo (art. 235.º),
+ * decidido ano a ano. Listá-la faria o prazo pular um dia útil a mais.
+ *
+ * Os móveis saem da data da Páscoa e ficam listados à mão para 2026-2030,
  * como faz `holidays-br.ts`.
  */
 
@@ -34,26 +39,21 @@ for (const year of YEARS) {
   }
 }
 
-// Feriados móveis 2026-2030 (Páscoa: 05-04/27-03/16-04/01-04/21-04)
+// Feriados móveis 2026-2030 (Páscoa: 05-04/28-03/16-04/01-04/21-04)
 const MOVEABLE_HOLIDAYS: string[] = [
   // 2026
-  "2026-02-17", // Terça-feira de Carnaval
   "2026-04-03", // Sexta-feira Santa
   "2026-06-04", // Corpo de Deus
   // 2027
-  "2027-02-09", // Terça-feira de Carnaval
   "2027-03-26", // Sexta-feira Santa
   "2027-05-27", // Corpo de Deus
   // 2028
-  "2028-02-29", // Terça-feira de Carnaval
   "2028-04-14", // Sexta-feira Santa
   "2028-06-15", // Corpo de Deus
   // 2029
-  "2029-02-13", // Terça-feira de Carnaval
   "2029-03-30", // Sexta-feira Santa
   "2029-05-31", // Corpo de Deus
   // 2030
-  "2030-03-05", // Terça-feira de Carnaval
   "2030-04-19", // Sexta-feira Santa
   "2030-06-20", // Corpo de Deus
 ];

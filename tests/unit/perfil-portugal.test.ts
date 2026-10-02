@@ -9,6 +9,8 @@ import {
   paisesOferecidos,
   perfilDoPais,
 } from "@/lib/legal/perfil-do-pais";
+import { HOLIDAYS_PT_ISO } from "@/lib/lgpd/holidays-pt";
+import { computeDueAt } from "@/lib/lgpd/sla";
 import { contactCreateSchemaDoPais } from "@/lib/schemas/contacts";
 
 describe("perfil de Portugal (issue #1946)", () => {
@@ -102,5 +104,15 @@ describe("perfil de Portugal (issue #1946)", () => {
     const texto = anonymize("CPF 52998224725 por aqui", padroes);
     expect(texto.hits.some((h) => h.type === "nif")).toBe(false);
     expect(detectResidualPii("52998224725", padroes)).not.toBe("nif");
+  });
+
+  it("o calendário é o dos feriados obrigatórios: Carnaval (facultativo) não pula dia útil", () => {
+    // 10 fixos + Sexta-feira Santa + Corpo de Deus, 5 anos (CT art. 234.º).
+    expect(HOLIDAYS_PT_ISO).toHaveLength(60);
+    expect(HOLIDAYS_PT_ISO).toContain("2027-03-26"); // Sexta-feira Santa (Páscoa 28/03)
+    expect(HOLIDAYS_PT_ISO).not.toContain("2026-02-17"); // Terça de Carnaval, art. 235.º
+    // Pedido na segunda 16/02/2026 com 1 dia útil vence na terça 17/02, não na quarta.
+    const vence = computeDueAt(new Date("2026-02-16T10:00:00Z"), 1, new Set(perfilDoPais("PT").calendario.feriados));
+    expect(vence.toISOString().slice(0, 10)).toBe("2026-02-17");
   });
 });
