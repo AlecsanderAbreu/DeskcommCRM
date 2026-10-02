@@ -323,6 +323,9 @@ export async function criarPegadaDoCandidato(
   p: Candidate,
   contatoDaCampanha: string | null,
 ): Promise<Candidate> {
+  // A triagem já recusou quem não tem telefone; esta guarda só diz isso ao compilador,
+  // que não enxerga a triagem daqui (no laço original o `continue` já estreitava o tipo).
+  if (!p.phone) throw new ProspectingError("Sem telefone brasileiro válido.", 422, "candidato");
   const ctx = {
     organization_id: org,
     actor: { type: "webhook_source" as const, id: c.id },
