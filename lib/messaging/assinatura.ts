@@ -118,6 +118,24 @@ export function aplicarAssinatura(
   return assinatura + texto;
 }
 
+/**
+ * O que a porta de Configurações aceita gravar. O nome da IA não leva `*` nem
+ * quebra de linha: qualquer um dos dois desmonta a linha `*Nome*\n` — o
+ * negrito sai torto para o cliente e `semAssinatura` deixa de reconhecê-la.
+ */
+export const assinaturaEntradaSchema = z
+  .object({
+    humanos: z.boolean(),
+    ia: z.boolean(),
+    nome_ia: z
+      .string()
+      .trim()
+      .min(1)
+      .max(120)
+      .regex(/^[^*\r\n]+$/),
+  })
+  .strict();
+
 const LINHA_DE_ASSINATURA = /^\*[^*\n]+\*\n/;
 
 /**
