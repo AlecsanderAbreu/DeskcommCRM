@@ -88,3 +88,18 @@ describe("aplicarAssinatura", () => {
     expect(aplicarAssinatura("*Carlos*\n", "")).toBe("");
   });
 });
+describe("semAssinatura — a volta do que aplicarAssinatura pôs (#2079)", async () => {
+  const { semAssinatura } = await import("./assinatura");
+
+  it("tira exatamente a linha que a assinatura pôs, para IA e humano", () => {
+    const cfg = configAssinatura({ assinatura_mensagens: { humanos: true, ia: true, nome_ia: "Bia" } });
+    for (const linha of [linhaDeAssinatura(cfg, "ai"), linhaDeAssinatura(cfg, "user", "carlos gaban")]) {
+      expect(semAssinatura(aplicarAssinatura(linha, "oi\n*tudo bem?*") ?? "")).toBe("oi\n*tudo bem?*");
+    }
+  });
+
+  it("texto sem assinatura volta como veio, inclusive negrito que não é a primeira linha", () => {
+    expect(semAssinatura("oi")).toBe("oi");
+    expect(semAssinatura("*promo*")).toBe("*promo*");
+  });
+});

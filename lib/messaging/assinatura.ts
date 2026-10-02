@@ -117,3 +117,14 @@ export function aplicarAssinatura(
   if (!assinatura || !texto) return texto;
   return assinatura + texto;
 }
+
+const LINHA_DE_ASSINATURA = /^\*[^*\n]+\*\n/;
+
+/**
+ * O texto sem a linha de assinatura do começo, se houver. Quem precisa é a
+ * guarda de eco do WAHA (`lib/waha/ingest.ts`): o eco devolve o que SAIU
+ * (`*Nome*\ntexto`), e `messages.body` guarda só `texto`.
+ */
+export function semAssinatura(texto: string): string {
+  return texto.replace(LINHA_DE_ASSINATURA, "");
+}
