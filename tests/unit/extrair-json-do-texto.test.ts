@@ -69,6 +69,43 @@ describe("extrairJsonDoTexto — tolera as formas que modelos OpenRouter produze
   it("devolve null quando o único bloco é JSON inválido", () => {
     expect(extrairJsonDoTexto("{não é json válido")).toBeNull();
   });
+
+  // Triagem do #2096: entradas que o recorte antigo lia e a varredura com `[`
+  // como início de bloco perdia. Só `{` abre bloco — os 4 chamadores esperam objeto.
+  it("um `[` sem fechamento na prosa antes do objeto não encerra a busca", () => {
+    const texto = 'Resposta [ver abaixo: {"intent":"vendas","confidence":0.9}';
+    expect(extrairJsonDoTexto(texto)).toEqual({ intent: "vendas", confidence: 0.9 });
+  });
+
+  it("uma citação `[1]` antes do objeto não vira a resposta", () => {
+    const texto = 'Conforme [1], {"intent":"vendas","confidence":0.9}';
+    expect(extrairJsonDoTexto(texto)).toEqual({ intent: "vendas", confidence: 0.9 });
+  });
+
+  it("aspas soltas dentro de `[...]` na prosa não escondem o objeto", () => {
+    const texto = 'Tela [5" polegadas] {"intent":"vendas","confidence":0.9}';
+    expect(extrairJsonDoTexto(texto)).toEqual({ intent: "vendas", confidence: 0.9 });
+  });
+
+  it("crases DENTRO de uma string do JSON são preservadas (o resumo do cliente não é reescrito)", () => {
+    const texto = '{"resumo":"cliente mandou ```codigo``` aqui"}';
+    expect(extrairJsonDoTexto(texto)).toEqual({ resumo: "cliente mandou ```codigo``` aqui" });
+  });
+
+  // Falhar fechado: um objeto INTERNO de uma saída quebrada passa no schema do
+  // checkpoint (todos os campos têm default) e gravaria um checkpoint vazio,
+  // apagando o resumo acumulado. Null faz o fechamento pedir correção.
+  it("JSON truncado com um objeto interno já fechado devolve null, não o objeto interno", () => {
+    const texto =
+      '{"commitments":["enviar proposta"],"objections":[],"next_action":"aguardar","rolling_summary":"resumo","declaracao":{"nada_a_declarar":true}';
+    expect(extrairJsonDoTexto(texto)).toBeNull();
+  });
+
+  it("cópia quebrada seguida de cópia boa devolve null, nunca o `declaracao` da cópia quebrada", () => {
+    const texto =
+      '{"commitments":["a"],"declaracao":{"nada_a_declarar":true},"rolling_summ{"commitments":["b"],"objections":[],"next_action":null,"rolling_summary":"ok","declaracao":{"nada_a_declarar":true}}';
+    expect(extrairJsonDoTexto(texto)).toBeNull();
+  });
 });
 
 describe("parseIntentVerdict — o gate do dono (auxiliar do agente sobrevive a saída OpenRouter)", () => {

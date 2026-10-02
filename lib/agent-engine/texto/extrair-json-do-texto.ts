@@ -1,5 +1,6 @@
 /**
- * Extrai o PRIMEIRO valor JSON válido (objeto ou array) do texto do modelo.
+ * Extrai o PRIMEIRO objeto JSON válido do texto do modelo (ou o texto inteiro,
+ * quando ele todo já é JSON).
  *
  * POR QUE EXISTE: os classificadores auxiliares do agente pedem JSON no
  * PROMT ("responda SOMENTE JSON: {...}") — não há `response_format` no seam
@@ -18,8 +19,13 @@
  * (colapso de falha). Devolve `null` quando não encontra nada parseável.
  *
  * A varredura de blocos é ciente de STRINGS (o texto costuma carregar PII com
- * `{`, `}` e `"` dentro), e tenta cada bloco `{...}`/`[...]` de nível superior
- * até um parsear — primeiro valor (estável), não o último.
+ * `{`, `}` e `"` dentro), e tenta cada bloco `{...}` de nível superior até um
+ * parsear — primeiro valor (estável), não o último.
+ *
+ * Só `{` abre bloco: os chamadores esperam objeto, e um `[` da prosa ("[1]",
+ * "[ver abaixo") viraria a resposta ou encerraria a busca. A cerca de código não
+ * é retirada: a varredura começa no `{` e a deixa de fora — retirá-la antes
+ * reescreveria crases DENTRO das strings do JSON.
  */
 const NADA = Symbol("nao-achou-json");
 
@@ -33,29 +39,18 @@ function tentarParsear(texto: string): unknown | typeof NADA {
   }
 }
 
-interface ParDeChaves {
-  abre: "{" | "[";
-  fecha: "}" | "]";
-}
-
-const PAR_OBJETO: ParDeChaves = { abre: "{", fecha: "}" };
-const PAR_ARRAY: ParDeChaves = { abre: "[", fecha: "]" };
-
 /**
- * Blocos `{…}`/`[…]` de nível superior da string, cientes de strings com
- * escapes. Surrogate/token de identificação: não interpreta conteúdo — só
- * respeita `"..."` (com `\\`) para não deixar `}`/`]` dentro de texto derrubar
- * o balanceamento. Devolve os blocos na ordem em que aparecem.
+ * Blocos `{…}` de nível superior da string, cientes de strings com escapes.
+ * Não interpreta conteúdo — só respeita `"..."` (com `\\`) para não deixar `}`
+ * dentro de texto derrubar o balanceamento. Devolve os blocos na ordem em que
+ * aparecem.
  */
 function blocosDeNivelSuperior(texto: string): string[] {
   const blocos: string[] = [];
   let i = 0;
   const n = texto.length;
   while (i < n) {
-    const c = texto[i];
-    const par: ParDeChaves | null =
-      c === "{" ? PAR_OBJETO : c === "[" ? PAR_ARRAY : null;
-    if (par === null) {
+    if (texto[i] !== "{") {
       i++;
       continue;
     }
@@ -75,8 +70,8 @@ function blocosDeNivelSuperior(texto: string): string[] {
         emString = true;
         continue;
       }
-      if (ch === par.abre) aberto++;
-      else if (ch === par.fecha) {
+      if (ch === "{") aberto++;
+      else if (ch === "}") {
         aberto--;
         if (aberto === 0) {
           blocos.push(texto.slice(i, j + 1));
@@ -86,16 +81,13 @@ function blocosDeNivelSuperior(texto: string): string[] {
         }
       }
     }
-    if (!fechouFora) i = n; // não fechou até o fim — nada mais a extrair
+    // Não fechou até o fim — nada mais a extrair. Seguir do próximo caractere
+    // devolveria um objeto INTERNO de uma saída truncada (o schema do checkpoint
+    // aceita `{"nada_a_declarar":true}` como checkpoint vazio) e tornaria a
+    // varredura quadrática. Parar mantém o fechamento falhando fechado.
+    if (!fechouFora) i = n;
   }
   return blocos;
-}
-
-/** Retira cercas de código markdown (```json{...}```) e marcadores soltos. */
-function semCercaDeCodigo(texto: string): string {
-  return texto
-    .replace(/```[a-zA-Z]*\s*([\s\S]*?)```/g, "$1")
-    .replace(/```/g, "");
 }
 
 /**
@@ -103,14 +95,12 @@ function semCercaDeCodigo(texto: string): string {
  * parsear), tolerante a cerca de código, prosa e repetição. Nunca lança.
  */
 export function extrairJsonDoTexto(texto: string): unknown | null {
-  const limpo = semCercaDeCodigo(texto);
-
-  // Caminho feliz: o texto inteiro (após a cerca) É o JSON.
-  const inteiro = tentarParsear(limpo);
+  // Caminho feliz: o texto inteiro É o JSON.
+  const inteiro = tentarParsear(texto);
   if (inteiro !== NADA) return inteiro;
 
   // Degradação: varre por blocos top-level e devolve o primeiro que parsear.
-  for (const bloco of blocosDeNivelSuperior(limpo)) {
+  for (const bloco of blocosDeNivelSuperior(texto)) {
     const valor = tentarParsear(bloco);
     if (valor !== NADA) return valor;
   }
