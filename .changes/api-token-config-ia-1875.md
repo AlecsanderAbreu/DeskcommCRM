@@ -1,6 +1,6 @@
 ---
 impacto: capacidade_nova
-secao: capacidade_nova
+secao: adicionado
 titulo: Token de API administra fluxos de follow-up, agentes, prospecção e tipos de agendamento
 ---
 
