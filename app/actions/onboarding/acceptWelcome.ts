@@ -14,7 +14,7 @@ import { requireOnboardingCtx, patchOnboardingState, OnboardingError } from "./_
 
 export type AcceptWelcomeResult =
   | { ok: true }
-  | { ok: false; error: "auth_required" | "no_active_org" | "invalid_input" | "db_error"; details?: unknown };
+  | { ok: false; error: "auth_required" | "no_active_org" | "forbidden" | "invalid_input" | "db_error"; details?: unknown };
 
 export async function acceptWelcome(formData: FormData): Promise<AcceptWelcomeResult> {
   // A aba de boas-vindas foi aberta para UMA organização; é ela que este
