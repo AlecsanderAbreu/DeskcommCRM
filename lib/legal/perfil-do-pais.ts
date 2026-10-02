@@ -206,7 +206,7 @@ const PERFIL_BR: PerfilDoPais = {
   codigo: "BR",
   nome: "Brasil",
   documento: DOCUMENTO_BR,
-  telefoneExemplo: "+551****8888",
+  telefoneExemplo: "+5511999998888",
   lei: {
     nome: "LGPD",
     numero: "Lei nº 13.709/2018",
@@ -249,7 +249,7 @@ const PERFIL_PT: PerfilDoPais = {
   codigo: "PT",
   nome: "Portugal",
   documento: DOCUMENTO_PT,
-  telefoneExemplo: "+351****5678",
+  telefoneExemplo: "+351912345678",
   lei: {
     nome: "RGPD",
     numero: "Regulamento (UE) 2016/679",

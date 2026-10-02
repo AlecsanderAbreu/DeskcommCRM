@@ -5,9 +5,11 @@ import { anonymize, detectResidualPii, padroesDePii } from "@/lib/ai/anonymize";
 import {
   citacaoDaLei,
   isValidNif,
+  PERFIS_DO_PAIS,
   paisesOferecidos,
   perfilDoPais,
 } from "@/lib/legal/perfil-do-pais";
+import { contactCreateSchemaDoPais } from "@/lib/schemas/contacts";
 
 describe("perfil de Portugal (issue #1946)", () => {
   it("Portugal entra na lista que o seletor de Configurações oferece", () => {
@@ -21,7 +23,7 @@ describe("perfil de Portugal (issue #1946)", () => {
     expect(perfil.codigo).toBe("PT");
     expect(perfil.nome).toBe("Portugal");
     expect(perfil.documento.rotulo).toBe("NIF");
-    expect(perfil.telefoneExemplo).toBe("+351****5678");
+    expect(perfil.telefoneExemplo).toBe("+351912345678");
   });
 
   it("documento NIF aceita o dígito de controlo (mod-11 público) e espaçado", () => {
@@ -46,6 +48,15 @@ describe("perfil de Portugal (issue #1946)", () => {
   it("o exemplo de telefone é de Portugal, não o DDI brasileiro", () => {
     expect(perfilDoPais("PT").telefoneExemplo).toMatch(/^\+351/);
     expect(perfilDoPais("PT").telefoneExemplo).not.toMatch(/^\+55/);
+  });
+
+  it("o exemplo de telefone de todo país passa na validação do próprio formulário", () => {
+    // O exemplo é o placeholder do campo e entra na mensagem de erro: um valor
+    // que o PHONE_REGEX recusa (ex.: mascarado com `*`) ensina o que a tela barra.
+    for (const perfil of Object.values(PERFIS_DO_PAIS)) {
+      const r = contactCreateSchemaDoPais(perfil).safeParse({ phone_number: perfil.telefoneExemplo });
+      expect(r.success, `${perfil.codigo}: ${perfil.telefoneExemplo}`).toBe(true);
+    }
   });
 
   it("a lei é o RGPD (UE) 2016/679, art. 15, ainda fora de revisão", () => {
