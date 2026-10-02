@@ -2,11 +2,12 @@
  * Regra única "admin de plataforma pode escrever nesta empresa?" (#1852).
  *
  * Prova: a função concentra a regra das rotas (`requireRole("admin", {
- * allowPlatformAdmin })`): super-admin de plataforma fora da sessão de suporte
- * passa; senão o papel efetivo na org tem de ser `admin`. Cobre a sessão de
+ * allowPlatformAdmin })`): super-admin de plataforma com scope `full` (#1987),
+ * fora da sessão de suporte, passa; senão o papel efetivo na org tem de ser
+ * `admin`. Cobre a sessão de
  * suporte (`full` → admin passa, `support_readonly` → viewer nega) e garante
  * que as server actions não reescrevem mais a checagem na mão (as três grafias
- * originais sumiram de `app/actions/`).
+ * originais e as da main pós-#1987 sumiram de `app/actions/`).
  */
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
@@ -40,8 +41,29 @@ function support(accessMode: SupportContext["access_mode"]): SupportContext {
 describe("podeAdministrarEmpresa", () => {
   it("permite super-admin de plataforma fora da sessão de suporte", () => {
     expect(
-      podeAdministrarEmpresa({ is_platform_admin: true, support: null }, org("viewer")),
+      podeAdministrarEmpresa({ is_platform_admin: true, platform_admin_scope: "full", support: null }, org("viewer")),
     ).toBe(true);
+  });
+
+  it("admin de plataforma sem scope full não atalha: vale o papel na org (#1987)", () => {
+    for (const scope of ["support_readonly", null] as const) {
+      for (const role of ["viewer", "agent", "ai_operator", "manager"] as Role[]) {
+        expect(
+          podeAdministrarEmpresa(
+            { is_platform_admin: true, platform_admin_scope: scope, support: null },
+            org(role),
+          ),
+          `scope=${scope} role=${role}`,
+        ).toBe(false);
+      }
+      expect(
+        podeAdministrarEmpresa(
+          { is_platform_admin: true, platform_admin_scope: scope, support: null },
+          org("admin"),
+        ),
+        `scope=${scope} role=admin`,
+      ).toBe(true);
+    }
   });
 
   it("nega quem não é admin de plataforma nem admin da org", () => {
@@ -62,12 +84,12 @@ describe("podeAdministrarEmpresa", () => {
   it("sessão de suporte não usa o atalho de plataforma: vote pelo papel efetivo", () => {
     // Acompanhamento com acesso total: `resolveActiveOrg` deriva role = admin.
     expect(
-      podeAdministrarEmpresa({ is_platform_admin: true, support: support("full") }, org("admin")),
+      podeAdministrarEmpresa({ is_platform_admin: true, platform_admin_scope: "full", support: support("full") }, org("admin")),
     ).toBe(true);
     // Mesma sessão, mas papel resolvido abaixo de admin → nega (não atalha).
     expect(
       podeAdministrarEmpresa(
-        { is_platform_admin: true, support: support("full") },
+        { is_platform_admin: true, platform_admin_scope: "full", support: support("full") },
         org("viewer"),
       ),
     ).toBe(false);
@@ -78,7 +100,7 @@ describe("podeAdministrarEmpresa", () => {
     // aqui a regra cai no papel derivado (viewer) e nega também.
     expect(
       podeAdministrarEmpresa(
-        { is_platform_admin: true, support: support("support_readonly") },
+        { is_platform_admin: true, platform_admin_scope: "full", support: support("support_readonly") },
         org("viewer"),
       ),
     ).toBe(false);
@@ -91,9 +113,13 @@ describe("regra única (codemod das server actions)", () => {
     /!\s*\(\w+\.is_platform_admin\s*&&\s*!\w+\.support\)/,
     /!==\s*"admin"\s*&&\s*!\w+\.is_platform_admin/,
     /!\w+\.is_platform_admin\s*&&\s*!/,
+    // Grafias da main depois do #1987 (scope "full" via escreveComoPlatformAdmin).
+    /escreveComoPlatformAdmin\(\w+\)[\s\S]{0,80}?ROLE_RANK/,
+    /ROLE_RANK[^;]{0,80}?escreveComoPlatformAdmin\(/,
+    /!==\s*"admin"\s*&&\s*!\s*escreveComoPlatformAdmin\(/,
   ];
 
-  it("as três grafias originais não aparecem mais em app/actions", () => {
+  it("as grafias escritas à mão (antes e depois do #1987) não aparecem mais em app/actions", () => {
     const raiz = join(process.cwd(), "app", "actions");
     const arquivos: string[] = [];
     const pilha = [raiz];
@@ -109,7 +135,7 @@ describe("regra única (codemod das server actions)", () => {
       .map((caminho) => ({ caminho, corpo: readFileSync(caminho, "utf8") }))
       .filter(({ corpo }) => GRAFIAS.some((r) => r.test(corpo)));
     expect(
-      infratores.map(({ caminho, corpo }) => `${caminho}: ${corpo.match(/.{0,60}is_platform_admin.{0,60}/)?.[0] ?? ""}`),
+      infratores.map(({ caminho, corpo }) => `${caminho}: ${corpo.match(/.{0,60}(?:is_platform_admin|escreveComoPlatformAdmin).{0,60}/)?.[0] ?? ""}`),
     ).toEqual([]);
   });
 });
