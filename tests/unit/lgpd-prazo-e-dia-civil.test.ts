@@ -5,9 +5,9 @@
  *
  * Duas coisas, e as duas são do mesmo defeito:
  *
- * 1. **A régua.** `computeDueAt` devolve a meia-nite UTC do dia útil contado, e
+ * 1. **A régua.** `computeDueAt` devolve a meia-noite UTC do dia útil contado, e
  *    o prazo vai até o FIM desse dia. A coluna guarda esse dia; quem mostra,
- *    compara ou conta tem de ler ESSE dia. AsFunctions `diaDoPrazo`,
+ *    compara ou conta tem de ler ESSE dia. As funções `diaDoPrazo`,
  *    `diasDeAtraso`, `diasAtePrazo` e `prazoEmBr` são o caminho único, e elas
  *    não recebem fuso nenhum justamente porque não devem receber.
  *
@@ -25,8 +25,8 @@
  *
  * ═══ POR QUE A REGRA É "DIA CIVIL" E NÃO "INSTANTE" ═══
  *
- * O prazo não é um Instant: é o último dia útil que o titular pode esperar. Guardá-lo
- * como instante obriga quem lê a escolher um fuso — e qualquer escolha errado
+ * O prazo não é um instante: é o último dia útil que o titular pode esperar. Guardá-lo
+ * como instante obriga quem lê a escolher um fuso — e qualquer escolha errada
  * desloca a etiqueta um dia. O engine já conta em dias (`computeDueAt`), já pula
  * feriado do PAÍS da organização (`perfilDoPais(...).calendario.feriados`), e a
  * escrita tem UM escritor só (`lib/lgpd/repository.ts`). Com isso a convenção é
@@ -333,7 +333,7 @@ const DIVIDA_CONGELADA: ReadonlyArray<{ arquivo: string; motivo: string }> = [
   {
     arquivo: "app/api/v1/admin/dashboard/kpis/route.ts",
     motivo:
-      "Filtra `due_at` em SQL contra `now + 5 dias`, então acende 'LGPD em risco' 3h antes dotruth e não tem como usar o helper sem tirar a comparação da query. Recorte de banco/API depois das telas.",
+      "Filtra `due_at` em SQL contra `now + 5 dias`, então acende 'LGPD em risco' 3h antes do prazo e não tem como usar o helper sem tirar a comparação da query. Recorte de banco/API depois das telas.",
   },
 ];
 
@@ -350,7 +350,7 @@ describe("nenhum consumidor de due_at nasce fora da lista", () => {
     .filter((f) => !conhecidos.has(f));
 
   it("a varredura acha os consumidores que a lista declara (a lista não é decorativa)", () => {
-    // Se a lista mentionasse um arquivo que não existe, ela pararia de valer
+    // Se a lista mencionasse um arquivo que não existe, ela pararia de valer
     // como lista — e é a forma mais barata de um gate de varredura envelhecer.
     for (const arquivo of DIVIDA_CONGELADA) {
       expect(arquivo.motivo.trim().length).toBeGreaterThan(0);

@@ -8,7 +8,7 @@
  *  - If receivedAt itself is not a business day, counting starts on the
  *    next business day (edge: weekend/holiday receipt).
  *
- * ═══ `due_at` É UM DIA CIVIL, E ISTE ARQUIVO É O QUE O DIZ ═══
+ * ═══ `due_at` É UM DIA CIVIL, E ESTE ARQUIVO É O QUE O DIZ ═══
  *
  * `computeDueAt` devolve a meia-noite UTC do dia útil contado. A coluna
  * `lgpd_requests.due_at` guarda, portanto, um DIA CIVIL do calendário do
@@ -130,7 +130,7 @@ export function diaDoPrazo(dueAt: string | Date | null | undefined): string | nu
  * erra por dois motivos ao mesmo tempo: pega o dia errado (metade do dia já é o
  * dia seguinte, a oeste de UTC) e arredonda meio dia para cima. O resultado é o
  * alarme anunciando "1 dia(s) em atraso" às 09h do dia do prazo, com o e-mail ao
- * lado affirmando que o prazo vence "amanhã" — dois números que não podem estar
+ * lado afirmando que o prazo vence "amanhã" — dois números que não podem estar
  * certos ao mesmo tempo.
  *
  * `0` para valor ausente ou ilegível: prazo que não se lê não pode virar atraso

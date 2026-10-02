@@ -98,7 +98,7 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   // Balde por linha. A régua mora em `lib/lgpd/balde-de-sla.ts` porque é
   // aritmética de DIA CIVIL (`due_at` guarda um dia, não um instante) e
-  // aritmência testada precisa ficar onde o teste alcança. A versão que estava
+  // aritmética testada precisa ficar onde o teste alcança. A versão que estava
   // neste arquivo comparava milissegundos e marcava "Vencido" 26h antes do prazo.
   const enriched = (rows ?? []).map((r) => ({
     ...r,
