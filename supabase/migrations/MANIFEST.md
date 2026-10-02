@@ -2,6 +2,32 @@
 
 Migrations applied to Supabase project `rrydmwnporysaiysiztn` (sa-east-1, Postgres 17) via Supabase MCP on 2026-04-28.
 
+## ⚠️ Este arquivo é HISTÓRICO — migration nova NÃO acrescenta linha aqui (02/10/2026)
+
+A descrição de migration nova mora **no próprio `.sql`**, numa linha de cabeçalho:
+
+```sql
+-- manifest: <o QUÊ e o PORQUÊ, numa linha só>
+```
+
+Versão e nome saem do nome do arquivo. O registro completo é esta tabela **mais**:
+
+```bash
+grep -m1 '^-- manifest:' supabase/migrations/*.sql
+```
+
+**Por quê.** Todo PR com migration acrescentava uma linha no FIM da tabela "Applied". O
+`merge=union` do `.gitattributes` resolve isso no git local, mas o GitHub **ignora driver de
+merge**: cada migration que entrava na `main` deixava todos os outros PRs com migration
+`CONFLICTING`, e o auto-merge parava (medido em 02/10/2026: #2009, #2049, #2078, #2080, #2091 e
+#2137, várias vezes cada). Uma linha dentro do arquivo da própria migration não tem com quem
+conflitar — e acompanha o arquivo quando ele é renumerado.
+
+O gate é `tests/unit/manifest-x-migrations.test.ts`: reprova migration sem descrição (nem
+cabeçalho nem linha aqui), descrita nos DOIS lugares, número repetido e carimbo repetido.
+PR aberto antes desta mudança, com linha aqui e sem cabeçalho, continua passando; se a linha
+dele conflitar, a resolução é apagá-la daqui e pô-la como `-- manifest:` no `.sql`.
+
 ## Nota — renomeação de 4 prefixos em 2026-08-05 (issue #143)
 
 O Supabase CLI usa o **timestamp** (14 dígitos do prefixo) como PK de
