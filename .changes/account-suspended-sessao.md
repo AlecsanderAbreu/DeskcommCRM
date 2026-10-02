@@ -1,5 +1,5 @@
 ---
-impacto: correcao
+impacto: nada_mudou
 secao: corrigido
 titulo: Sessão volta a ser renovada na tela de conta suspensa
 ---
@@ -15,10 +15,9 @@ podia derrubá-la no login.
 A rota agora sai da lista pública. Quem cai em `/account-suspended` vem
 do redirect do layout de `/app` já autenticado, então o proxy passa a
 revalidar e renovar a sessão normalmente ali, como em qualquer outra
-rota da árvore logada. A única mudança visível é o caso extremo de um
-visitante não autenticado direto na URL, que agora é levado ao login em
-vez de ver a mensagem — coerente com a tela virar lugar de trabalho
-autenticado (pedidos de LGPD de empresa suspensa).
+rota da árvore logada. Quem chega sem sessão já era levado ao login; a
+diferença é que agora volta ao mesmo ponto depois de entrar — por
+exemplo, ao pedido de LGPD aberto em `/account-suspended?pedido=...`.
 
 Refs #2016
 
