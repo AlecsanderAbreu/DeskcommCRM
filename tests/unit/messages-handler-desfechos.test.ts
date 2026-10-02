@@ -20,6 +20,7 @@ import type { HandlerCtx } from '@/lib/api/handlers/types';
 import { deriveActor } from '@/lib/mcp/auth';
 import type { SendMessageInput } from '@/lib/schemas';
 import { criarDubleDoHandler } from '@/tests/helpers/duble-do-handler';
+import { env } from '@/lib/env';
 
 const ORG = '11111111-1111-4111-8111-111111111111';
 const CONV = '22222222-2222-4222-8222-222222222222';
@@ -27,6 +28,8 @@ const CONTACT = '33333333-3333-4333-8333-333333333333';
 const SESSION = '44444444-4444-4444-8444-444444444444';
 const USER = '55555555-5555-4555-8555-555555555555';
 const WAHA_BASE = 'http://localhost:3030';
+// A URL que o envio da proposta passa: assinada pelo Storage DESTA instalação.
+const URL_ASSINADA_DO_PROPRIO_STORAGE = `${env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/sign/propostas/org/a.pdf?token=t`;
 
 // A URL assinada do Storage é montada com o admin client; ele valida env no
 // import, e o desfecho de mídia precisa controlar sucesso E falha da assinatura.
@@ -211,6 +214,54 @@ describe('sendMessageHandler — os 6 desfechos do envio', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url) === `${WAHA_BASE}/api/sendImage`)).toBe(
       true,
     );
+  });
+
+  // Achado ao investigar "proposta manda PDF e o cliente não recebe nada
+  // anexado": `input.media_url` — o caminho que a proposta usa para despachar o
+  // PDF já assinado no bucket — nunca foi ligado ao dispatcher. Antes deste
+  // teste, um envio com `media_url` (sem `media_storage_path`) caía no branch de
+  // texto puro e ia para `/api/sendText` com corpo vazio — sem nenhum arquivo.
+  // Testa exatamente esse input, contra o texto puro logo abaixo, para os dois
+  // nunca convergirem de novo por acidente.
+  it('4b. com media_url (sem media_storage_path): sent + external_id, pelo endpoint de arquivo', async () => {
+    wahaConfigured(true);
+    const fetchMock = vi.fn(async (..._args: unknown[]) => Response.json({ id: { _serialized: 'FILE1' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const msg = await sendMessageHandler(
+      dubleDo(conversationRow()),
+      ctx,
+      textInput({ type: 'document', body: undefined, media_url: URL_ASSINADA_DO_PROPRIO_STORAGE, media_mime: 'application/pdf' }),
+    );
+
+    expect(msg.status).toBe('sent');
+    expect(msg.external_id).toBe('FILE1');
+    expect(msg.ack).toBe(0);
+    expect(msg.error_code).toBeNull();
+    const sendFile = fetchMock.mock.calls.find(([url]) => String(url) === `${WAHA_BASE}/api/sendFile`);
+    expect(sendFile, 'sendFile não foi chamado').toBeTruthy();
+    const body = JSON.parse(String((sendFile![1] as RequestInit).body)) as { file?: { url?: string } };
+    expect(body.file?.url).toBe(URL_ASSINADA_DO_PROPRIO_STORAGE);
+  });
+
+  // SSRF: quem baixa a `media_url` é o gateway, de dentro da rede do servidor,
+  // e ela chega também pela API pública e pelo MCP. Endereço interno é recusado
+  // ANTES de a linha existir — nenhuma mensagem gravada, nada sai pela rede.
+  it.each([
+    ['metadata da nuvem', 'http://169.254.169.254/latest/meta-data/'],
+    ['serviço do compose por IP', 'http://172.18.0.5:6379/'],
+    ['loopback', 'http://localhost:3000/api/v1/health'],
+  ])('4c. media_url para %s: 422 unsafe_media_url, nada gravado, nada enviado', async (_nome, url) => {
+    wahaConfigured(true);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const duble = criarDubleDoHandler({ conversation: conversationRow() });
+
+    await expect(
+      sendMessageHandler(duble.supabase, ctx, textInput({ type: 'document', body: undefined, media_url: url })),
+    ).rejects.toMatchObject({ status: 422, code: 'unsafe_media_url' });
+    expect(duble.capturas.inserts.messages).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('5. texto puro: sent + external_id + ack 0, pelo endpoint de texto', async () => {

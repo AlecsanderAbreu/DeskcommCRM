@@ -63,6 +63,7 @@ CRONS="
 * * * * *|45|api/v1/cron/event-log-drain
 * * * * *|25|api/v1/cron/routing-worker
 * * * * *|25|api/v1/cron/recover-stuck-messages
+* * * * *|25|api/v1/cron/proposta-travada
 * * * * *|45|api/v1/cron/webhook-replay
 */5 * * * *|25|api/v1/cron/storage-redaction?limit=50
 */5 * * * *|25|api/v1/cron/snooze-watcher
@@ -118,6 +119,9 @@ CRONS="
 30 3 * * *|120|api/v1/cron/kb-conversations-batch
 15 4 * * *|60|api/v1/cron/sync-model-catalog
 40 4 * * *|120|api/v1/cron/data-retention
+0 8 * * *|60|api/v1/cron/proposal-expiry
+30 8 * * *|60|api/v1/cron/proposal-promised-not-created
+0 6 * * 0|60|api/v1/cron/proposal-acceptance-rate
 20 5 * * *|120|api/v1/cron/media-retention
 # AS RECORRÊNCIAS. Uma vez ao dia é o bastante: o que ela gera é uma conta a
 # pagar, e a diferença entre nascer às 5h ou às 17h não muda nada para quem paga.
