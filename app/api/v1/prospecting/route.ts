@@ -22,6 +22,7 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 const headers = { "Cache-Control": "no-store" };
+const ACOES_ABERTAS_AO_TOKEN = new Set<string>(["configure", "search", "pause"]);
 function failure(error: unknown, requestId: string) {
   return fail(
     "prospecting_unavailable",
@@ -111,6 +112,17 @@ export async function POST(req: NextRequest) {
       { requestId, headers },
     );
   const body = parsed.data;
+  // Lista de PERMISSÃO, não de negação: iniciar e retomar campanha ENVIAM
+  // mensagem a quem nunca falou com a empresa, e a #1875 pede o envio sob
+  // controle humano. Ação nova da prospecção nasce fechada ao token até alguém
+  // decidir abri-la aqui.
+  if (auth.via === "token" && !ACOES_ABERTAS_AO_TOKEN.has(body.action))
+    return fail(
+      "forbidden",
+      "Por token, a prospecção só configura, pesquisa e pausa. Iniciar ou retomar campanha exige a tela: o envio fica sob controle de uma pessoa.",
+      403,
+      { requestId, headers },
+    );
   const org = auth.organizationId;
   try {
     const pool = getRequestPool();
