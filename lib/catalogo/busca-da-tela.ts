@@ -23,8 +23,11 @@
  *
  * A rota montava o `.or()` com o texto cru: um nome com vírgula injetava
  * condição, um parêntese sem par derrubava a busca com 400 e `%` virava
- * curinga. E `buscaValeConsulta` barra o termo feito só de pontuação, que
- * normalizado vira `%%` e devolveria o catálogo inteiro.
+ * curinga. E `buscaValeConsulta` barra o termo curto ou só de pontuação, que
+ * normalizado viraria `%%`: aqui ele vira `null`, e o QUE fazer com o `null`
+ * é de quem chama. A rota devolve lista vazia, como a busca de contatos (sem
+ * isso, `null` era consulta sem filtro — o catálogo inteiro no seletor da
+ * proposta); a tela mostra a lista sem filtro, como se não houvesse busca.
  *
  * A busca da TELA continua sendo substring simples, de propósito: quem opera a
  * loja digita como cadastrou. A busca por token, que tolera "ifone", é a do
@@ -37,7 +40,8 @@ export const PRODUTOS_POR_PAGINA = 50;
 
 /**
  * O filtro `or=` da busca, ou `null` quando o termo não vale uma consulta
- * (vazio, curto demais ou só pontuação) — nesse caso, a lista sem filtro.
+ * (vazio, curto demais ou só pontuação). `null` NÃO significa "sem filtro":
+ * cada chamador decide (ver o cabeçalho deste arquivo).
  */
 export function filtroDaBuscaDoCatalogo(bruto: string | null | undefined): string | null {
   const termo = (bruto ?? "").trim();
