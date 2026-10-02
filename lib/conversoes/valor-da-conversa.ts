@@ -24,8 +24,10 @@
  * esgotado, provedor fora ou chave ausente não podem derrubar o handler: viram
  * o motivo da pendência, que é onde quem opera vai procurar.
  *
- * O texto da conversa NUNCA sai daqui para a plataforma de anúncio: só o valor,
- * a moeda e o nome do produto seguem adiante.
+ * O texto da conversa NUNCA sai daqui para a plataforma de anúncio: só o valor
+ * e a moeda seguem adiante. O nome do produto, texto livre do modelo, fica no
+ * Histórico — numa clínica ele é dado de saúde, e não vai à Meta ao lado do
+ * telefone em hash.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";

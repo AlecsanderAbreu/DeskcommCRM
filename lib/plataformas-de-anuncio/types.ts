@@ -90,8 +90,6 @@ export interface ConversaoOffline {
   telefone: string | null;
   valorCentavos: number | null;
   moeda: string;
-  /** O que foi vendido, quando se sabe (lido da conversa). Nunca dado pessoal. */
-  produto?: string | null;
 }
 
 /**

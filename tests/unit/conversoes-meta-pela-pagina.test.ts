@@ -7,6 +7,8 @@
  *  - venda orgânica (ou de outra plataforma) indo para a conta de anúncios;
  *  - evento sem clique saindo como `business_messaging`, que a Meta recusa;
  *  - valor inventado pelo modelo chegando à Meta;
+ *  - o produto lido da conversa (texto livre, em clínica dado de saúde) indo
+ *    para a Meta ao lado do telefone em hash;
  *  - a IA lendo a conversa de uma venda que não tem para onde ir (sem conexão
  *    com a Meta, conexão desligada, chave do canal desligada).
  */
@@ -148,12 +150,11 @@ describe("o envio sem clique", () => {
     telefone: "5511988887777",
     valorCentavos: 497_90,
     moeda: "BRL",
-    produto: "Mentoria Speed",
     ...extra,
   });
   const credencial = { datasetId: "123", accessToken: "tok", testEventCode: null };
 
-  it("sai como system_generated, sem ctwa_clid, com telefone em hash e o produto", async () => {
+  it("sai como system_generated, sem ctwa_clid, com telefone em hash e sem nome de produto", async () => {
     const spy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response('{"events_received":1}', { status: 200 }));
@@ -166,7 +167,7 @@ describe("o envio sem clique", () => {
     expect(ev.messaging_channel).toBeUndefined();
     expect(ev.user_data.ctwa_clid).toBeUndefined();
     expect(ev.user_data.ph).toEqual([INTERNOS.hash("5511988887777")]);
-    expect(ev.custom_data).toEqual({ value: 497.9, currency: "BRL", content_name: "Mentoria Speed" });
+    expect(ev.custom_data).toEqual({ value: 497.9, currency: "BRL" });
   });
 
   it("com clique, continua business_messaging (o caminho de sempre não muda)", async () => {
@@ -174,7 +175,7 @@ describe("o envio sem clique", () => {
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response('{"events_received":1}', { status: 200 }));
 
-    await transporteMeta.enviar(credencial, conversao({ cliqueDeOrigem: "CLIQUE", produto: null }));
+    await transporteMeta.enviar(credencial, conversao({ cliqueDeOrigem: "CLIQUE" }));
 
     const ev = corpoEnviado(spy);
     expect(ev.action_source).toBe("business_messaging");
@@ -192,7 +193,7 @@ describe("o envio sem clique", () => {
 });
 
 describe("a venda ganha sem valor, de ponta a ponta no handler", () => {
-  it("usa o valor lido da conversa, envia e registra no Histórico com o trecho", async () => {
+  it("usa o valor lido da conversa, envia sem o produto e registra no Histórico com o trecho e o produto", async () => {
     vi.mocked(createAdminClient).mockReturnValue(
       fakeAdmin({
         crm_leads: leadGanhoSemValor,
@@ -214,16 +215,13 @@ describe("a venda ganha sem valor, de ponta a ponta no handler", () => {
     const r = await conversaoDeVendaHandler.handle(evento("lead.won"));
 
     expect(r.status).toBe("ok");
-    expect(corpoEnviado(spy).custom_data).toEqual({
-      value: 497,
-      currency: "BRL",
-      content_name: "Mentoria",
-    });
+    expect(corpoEnviado(spy).custom_data).toEqual({ value: 497, currency: "BRL" });
     const linha = upserts.at(-1)?.valores;
     expect(linha?.status).toBe("sent");
     expect(linha?.platform).toBe("meta_ads");
     expect(linha?.value_cents).toBe(497_00);
     expect(String(linha?.detail)).toContain("fechado, 497 no pix");
+    expect(String(linha?.detail)).toContain("Mentoria");
   });
 
   it("sem valor na conversa: pendência sem_valor VISÍVEL, com o motivo, e nada sai", async () => {

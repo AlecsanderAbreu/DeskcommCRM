@@ -143,8 +143,6 @@ export async function processarConversao(
   let valorDaVenda: number | null =
     lead.value_cents !== null && lead.value_cents > 0 ? lead.value_cents : null;
   let moedaDaVenda: string | null = lead.currency;
-  /** O que foi vendido, quando a conversa disse — vai no evento da Meta. */
-  let produto: string | null = null;
   /** De onde veio o valor (ou por que faltou), quando ele foi lido da conversa. */
   let detalheDoValor: string | null = null;
 
@@ -222,8 +220,12 @@ export async function processarConversao(
     if (lido.ok) {
       valorDaVenda = lido.valorCentavos;
       moedaDaVenda = lido.moeda;
-      produto = lido.produto;
-      detalheDoValor = `Valor lido da conversa: "${lido.trecho}"`;
+      // O produto fica no Histórico (banco da organização) e NÃO vai para a
+      // Meta: é texto livre do modelo, ao lado do telefone em hash — numa
+      // clínica, é dado de saúde.
+      detalheDoValor = lido.produto
+        ? `Valor lido da conversa (${lido.produto}): "${lido.trecho}"`
+        : `Valor lido da conversa: "${lido.trecho}"`;
     } else {
       detalheDoValor = lido.motivo;
     }
@@ -344,7 +346,6 @@ export async function processarConversao(
     // linha que teve a moeda apagada à mão.
     moeda: moedaDaVenda ?? "BRL",
     valorCentavos: qualificacao ? null : valorDaVenda,
-    produto,
   };
 
   // Protocolo já recebido: consultar é a única operação permitida até concluir.
