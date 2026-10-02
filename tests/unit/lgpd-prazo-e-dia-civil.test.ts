@@ -220,6 +220,12 @@ const AREAS = [
   "app/app/lgpd",
   "app/admin/(protected)/lgpd",
   "app/api/mcp/tools",
+  // O painel da plataforma lê o mesmo `due_at` por outra porta: a API de
+  // administração, o cron do alarme e a tabela de `components/admin`. Fora
+  // daqui, `computeRiskLevel` marcava "Vencido" na véspera sem lista nenhuma.
+  "app/api/v1/admin",
+  "app/api/v1/cron",
+  "components/admin",
 ];
 
 function arquivosDaArea(raiz: string): string[] {
@@ -302,6 +308,8 @@ const REPASSA_O_VALOR: readonly string[] = [
   "app/api/v1/webhooks/nuvemshop/customer-data-request/route.ts",
   "hooks/useLgpdRequests.ts",
   "hooks/useAdminLGPDRequests.ts",
+  "app/api/v1/admin/lgpd/requests/[id]/route.ts",
+  "app/api/v1/cron/lgpd-sla-watcher/route.ts",
 ];
 
 /**
@@ -334,6 +342,16 @@ const DIVIDA_CONGELADA: ReadonlyArray<{ arquivo: string; motivo: string }> = [
     arquivo: "app/api/v1/admin/dashboard/kpis/route.ts",
     motivo:
       "Filtra `due_at` em SQL contra `now + 5 dias`, então acende 'LGPD em risco' 3h antes do prazo e não tem como usar o helper sem tirar a comparação da query. Recorte de banco/API depois das telas.",
+  },
+  {
+    arquivo: "app/api/v1/admin/lgpd/requests/route.ts",
+    motivo:
+      "API do painel da plataforma: `computeRiskLevel` compara `due_at` em milissegundos e devolve `expired` às 21h de São Paulo da VÉSPERA do prazo — o selo 'Vencido' da tabela e o LgpdRiskBanner leem esse valor. É o mesmo defeito que `computeSlaBucket` consertou na API da organização; vai junto com o recorte das telas.",
+  },
+  {
+    arquivo: "components/admin/lgpd/LgpdRequestsTable.tsx",
+    motivo:
+      "Tela: `countdownLabel` faz `differenceInHours(new Date(due_at), now)` e diz 'Nh em atraso' a partir das 21h de São Paulo da véspera do prazo. Recorte das telas.",
   },
 ];
 
