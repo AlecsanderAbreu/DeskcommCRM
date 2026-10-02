@@ -1,0 +1,6 @@
+---
+impacto: capacidade_nova
+secao: alterado
+titulo: As classificações curtas do agente passam a usar o modelo mais econômico do mesmo provedor
+---
+Em todo atendimento, o agente faz classificações curtas antes e depois de responder: em que etapa do funil o cliente está, se a mensagem tenta manipular a IA, se o fluxo de atendimento ainda vale, como responder a um follow-up. Até aqui, quando ninguém escolhia um modelo para essas tarefas, elas usavam o mesmo modelo do agente, o mais caro. Uma classificação dessas devolve uma palavra, e pagava a tarifa de uma conversa inteira. Agora, sem escolha explícita, elas usam o modelo mais econômico do mesmo provedor do agente (Anthropic, OpenAI ou Google), com a mesma chave. Pela tabela de preços do produto, cada uma dessas chamadas fica entre 2 e 15 vezes mais barata, conforme o provedor. Se o modelo econômico falhar, a chamada se repete sozinha no modelo de antes e o atendimento segue normalmente. A conferência de promessas, a memória do atendimento e a escolha do agente que vai responder continuam no modelo do agente. Em IA › Provedores, cada um desses pontos mostra o modelo que está valendo e o motivo, e quem preferir outro modelo pode escolher ali, como antes. Quem usa OpenRouter, Requesty ou provedor personalizado não vê mudança. Não é preciso fazer nada na instalação.

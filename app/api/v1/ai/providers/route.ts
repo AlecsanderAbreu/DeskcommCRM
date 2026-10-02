@@ -22,6 +22,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { roleAtLeast } from "@/lib/auth/types";
 import {
   decidirBinding,
+  escolherModeloEconomico,
   EXPLICACAO_DA_ORIGEM,
   PONTOS_DO_AGENTE_PUBLICADO,
   PONTOS_QUE_HERDAM_DO_AGENTE,
@@ -44,6 +45,7 @@ interface ModeloDoCatalogo {
   display_name: string;
   supports_tools: boolean;
   supports_vision: boolean;
+  supports_embedding: boolean;
   input_price_per_million_cents: number | null;
   output_price_per_million_cents: number | null;
   context_window: number | null;
@@ -70,7 +72,7 @@ export async function GET(): Promise<Response> {
     db
       .from("ai_models")
       .select(
-        "provider, model_id, display_name, supports_tools, supports_vision, input_price_per_million_cents, output_price_per_million_cents, context_window",
+        "provider, model_id, display_name, supports_tools, supports_vision, supports_embedding, input_price_per_million_cents, output_price_per_million_cents, context_window",
       )
       .is("deprecated_at", null)
       .order("provider")
@@ -93,7 +95,7 @@ export async function GET(): Promise<Response> {
   );
 
   const llm = ((orgRes.data?.settings as { llm?: Record<string, unknown> } | null)?.llm ??
-    {}) as { provider?: string; default_model?: string | null };
+    {}) as { provider?: string; default_model?: string | null; enabled_models?: unknown };
   const padraoDaOrganizacao = {
     provider: typeof llm.provider === "string" ? llm.provider : "anthropic",
     defaultModel: typeof llm.default_model === "string" ? llm.default_model : null,
@@ -143,6 +145,18 @@ export async function GET(): Promise<Response> {
       // nesta tela, mesmo quando é ela que vale em runtime.
       modeloDeAmbiente: undefined,
       padraoDaOrganizacao,
+      // A MESMA escolha econômica do seam (`binding-do-ponto.ts`), sobre o mesmo
+      // catálogo e a mesma restrição de modelos habilitados — senão a tela
+      // anunciaria o modelo do agente num classificador que roda no econômico.
+      economicoDoProvedor: (provider, modeloAtual) =>
+        escolherModeloEconomico(
+          modelosRes.data ?? [],
+          provider,
+          modeloAtual,
+          Array.isArray(llm.enabled_models)
+            ? llm.enabled_models.filter((m): m is string => typeof m === "string")
+            : [],
+        ),
     });
     const chave = `${decisao.provider}|${decisao.modelId ?? ""}`;
     const capacidade = capacidadePorModelo.get(chave);
