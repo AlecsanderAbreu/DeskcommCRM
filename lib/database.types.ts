@@ -1820,6 +1820,7 @@ export type Database = {
           history_message_window: number
           history_token_window: number
           id: string
+          inbound_debounce_ms: number | null
           knowledge_source_ids: string[]
           max_steps: number
           model: string
@@ -1858,6 +1859,7 @@ export type Database = {
           history_message_window?: number
           history_token_window?: number
           id?: string
+          inbound_debounce_ms?: number | null
           knowledge_source_ids?: string[]
           max_steps?: number
           model: string
@@ -1896,6 +1898,7 @@ export type Database = {
           history_message_window?: number
           history_token_window?: number
           id?: string
+          inbound_debounce_ms?: number | null
           knowledge_source_ids?: string[]
           max_steps?: number
           model?: string
@@ -8105,6 +8108,7 @@ export type Database = {
           status: string
           suspended_at: string | null
           suspended_by: string | null
+          suspended_kind: string | null
           suspended_reason: string | null
           timezone: string
           updated_at: string
@@ -8131,6 +8135,7 @@ export type Database = {
           status?: string
           suspended_at?: string | null
           suspended_by?: string | null
+          suspended_kind?: string | null
           suspended_reason?: string | null
           timezone?: string
           updated_at?: string
@@ -8157,6 +8162,7 @@ export type Database = {
           status?: string
           suspended_at?: string | null
           suspended_by?: string | null
+          suspended_kind?: string | null
           suspended_reason?: string | null
           timezone?: string
           updated_at?: string
@@ -10542,6 +10548,10 @@ export type Database = {
         Args: { p_dias: number; p_lote?: number }
         Returns: number
       }
+      fn_followup_turno_descartado: {
+        Args: { p_job: string; p_org: string }
+        Returns: boolean
+      }
       fn_gasto_de_ia_do_mes: { Args: { p_org: string }; Returns: number }
       fn_is_platform_admin: { Args: never; Returns: boolean }
       fn_lgpd_anonymize_contact: {
@@ -10598,9 +10608,14 @@ export type Database = {
           pipeline_id: string
         }[]
       }
+      fn_org_operante: { Args: { p_org: string }; Returns: boolean }
       fn_podar_fila_de_jobs: {
         Args: { p_limite?: number; p_retencao_dias?: number }
         Returns: number
+      }
+      fn_reativar_organizacao: {
+        Args: { p_ator: string; p_kind_exigido: string; p_org: string }
+        Returns: Json
       }
       fn_reply_action: {
         Args: {
@@ -10662,6 +10677,15 @@ export type Database = {
       fn_semear_tipos_de_agendamento: {
         Args: { p_organization_id: string }
         Returns: number
+      }
+      fn_suspender_organizacao: {
+        Args: {
+          p_ator: string
+          p_kind: string
+          p_motivo: string
+          p_org: string
+        }
+        Returns: Json
       }
       fn_upsert_wa_contact: {
         Args: {

@@ -7970,8 +7970,18 @@ $seed$;
 -- não ai_pricing. Com a tabela vazia, computeCost() devolve 0 sem log e o teto
 -- de ai_budgets nunca dispara. Derivado de ai_models: idempotente e
 -- auto-curativo, cobre qualquer modelo futuro do catálogo.
+--
+-- `distinct on (m.model_id)`: ai_models é único por (provider, model_id), então
+-- o MESMO model_id pode existir sob dois provedores (ex.: openrouter e requesty)
+-- e, sem a deduplicação, o INSERT gerava DUAS linhas iguais dentro da mesma
+-- passada e a PK `ai_pricing_pkey` (só `model`) recusava com
+-- `duplicate key ... ai_pricing_pkey`. O `not exists` abaixo não resolve: os
+-- duplicados estão dentro do MESMO select. `distinct on` devolve UMA linha por
+-- model_id, e o `order by m.model_id, m.input_price_per_million_cents asc`
+-- escolhe o provedor de MENOR preço de entrada; empate por saída e depois por
+-- provedor, para a escolha ser determinística.
 insert into public.ai_pricing (model, prompt_cents_per_million_tokens, completion_cents_per_million_tokens, notes)
-select
+select distinct on (m.model_id)
   m.model_id,
   m.input_price_per_million_cents,
   m.output_price_per_million_cents,
@@ -7983,7 +7993,8 @@ where m.deprecated_at is null
   and not exists (
     select 1 from public.ai_pricing p
     where p.model = m.model_id and p.superseded_at is null
-  );
+  )
+order by m.model_id, m.input_price_per_million_cents asc, m.output_price_per_million_cents asc, m.provider asc;
 
 -- Embedding do RAG — não vive em ai_models.
 insert into public.ai_pricing (model, embedding_cents_per_million_tokens, notes)
@@ -10106,6 +10117,20 @@ alter table public.agent_inbox_items
     -- sugerido (plano N1) ou falta preço de catálogo — a Central acompanha
     -- até as duas pendências sumirem, ou até a proposta ser enviada/descartada.
     'proposta_pronta_para_revisao',
+    -- (migration 0501) a organização voltou de uma suspensão e há conversas que
+    -- receberam mensagem enquanto ela estava parada: a IA não respondeu nem vai
+    -- responder sozinha. Um item por reativação, aberto por fn_reativar_organizacao.
+    'org_reativada',
+    -- (migration 0500) O Jev percebeu, numa mensagem em que a regra de hoje não
+    -- viu nada, um pedido para falar com uma pessoa ou para parar de receber
+    -- mensagens, e a empresa escolheu "Avisar a equipe". Um kind por pedido, e
+    -- não `other`: a Central dá rótulo e destino por kind, e o `other` não leva
+    -- a uma conversa (lib/ai/inbox-destino.ts); e o aviso é um por CONVERSA e
+    -- pedido. O Jev só abre o aviso — quem passa a conversa é a regra de hoje
+    -- ou uma pessoa, e quem bloqueia é só o STOP do próprio cliente. NESTA
+    -- lista pelas razões de sempre (#159; a janela do `midia-nao-lida.test.ts`).
+    'jev_pedido_de_humano',
+    'jev_parar_de_receber',
     'other'
   ));
 
@@ -42987,6 +43012,455 @@ create policy followup_flow_versions_delete on public.followup_flow_versions
   using (organization_id in (select public.fn_user_org_ids())
          and public.fn_role_at_least(organization_id, 'manager'));
 
+-- ---- org operante e suspensão tipada (migration 0501) ----
+-- A suspensão que suspende (spec cobrança do revendedor §2.1, §3.1). Corpo e
+-- porquê: a migration 0501. Cópia byte a byte das seções A, B, C0a, C0, C, E, F e G dela; a
+-- seção D (kind 'org_reativada') entra NO LUGAR, no bloco único de
+-- agent_inbox_items_kind_check. Entra ANTES da VARREDURA anon porque cria função.
+
+-- ── A. suspended_kind + fn_org_operante ──────────────────────────────────────
+alter table public.organizations add column if not exists suspended_kind text;
+
+update public.organizations
+   set suspended_kind = 'administrativa'
+ where status = 'suspended'
+   and suspended_kind is null;
+
+alter table public.organizations
+  drop constraint if exists organizations_suspended_kind_check;
+alter table public.organizations
+  add constraint organizations_suspended_kind_check check (suspended_kind in ('administrativa', 'cobranca'));
+
+comment on column public.organizations.suspended_kind is
+  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0501).';
+
+create or replace function public.fn_org_operante(p_org uuid)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce((select o.status = 'active' from public.organizations o where o.id = p_org), false);
+$$;
+
+revoke execute on function public.fn_org_operante(uuid) from public, anon, authenticated;
+grant execute on function public.fn_org_operante(uuid) to service_role;
+
+-- ── B. o estado da organização só muda pelo servidor ─────────────────────────
+-- `orgs_write_platform_admin` aceita qualquer `fn_is_platform_admin()`, que
+-- ignora o scope, e `authenticated` tem GRANT ALL: sem isto um support_readonly
+-- reativaria uma suspensa, trocaria o tipo da suspensão, gravaria uma data de
+-- anonimização (`redacted_at`, escrita só pelo lgpd-redact-worker) ou criaria
+-- org isenta pelo PostgREST. Todo escritor legítimo é service_role ou função definer, onde
+-- `current_user` é o dono da função. Molde: `fn_meet_stamp`.
+create or replace function public.fn_organizacao_estado_so_pelo_servidor()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if current_user not in ('authenticated', 'anon') then
+    return new;
+  end if;
+  if tg_op = 'INSERT' then
+    raise exception 'organizacao_nasce_so_pelo_servidor'
+      using errcode = '42501',
+            detail = 'Organização nasce por rota de servidor (service_role ou função definer), nunca pela sessão.';
+  end if;
+  if new.status is distinct from old.status
+     or new.suspended_kind is distinct from old.suspended_kind
+     or new.suspended_at is distinct from old.suspended_at
+     or new.suspended_reason is distinct from old.suspended_reason
+     or new.suspended_by is distinct from old.suspended_by
+     or new.redacted_at is distinct from old.redacted_at
+     or new.created_by is distinct from old.created_by then
+    raise exception 'estado_da_organizacao_so_pelo_servidor'
+      using errcode = '42501',
+            detail = 'Status, suspensão, anonimização e autoria mudam só por fn_suspender_organizacao, fn_reativar_organizacao ou rota de servidor.';
+  end if;
+  return new;
+end;
+$$;
+
+revoke execute on function public.fn_organizacao_estado_so_pelo_servidor() from public, anon, authenticated;
+
+drop trigger if exists trg_organizacao_estado_so_pelo_servidor on public.organizations;
+create trigger trg_organizacao_estado_so_pelo_servidor
+  before insert or update on public.organizations
+  for each row execute function public.fn_organizacao_estado_so_pelo_servidor();
+
+-- ── C0a. o turno de envio que sai sem rodar ─────────────────────────────────
+-- O turno de envio de uma inscrição parada num nó `action` saiu sem ter rodado.
+-- O evento diz isso ao motor, que enfileira um turno novo quando a organização
+-- volta a operar (EVENTO_TURNO_DESCARTADO em lib/followup/node-handlers.ts).
+-- Sem ele, os rechecks da reativação esgotavam o dead-man e matavam a inscrição
+-- com `action_turn_never_completed` e um `followup_dead` de motivo falso. Duas
+-- origens, uma regra: a C0 (turno `pending` falhado pela suspensão) e o worker
+-- (turno que JÁ RODAVA na suspensão, com o envio barrado por
+-- `OrgNaoOperanteError` — a C0 não toca `running`). A chave não termina em
+-- `:<número>`: não conta como passo para fn_followup_job_current. Idempotente
+-- pela chave; devolve se gravou. Sem guarda de status da org: a reativação
+-- chama a C0 com a org já `active`.
+create or replace function public.fn_followup_turno_descartado(p_org uuid, p_job uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$
+  with gravado as (
+    insert into public.followup_enrollment_events
+      (organization_id, enrollment_id, node_id, event_type, payload, idempotency_key)
+    select p_org, e.id, e.current_node_id, 'turn_discarded',
+           jsonb_build_object('job_id', j.id, 'motivo', 'org_nao_operante'),
+           coalesce(j.payload->>'source_step_key', j.id::text) || ':descartado'
+      from public.job_queue j
+      join public.followup_enrollments e
+        on e.organization_id = p_org
+       and e.id::text = j.payload->>'followup_enrollment_id'
+       and e.current_node_id = j.payload->>'node_id'
+       and e.status in ('active', 'waiting_reply', 'dormente')
+     where j.id = p_job
+       and j.organization_id = p_org
+       and j.kind = 'followup_turn'
+       and j.payload->>'purpose' = 'send_message'
+    on conflict (enrollment_id, idempotency_key) where idempotency_key is not null do nothing
+    returning 1
+  )
+  select exists (select 1 from gravado);
+$$;
+
+revoke execute on function public.fn_followup_turno_descartado(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.fn_followup_turno_descartado(uuid, uuid) to service_role;
+
+-- ── C0. a fila que a organização parada descarta ────────────────────────────
+-- Falhar o job `pending` por fora não basta: o estado que dependia dele só é
+-- assentado pelo acerto normal (fn_reply_settle, fn_meet_delivery_settle), que
+-- nunca roda para um job que não saiu da fila. Sem isto, o rascunho aprovado
+-- ficava 'aguardando envio' e o link do Meet nunca saía, sem aviso. Precedente:
+-- fn_reply_redact, que falha job e rascunho juntos. Chamada pelas duas funções
+-- de estado; nenhum papel a executa direto.
+create or replace function public.fn_org_parada_descarta_fila(p_org uuid)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_entregas    uuid[];
+  v_turnos      uuid[];
+  v_compromisso uuid;
+begin
+  with falhados as (
+    update public.job_queue
+       set status = 'failed', last_error = 'org_nao_operante'
+     where organization_id = p_org and status = 'pending'
+    returning id, kind, payload
+  ),
+  rascunhos as (
+    update public.ai_reply_drafts d
+       set status = 'failed', error_code = 'org_suspensa', updated_at = now()
+      from falhados f
+     where d.organization_id = p_org and d.send_job_id = f.id
+       and f.kind = 'approved_reply' and d.status = 'approved'
+    returning d.id
+  )
+  select coalesce(array_agg(f.id) filter (where f.kind = 'transactional_delivery'), '{}'),
+         coalesce(array_agg(f.id) filter (where f.kind = 'followup_turn'), '{}')
+    into v_entregas, v_turnos
+    from falhados f;
+
+  -- O turno de envio que saiu da fila sem rodar avisa o motor (C0a).
+  perform public.fn_followup_turno_descartado(p_org, t.id) from unnest(v_turnos) as t(id);
+
+  for v_compromisso in
+    update public.calendar_appointments a
+       set meeting_delivery = a.meeting_delivery
+             || jsonb_build_object('state', 'failed', 'error', 'org_suspensa', 'settled_at', now())
+     where a.organization_id = p_org
+       and a.meeting_delivery_job_id = any(v_entregas)
+    returning a.id
+  loop
+    perform public.fn_meet_notice(p_org, v_compromisso, 'failed');
+  end loop;
+end;
+$$;
+
+revoke execute on function public.fn_org_parada_descarta_fila(uuid) from public, anon, authenticated, service_role;
+
+-- ── C. fn_suspender_organizacao: uma transação, fila parada ──────────────────
+-- Conserta a rota que lia, gravava e emitia o evento sem await em três passos.
+-- `failed` e não `dead` nos jobs: é o terminal de veto (queue.ts); `dead` abre
+-- aviso `job_dead`. A mensagem `queued` vira `failed` para o redrive não a
+-- mandar quando alguém olhar de novo. Suspensão com tipo NULO (imagem anterior
+-- à 0501, depois de rollback) vale como administrativa.
+create or replace function public.fn_suspender_organizacao(
+  p_org uuid, p_kind text, p_motivo text, p_ator uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status text;
+  v_kind   text;
+begin
+  if p_kind is null or p_kind not in ('administrativa', 'cobranca') then
+    raise exception 'tipo_de_suspensao_invalido' using errcode = '22023';
+  end if;
+
+  select o.status, coalesce(o.suspended_kind, 'administrativa')
+    into v_status, v_kind
+    from public.organizations o
+   where o.id = p_org
+     for update;
+  if not found then
+    raise exception 'organization_not_found' using errcode = 'P0002';
+  end if;
+
+  if v_status = 'suspended' then
+    if v_kind = p_kind then
+      return jsonb_build_object('changed', false, 'motivo', 'ja_suspensa');
+    end if;
+    if p_kind = 'cobranca' then
+      return jsonb_build_object('changed', false, 'motivo', 'administrativa_prevalece');
+    end if;
+    -- cobranca → administrativa: troca o tipo e mantém o início da suspensão.
+    update public.organizations
+       set suspended_kind = 'administrativa',
+           suspended_reason = p_motivo,
+           suspended_by = p_ator
+     where id = p_org;
+  elsif v_status = 'active' then
+    update public.organizations
+       set status = 'suspended',
+           suspended_kind = p_kind,
+           suspended_reason = p_motivo,
+           suspended_at = now(),
+           suspended_by = p_ator
+     where id = p_org;
+  else
+    -- redacted / archived: inalterados, já não operam.
+    return jsonb_build_object('changed', false, 'motivo', 'org_encerrada');
+  end if;
+
+  perform public.fn_org_parada_descarta_fila(p_org);
+
+  update public.messages
+     set status = 'failed', error_code = 'org_suspensa'
+   where organization_id = p_org and status = 'queued';
+
+  insert into public.event_log (organization_id, event_type, entity_kind, entity_id, payload)
+  values (p_org, 'tenant.suspended', 'organization', p_org,
+          jsonb_build_object('tenant_id', p_org, 'kind', p_kind,
+                             'suspended_by', p_ator, 'reason', p_motivo));
+
+  return jsonb_build_object('changed', true);
+end;
+$$;
+
+revoke execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) from public, anon, authenticated;
+grant execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) to service_role;
+
+-- ── E. fn_reativar_organizacao: volta sem rajada ─────────────────────────────
+-- Exige o tipo: `/reactivate` desfaz só a administrativa; a de cobrança sai por
+-- pagamento, prazo ou isenção (PR 2 em diante). Nada é reprocessado: jobs
+-- `pending` que sobraram viram `failed`, e as conversas que receberam mensagem
+-- durante a suspensão viram UM item na Central (sem referência) para uma
+-- pessoa revisar.
+create or replace function public.fn_reativar_organizacao(
+  p_org uuid, p_kind_exigido text, p_ator uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status    text;
+  v_kind      text;
+  v_desde     timestamptz;
+  v_conversas integer := 0;
+begin
+  if p_kind_exigido is null or p_kind_exigido not in ('administrativa', 'cobranca') then
+    raise exception 'tipo_de_suspensao_invalido' using errcode = '22023';
+  end if;
+
+  select o.status, coalesce(o.suspended_kind, 'administrativa'), o.suspended_at
+    into v_status, v_kind, v_desde
+    from public.organizations o
+   where o.id = p_org
+     for update;
+  if not found then
+    raise exception 'organization_not_found' using errcode = 'P0002';
+  end if;
+
+  if v_status <> 'suspended' then
+    return jsonb_build_object('changed', false, 'motivo', 'nao_suspensa');
+  end if;
+  if v_kind <> p_kind_exigido then
+    return jsonb_build_object('changed', false, 'motivo',
+      case v_kind when 'cobranca' then 'suspensao_de_cobranca' else 'suspensao_administrativa' end);
+  end if;
+
+  update public.organizations
+     set status = 'active',
+         suspended_kind = null,
+         suspended_at = null,
+         suspended_reason = null,
+         suspended_by = null
+   where id = p_org;
+
+  perform public.fn_org_parada_descarta_fila(p_org);
+
+  if v_desde is not null then
+    select count(*) into v_conversas
+      from public.conversations c
+     where c.organization_id = p_org
+       and not c.is_group
+       and c.last_inbound_at >= v_desde;
+  end if;
+
+  if v_conversas > 0 then
+    insert into public.agent_inbox_items (organization_id, kind, severity, title, body)
+    values (p_org, 'org_reativada', 'warn',
+            'A conta foi reativada — há conversas para revisar',
+            -- Só o fato: o que fazer é a orientação do aviso na tela
+            -- (lib/ai/inbox-destino.ts, org_reativada), que sabe das abas.
+            case when v_conversas = 1
+              then '1 conversa recebeu mensagem enquanto a conta estava suspensa.'
+              else format('%s conversas receberam mensagem enquanto a conta estava suspensa.', v_conversas)
+            end);
+  end if;
+
+  insert into public.event_log (organization_id, event_type, entity_kind, entity_id, payload)
+  values (p_org, 'tenant.reactivated', 'organization', p_org,
+          jsonb_build_object('tenant_id', p_org, 'kind', v_kind,
+                             'reactivated_by', p_ator, 'conversas_com_mensagem', v_conversas));
+
+  return jsonb_build_object('changed', true);
+end;
+$$;
+
+revoke execute on function public.fn_reativar_organizacao(uuid, text, uuid) from public, anon, authenticated;
+grant execute on function public.fn_reativar_organizacao(uuid, text, uuid) to service_role;
+
+-- ── F. o claim do follow-up não vê a organização parada ──────────────────────
+-- Sem isto o motor seguia avançando fluxos da org suspensa, enfileirava turnos e
+-- pagava o LLM de classificação. Definição VIGENTE da 0308 (espera longa dorme),
+-- copiada do baseline, com UMA mudança: a CTE `orgs` só aceita organização
+-- `active` (a régua de fn_org_operante, escrita como `exists` para o planner).
+-- A inscrição da org parada não é tocada — nem o lease —, e volta ao rodízio na
+-- reativação. Revoke e grant iguais aos da 0308.
+create or replace function fn_claim_due_followup_enrollments(p_limit int, p_lease_seconds int)
+returns setof followup_enrollments
+language sql
+security definer
+set search_path = public
+as $$
+  with orgs as (
+    -- Sem a condição de claim aqui de propósito: o lateral abaixo a aplica, e uma
+    -- organização cujos vencidos estão todos com lease apenas devolve zero linhas.
+    select distinct organization_id
+      from followup_enrollments
+     where status in ('active','waiting_reply','dormente')
+       and next_eval_at <= now()
+       -- Organização parada (suspensa, redigida, arquivada) não roda follow-up
+       -- (migration 0501).
+       and exists (select 1 from public.organizations o
+                    where o.id = followup_enrollments.organization_id
+                      and o.status = 'active')
+  ),
+  fila as (
+    select f.id, f.next_eval_at, f.posicao_na_org
+      from orgs
+      cross join lateral (
+        select d.id,
+               d.next_eval_at,
+               row_number() over (order by d.next_eval_at) as posicao_na_org
+          from followup_enrollments d
+         where d.organization_id = orgs.organization_id
+           and d.status in ('active','waiting_reply','dormente')
+           and d.next_eval_at <= now()
+           and (d.claimed_until is null or d.claimed_until < now())
+         order by d.next_eval_at
+         limit p_limit
+      ) f
+  ),
+  escolhidos as (
+    -- O rodízio: posição 1 de todas as organizações, depois a 2 de todas, etc.
+    -- Empate na mesma posição vai para quem esperou mais.
+    select id from fila order by posicao_na_org, next_eval_at limit p_limit
+  ),
+  travados as (
+    select e.id from followup_enrollments e
+     where e.id in (select id from escolhidos)
+     for update skip locked
+  )
+  update followup_enrollments e
+     set claimed_until = now() + make_interval(secs => p_lease_seconds),
+         updated_at = now()
+   where e.id in (select id from travados)
+     -- A condição de lease É REPETIDA AQUI, e não é redundante com a CTE `fila`.
+     -- Sem ela, duas conexões simultâneas reclamam as MESMAS linhas: a segunda
+     -- espera o lock da primeira, e quando ele sai o Postgres (READ COMMITTED)
+     -- reavalia só o WHERE do UPDATE — que não olhava `claimed_until` — e grava
+     -- por cima. O `skip locked` da CTE não salva: as duas materializam a mesma
+     -- lista antes de qualquer lock existir. Medido: interseção de 5 em 5 no
+     -- invariante de concorrência (followup-schema.test.ts).
+     and (e.claimed_until is null or e.claimed_until < now())
+  returning e.*;
+$$;
+
+revoke execute on function fn_claim_due_followup_enrollments(int, int) from public, anon, authenticated;
+grant execute on function fn_claim_due_followup_enrollments(int, int) to service_role;
+
+-- ── G. o evento turn_discarded é só do servidor ──────────────────────────────
+-- A C0 grava `turn_discarded` para o motor enfileirar um turno novo na
+-- reativação. A policy `followup_enrollment_events_insert` (0490) deixa
+-- `manager` inserir pela sessão, e a chave `…:descartado` não termina em
+-- `:<n>`: sem isto, um manager forjava o evento pelo PostgREST e o motor
+-- enfileirava um 2º turno de envio. Definição VIGENTE da 0488 com UMA mudança:
+-- o ramo da trilha também recusa `event_type = 'turn_discarded'` quando há
+-- `auth.uid()`. O servidor (service_role, funções de estado) não tem
+-- `auth.uid()` e segue gravando.
+create or replace function public.fn_followup_generation_write()
+returns trigger language plpgsql security definer set search_path=public as $$
+begin
+ -- #1862 — DELETE que chega em CASCATA não é escrita de follow-up. Este gatilho
+ -- é BEFORE ROW: o DELETE vindo de `on delete cascade` roda sob o gatilho da
+ -- chave estrangeira, com `pg_trigger_depth() > 1`. Passa QUALQUER cascata, não
+ -- só a da ficha: apagar o contato, a inscrição (followup_enrollments), o fluxo
+ -- (followup_flow_pointers) ou a organização leva junto os registros internos.
+ -- O turno que sobra sem inscrição/evento falha fechado em
+ -- fn_followup_job_current. A profundidade não distingue cascata de DELETE
+ -- feito por outro gatilho: hoje nenhum gatilho apaga nestas duas tabelas, e
+ -- quem criar um herda esta passagem. O DELETE DIRETO (profundidade 1, com
+ -- `auth.uid()`) continua caindo na recusa abaixo — a 42501 não afrouxa.
+ if tg_op='DELETE' and pg_trigger_depth()>1 then return old; end if;
+ if tg_table_name='job_queue' then
+  if auth.uid() is not null and ((tg_op<>'DELETE' and new.kind='followup_turn') or (tg_op<>'INSERT' and old.kind='followup_turn')) then
+   raise exception 'followup_job_internal' using errcode='42501';
+  end if;
+  if tg_op='UPDATE' and old.kind='followup_turn' then
+   if new.organization_id<>old.organization_id or new.contact_id is distinct from old.contact_id or new.kind<>old.kind
+    or new.payload->'followup_enrollment_id' is distinct from old.payload->'followup_enrollment_id'
+    or new.payload->'node_id' is distinct from old.payload->'node_id'
+    or new.payload->'source_step_key' is distinct from old.payload->'source_step_key'
+   then raise exception 'followup_job_origin_immutable' using errcode='42501'; end if;
+  end if;
+ elsif auth.uid() is not null and (
+   (tg_op<>'DELETE' and (new.idempotency_key ~ ':[0-9]+$' or new.event_type='turn_discarded'))
+   or (tg_op<>'INSERT' and (old.idempotency_key ~ ':[0-9]+$' or old.event_type='turn_discarded'))) then
+  raise exception 'followup_step_internal' using errcode='42501';
+ end if;
+ if tg_op='DELETE' then return old; end if;
+ return new;
+end; $$;
+
+revoke all on function public.fn_followup_generation_write() from public,anon,authenticated;
+
+
 -- ---- a cascata do BANCO alcança lead_notes, tool_calls, lead_state e social_identity (migration 0494) ----
 -- Follow-up do #1958 (issue #1964). A dorsa `fn_redigir_conversas_ao_anonimizar`
 -- (gatilho da virada de is_anonymized, desenho da 0391) passou a redigir também:
@@ -43764,6 +44238,93 @@ update public.messages set
   updated_at = now()
 where body = '[mensagem anonimizada]'
   and media_derived_text is not null;
+
+-- ---- os avisos do Jev na Central: um por conversa e pedido, e fecham sozinhos (migration 0500) ----
+--
+-- Os dois kinds entraram no bloco ÚNICO de `agent_inbox_items_kind_check` (o
+-- do `capabilities_missing`, migration 0105), não aqui: um segundo bloco da
+-- mesma constraint é o defeito do #159. Daqui para baixo, o texto é o MESMO da
+-- migration 0500 (partes 2 e 3), com o racional inteiro lá.
+-- 2. UM AVISO POR CONVERSA E PEDIDO, NO BANCO. Índice único parcial em
+--    (organização, kind, conversa) para os dois kinds do Jev, SEM status — o
+--    precedente é o `agent_inbox_routing_unique` do `routing_unassigned`. Com o
+--    status fora do índice, o "Reabrir" nunca encontra um segundo aberto, e o
+--    pedido novo sobre o mesmo aviso o REABRE em vez de abrir outro (o gravador,
+--    lib/ai/decisao/pedidos.ts, faz o insert e trata o 23505). A busca antes da
+--    escrita, que havia antes, deixava dois drenos simultâneos abrirem dois.
+--    Antes do índice, os repetidos saem (fica o aberto, e o mais novo): só o
+--    banco de quem rodou este PR antes do conserto os tem, mas o `update.sh`
+--    de qualquer clone não pode quebrar aqui.
+delete from public.agent_inbox_items a
+ using (
+   select id, row_number() over (
+            partition by organization_id, kind, ref_id
+            order by (status = 'open') desc, created_at desc, id desc
+          ) as n
+     from public.agent_inbox_items
+    where kind in ('jev_pedido_de_humano','jev_parar_de_receber')
+ ) d
+ where a.id = d.id and d.n > 1;
+create unique index if not exists agent_inbox_jev_pedido_unico
+  on public.agent_inbox_items (organization_id, kind, ref_id)
+  where kind in ('jev_pedido_de_humano','jev_parar_de_receber');
+
+-- 3. O AVISO FECHA QUANDO O PEDIDO FOI ATENDIDO, por qualquer caminho.
+--    A conversa saiu dos estados abertos (encerrada): os dois avisos.
+--    A conversa ficou com uma pessoa — alguém assumiu, ou ela foi PASSADA:
+--    `performHumanHandoff` (a regra de hoje, o descadastro ambíguo, a
+--    ferramenta `request_human_handoff` do modelo), o orquestrador do clima e
+--    a atribuição manual gravam `last_handoff_at` e calam o robô
+--    (`bot_silenced_until` no futuro) — fecha SÓ o de falar com uma pessoa.
+--    O de parar de receber segue aberto aí: o texto dele pede que a equipe
+--    assuma E peça ao cliente o PARAR, e fechá-lo no primeiro passo sumiria
+--    com o lembrete de um pedido de descadastro antes do passo que o atende.
+--    No contato: bloqueado (`is_blocked` passa a true — o único escritor é o
+--    STOP do próprio cliente, na entrada da mensagem, lib/channels/pos-entrada.ts;
+--    ninguém da equipe bloqueia à mão), fecha o de parar de receber de todas
+--    as conversas dele.
+--    Gatilhos próprios, e não o de atribuição da 0228: aquele só dispara em
+--    `assigned_to_user_id`/`status`, e a passagem nem sempre muda o status.
+--    Nenhum faz HTTP; os dois filtram a organização da própria linha.
+create or replace function public.fn_fechar_avisos_do_jev_da_conversa()
+returns trigger language plpgsql security definer set search_path=public as $$
+begin
+ if new.status not in('open','pending','claimed','ai_handling') then
+  update public.agent_inbox_items set status='resolved',resolved_at=now()
+   where organization_id=new.organization_id and ref_kind='conversation' and ref_id=new.id
+     and kind in('jev_pedido_de_humano','jev_parar_de_receber') and status<>'resolved';
+ elsif new.assigned_to_user_id is not null
+    or (new.last_handoff_at is not null and new.last_handoff_at is distinct from old.last_handoff_at)
+    or (new.bot_silenced_until > now() and new.bot_silenced_until is distinct from old.bot_silenced_until) then
+  update public.agent_inbox_items set status='resolved',resolved_at=now()
+   where organization_id=new.organization_id and ref_kind='conversation' and ref_id=new.id
+     and kind='jev_pedido_de_humano' and status<>'resolved';
+ end if;
+ return new;
+end;
+$$;
+revoke all on function public.fn_fechar_avisos_do_jev_da_conversa() from public,anon,authenticated;
+drop trigger if exists trg_fechar_avisos_do_jev_da_conversa on public.conversations;
+create trigger trg_fechar_avisos_do_jev_da_conversa
+ after update of assigned_to_user_id,status,bot_silenced_until,last_handoff_at on public.conversations
+ for each row execute function public.fn_fechar_avisos_do_jev_da_conversa();
+
+create or replace function public.fn_fechar_aviso_do_jev_ao_bloquear()
+returns trigger language plpgsql security definer set search_path=public as $$
+begin
+ update public.agent_inbox_items set status='resolved',resolved_at=now()
+  where organization_id=new.organization_id and kind='jev_parar_de_receber' and ref_kind='conversation'
+    and status<>'resolved'
+    and ref_id in(select v.id from public.conversations v where v.organization_id=new.organization_id and v.contact_id=new.id);
+ return new;
+end;
+$$;
+revoke all on function public.fn_fechar_aviso_do_jev_ao_bloquear() from public,anon,authenticated;
+drop trigger if exists trg_fechar_aviso_do_jev_ao_bloquear on public.contacts;
+create trigger trg_fechar_aviso_do_jev_ao_bloquear
+ after update of is_blocked on public.contacts
+ for each row when (new.is_blocked and old.is_blocked is distinct from true)
+ execute function public.fn_fechar_aviso_do_jev_ao_bloquear();
 
 notify pgrst, 'reload schema';
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
@@ -45291,3 +45852,22 @@ update public.agent_inbox_items i
 create unique index if not exists agent_inbox_event_dead_aberto_unico
   on public.agent_inbox_items (organization_id, kind, title)
   where status = 'open' and kind = 'event_dead';
+
+-- ---- janela de rajada configurável por agente (migration 0498) ----
+-- 0498 (#1856, de @webtecnica): a janela que junta mensagens do MESMO contato
+-- numa resposta sai da env global `INBOUND_DEBOUNCE_MS` e vira campo da versão
+-- do agente. NULL = usa a env da instalação (quem só atualiza não muda nada);
+-- 0 desliga; teto 60s. Par drop/add da CHECK para o `update.sh` reaplicar sem
+-- 'already exists'. Sem função nova (nada a revogar de anon).
+alter table public.ai_agent_versions
+  drop constraint if exists ai_agent_versions_inbound_debounce_ms_check;
+
+alter table public.ai_agent_versions
+  add column if not exists inbound_debounce_ms integer;
+
+comment on column public.ai_agent_versions.inbound_debounce_ms is
+  'Janela de coalescência de rajada inbound em ms para ESTE agente. NULL = usa o INBOUND_DEBOUNCE_MS da instalação; 0 = desliga a coalescência; teto 60s.';
+
+alter table public.ai_agent_versions
+  add constraint ai_agent_versions_inbound_debounce_ms_check
+  check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
