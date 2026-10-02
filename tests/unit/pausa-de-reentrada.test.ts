@@ -99,6 +99,7 @@ describe("varredura de silêncio", () => {
       ],
       loadSilentContactIds: async () => ["respondeu-agora", "nunca-passou", "encerrou-ha-tempo"],
       loadContatosComRetornoVivo: async () => new Set<string>(),
+      loadContatosComInscricaoViva: async () => new Set<string>(),
       loadContactIdsEmCooldown: async () => new Set<string>(),
       loadEncerramentosDoFluxo,
       loadContatosComPessoaNoComando,
@@ -204,6 +205,7 @@ describe("createSupabaseSilenceSweepDb — a consulta de PRODUÇÃO", () => {
     ],
     contacts: { tags: [], is_blocked: false, ai_authorized_at: null, phone_number: null, force_human: false },
     sessao: { metadata: { ai_gate_mode: "open" } },
+    organizations: { status: "active" },
     assignee_kind: null,
     bot_silenced_until: null,
     ...extra,
@@ -321,6 +323,7 @@ describe("base da pausa: a partir do último ENVIO do fluxo", () => {
       ],
       loadSilentContactIds: async () => ["ontem", "hoje"],
       loadContatosComRetornoVivo: async () => new Set<string>(),
+      loadContatosComInscricaoViva: async () => new Set<string>(),
       loadContactIdsEmCooldown: async () => new Set<string>(),
       loadEncerramentosDoFluxo: async () =>
         new Map<string, FatosDaReentrada>([
