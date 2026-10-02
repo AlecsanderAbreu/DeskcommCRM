@@ -1,4 +1,5 @@
 import type pg from "pg";
+import { ZodError } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createContactHandler } from "@/app/api/v1/contacts/_handler";
 import { createLeadHandler } from "@/app/api/v1/leads/_handler";
@@ -327,6 +328,17 @@ export async function criarPegadaDoCandidato(
     actor: { type: "webhook_source" as const, id: c.id },
     requestId: `rule:${c.id}`,
   };
+  // O negócio é VALIDADO antes de qualquer escrita: `normalizeProspect` aceita um nome de
+  // uma letra, e o negócio exige duas. Sem isto o contato nascia, o negócio recusava, e a
+  // empresa ficava com um contato sem negócio nem conversa.
+  const negocioBase = createLeadSchema.parse({
+    pipeline_id: config.pipeline_id,
+    stage_id: config.stage_id,
+    title: p.data.name,
+    owner_agent_id: config.agent_id,
+    source: "prospecting",
+    description: `Campanha: ${c.name}\nQualificação: ${config.qualification}`.slice(0, 2000),
+  });
   let contactId = contatoDaCampanha ?? p.contact_id;
   if (!contactId) {
     const contact = await createContactHandler(admin, ctx, {
@@ -353,15 +365,8 @@ export async function criarPegadaDoCandidato(
   }
   if (!leadId) {
     const lead = await createLeadHandler(admin, ctx, {
-      ...createLeadSchema.parse({
-        pipeline_id: config.pipeline_id,
-        stage_id: config.stage_id,
-        title: p.data.name,
-        contact_id: contactId,
-        owner_agent_id: config.agent_id,
-        source: "prospecting",
-        description: `Campanha: ${c.name}\nQualificação: ${config.qualification}`.slice(0, 2000),
-      }),
+      ...negocioBase,
+      contact_id: contactId,
       external_id: p.id,
     });
     leadId = String(lead.id);
@@ -415,6 +420,19 @@ export async function prepararCandidatoNoEnvio(
   try {
     return await criarPegadaDoCandidato(db, admin, org, c, config, p, triagem.contatoDaCampanha);
   } catch (error) {
+    if (error instanceof ZodError) {
+      // Dados da empresa que o cadastro não aceita (nome curto demais, por exemplo). A
+      // validação roda ANTES de qualquer escrita, então não sobra contato órfão.
+      await db.query(
+        "update prospecting_candidates set status='failed',error=$3,updated_at=now() where organization_id=$1 and id=$2 and status='queued'",
+        [
+          org,
+          p.id,
+          "Os dados desta empresa não passam na validação do cadastro (por exemplo, nome curto demais).",
+        ],
+      );
+      return null;
+    }
     const status = (error as { status?: unknown } | null)?.status;
     if (typeof status !== "number" || status < 400 || status >= 500) throw error;
     const detalhe = error instanceof Error ? error.message.slice(0, 300) : "";
@@ -512,7 +530,9 @@ export async function activateCampaign(
       "update prospecting_campaigns set config=$3 where organization_id=$1 and id=$2",
       [org, id, config],
     );
-    // Activation is the authorized origin. A later tick only uses this captured boundary.
+    // Activation is the authorized origin. In `on_start` the service boundary of every company
+    // is captured here; in `on_send` each company's is captured when its turn comes
+    // (`prepararCandidatoNoEnvio`), still under this campaign's own authority.
     const candidates = (
       await db.query<Candidate>(
         "select * from prospecting_candidates where organization_id=$1 and campaign_id=$2 and status='new' order by created_at,id",

@@ -140,6 +140,16 @@ export async function sendNextCandidate(
     );
     return;
   }
+  // A checagem do canal olha o telefone desta empresa (modo de teste, lista liberada) e vem
+  // ANTES de qualquer criação: se ela recusar, a campanha pausa sem ter deixado contato,
+  // negócio nem conversa para trás — que é exatamente o que o modo `on_send` quer evitar.
+  const preflight = await decidirPreGoLiveDoCanalViaSupabase(admin, {
+    organizationId: c.organization_id,
+    channelSessionId: cfg.channel_session_id,
+    contactPhoneNumber: queued.phone ?? "",
+  });
+  if (!preflight.permite)
+    throw new ProspectingError(`O canal ainda não permite esta abordagem: ${preflight.motivo}.`);
   // MODO `on_send`: a empresa está na fila, mas ainda NÃO existe no CRM — contato,
   // negócio e conversa nascem agora, na vez dela de ser abordada. Se ela saiu da fila
   // no caminho (virou contato por outro lado, ou o CRM recusou o cadastro), não houve
@@ -159,13 +169,6 @@ export async function sendNextCandidate(
         [c.organization_id],
       )
     ).rows[0]?.locale ?? null;
-  const preflight = await decidirPreGoLiveDoCanalViaSupabase(admin, {
-    organizationId: c.organization_id,
-    channelSessionId: cfg.channel_session_id,
-    contactPhoneNumber: p.phone ?? "",
-  });
-  if (!preflight.permite)
-    throw new ProspectingError(`O canal ainda não permite esta abordagem: ${preflight.motivo}.`);
   const boundary = parseServiceBoundary(p.service_boundary);
   if (!boundary || !p.contact_id || !p.conversation_id)
     // DO CANDIDATO: este não tem contato/conversa resolvidos. O próximo pode ter.

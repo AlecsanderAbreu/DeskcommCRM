@@ -747,16 +747,14 @@ export function ProspectingClient() {
                               <input
                                 type="radio"
                                 name="prospecting-funnel-entry"
-                                checked={config.funnel_entry === "on_send"}
+                                checked={(config.funnel_entry ?? "on_start") === "on_send"}
                                 onChange={() => update("funnel_entry", "on_send")}
                                 className="mt-1"
                               />
                               <span>
                                 {t("Só quando for abordada (recomendado)")}
                                 <span className="block text-xs text-muted-foreground">
-                                  {t(
-                                    "O funil mostra só quem recebeu mensagem, e desmarcar uma empresa não deixa nada para desfazer.",
-                                  )}
+                                  {t("O funil mostra só quem já recebeu a primeira mensagem.")}
                                 </span>
                               </span>
                             </label>
@@ -764,7 +762,7 @@ export function ProspectingClient() {
                               <input
                                 type="radio"
                                 name="prospecting-funnel-entry"
-                                checked={config.funnel_entry === "on_start"}
+                                checked={(config.funnel_entry ?? "on_start") === "on_start"}
                                 onChange={() => update("funnel_entry", "on_start")}
                                 className="mt-1"
                               />
@@ -798,7 +796,7 @@ export function ProspectingClient() {
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {config.funnel_entry === "on_send"
+                            {(config.funnel_entry ?? "on_start") === "on_send"
                               ? t(
                                   "Ao iniciar, as empresas com telefone entram na fila. Cada uma entra no funil só quando for abordada. Contatos já existentes são preservados. A fila faz uma primeira abordagem; respostas seguem no Inbox. Uma mensagem já em transmissão pode concluir após a pausa.",
                                 )

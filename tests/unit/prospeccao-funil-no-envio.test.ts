@@ -330,3 +330,51 @@ describe("prepararCandidatoNoEnvio: a preparação na vez da empresa", () => {
     expect(gravou(chamadas, "set status='failed'")).toBe(false);
   });
 });
+
+describe("prepararCandidatoNoEnvio: os casos de borda que o revisor cego apontou", () => {
+  it("empresa PARCIALMENTE preparada (contato já ligado, negócio ainda não): reaproveita o contato e cria só o negócio", async () => {
+    // Execução anterior caiu depois de criar o contato: o candidato guarda `contact_id`, e o
+    // telefone já aparece como contato conhecido do CRM — que é o dele, não de um terceiro.
+    const { db } = bancoFalso({ contatosConhecidos: [{ id: CONTATO }] });
+    const linha = await prepararCandidatoNoEnvio(
+      db,
+      {} as never,
+      campanha,
+      configOnSend,
+      candidato(1, { contact_id: CONTATO }),
+    );
+    expect(m.contato, "o contato já existe: não se cria outro").not.toHaveBeenCalled();
+    expect(m.negocio).toHaveBeenCalledTimes(1);
+    expect(linha).toMatchObject({ status: "queued", conversation_id: CONVERSA });
+  });
+
+  it("recusa 4xx do cadastro do NEGÓCIO depois de o contato existir: a empresa falha, mas o contato fica LIGADO ao candidato (rastreável pela LGPD)", async () => {
+    m.negocio.mockRejectedValue(Object.assign(new Error("Etapa inválida."), { status: 422 }));
+    const { db, chamadas } = bancoFalso();
+    expect(
+      await prepararCandidatoNoEnvio(db, {} as never, campanha, configOnSend, candidato(1)),
+    ).toBeNull();
+    const ligou = chamadas.findIndex((c) => c.sql.includes("set contact_id=$3 where"));
+    const falhou = chamadas.findIndex((c) => c.sql.includes("set status='failed'"));
+    expect(ligou, "o vínculo é gravado assim que o contato nasce").toBeGreaterThanOrEqual(0);
+    expect(falhou).toBeGreaterThan(ligou);
+    expect(m.fronteira, "sem negócio não se abre conversa").not.toHaveBeenCalled();
+  });
+
+  it("nome de UMA letra (o schema do negócio exige duas): falha só essa empresa, e NADA é criado antes", async () => {
+    const { db, chamadas } = bancoFalso();
+    const curto = candidato(1);
+    curto.data = { ...curto.data, name: "A" };
+    expect(
+      await prepararCandidatoNoEnvio(db, {} as never, campanha, configOnSend, curto),
+    ).toBeNull();
+    expect(
+      m.contato,
+      "a validação vem ANTES de qualquer escrita: sem contato órfão",
+    ).not.toHaveBeenCalled();
+    expect(m.negocio).not.toHaveBeenCalled();
+    const falhou = chamadas.find((c) => c.sql.includes("set status='failed'"));
+    expect(falhou?.sql).toContain("and status='queued'");
+    expect(String(falhou?.params[2])).toContain("nome curto demais");
+  });
+});

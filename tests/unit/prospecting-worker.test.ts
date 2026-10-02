@@ -352,3 +352,40 @@ describe("funil só no envio (`funnel_entry: on_send`)", () => {
     expect(mocks.send).not.toHaveBeenCalled();
   });
 });
+
+describe("funil só no envio: a checagem do canal vem ANTES de criar qualquer coisa", () => {
+  const noEnvio = {
+    ...campaign,
+    config: { ...campaign.config, funnel_entry: "on_send" },
+  } as Campaign;
+  const naFila = {
+    id: "candidate",
+    contact_id: null,
+    lead_id: null,
+    conversation_id: null,
+    service_boundary: null,
+    message_id: "stable-message",
+    phone: "+5511999990000",
+    data: { name: "Example", socials: [] },
+  };
+
+  it("canal que recusa a abordagem: a campanha pausa SEM ter deixado contato, negócio nem conversa", async () => {
+    mocks.preflight.mockResolvedValue({ permite: false, motivo: "telefone fora da lista liberada" });
+    const db = database(undefined, naFila);
+    await expect(
+      sendNextCandidate({} as never, db as never, {} as never, noEnvio),
+    ).rejects.toThrow("O canal ainda não permite esta abordagem");
+    expect(mocks.prepare, "recusa do canal vem antes de qualquer criação").not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it("a checagem usa o telefone da empresa que ainda está só na fila", async () => {
+    mocks.prepare.mockResolvedValue(candidate);
+    await sendNextCandidate({} as never, database(undefined, naFila) as never, {} as never, noEnvio);
+    expect(mocks.preflight.mock.calls[0]?.[1]).toMatchObject({
+      contactPhoneNumber: "+5511999990000",
+    });
+    const checagem = mocks.preflight.mock.invocationCallOrder[0] ?? Infinity;
+    expect(checagem).toBeLessThan(mocks.prepare.mock.invocationCallOrder[0] ?? 0);
+  });
+});
