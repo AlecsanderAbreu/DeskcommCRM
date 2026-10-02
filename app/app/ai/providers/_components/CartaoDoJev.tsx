@@ -66,13 +66,6 @@ export interface DadosDoJev {
    */
   por_tarefa?: TarefaNoCartao[];
   tem_ia_de_sempre: boolean;
-  /**
-   * Área da saúde (DEC-012 #2): `true` quando a organização está marcada em
-   * `organizations.settings.area_saude`. Ligado, o cartão exibe o aviso onde o
-   * Jev observa/decide (as mensagens podem conter dado de saúde — LGPD).
-   * [texto/condição do DEC-012 INFERIDO — documentação externa, confirmar.]
-   */
-  area_saude: boolean;
   numeros: {
     dias: number;
     decisoes: number;
@@ -434,19 +427,15 @@ export function CartaoDoJev({
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{t(dados.provedor.quandoUsar)}</p>
       </div>
 
-      {/* O aviso da área da saúde (DEC-012 #2): a organização marcada em
-          `organizations.settings.area_saude` trata mensagens que podem conter
-          dado de saúde — onde o Jev observa/decide, a tela exibe o aviso. O
-          texto abaixo é a leitura INFERIDA da decisão (documento externo
-          "Decisão Implementações/DEC-012", fora deste repo); o mantenedor
-          deve confirmar o texto EXATO. */}
-      {dados.area_saude && (
-        <p className="mt-3 border border-destructive/40 bg-destructive/5 p-3 text-sm" data-testid="jev-aviso-area-saude">
-          {t(
-            "Área da saúde: as mensagens que o Jev observa podem conter dado de saúde, protegido pela LGPD. O Jev é um operador novo, nos Estados Unidos — confirme que o registro de operadores e a política de privacidade desta instalação já o listam antes de ligá-lo.",
-          )}
-        </p>
-      )}
+      {/* DEC-012 #2: quem é da área da saúde manda dado sensível (LGPD), e o
+          contrato da TypeSafe precisa cobrir isso. O produto não guarda o nicho
+          como categoria, então o aviso aparece para todos em forma condicional.
+          A ida para os EUA já está no consentimento, mais abaixo. */}
+      <p className="mt-3 rounded-md bg-warning-bg p-3 text-sm text-warning-fg" data-testid="jev-aviso-area-saude">
+        {t(
+          "Se a sua empresa é da área da saúde: as mensagens que o Jev lê podem conter dado de saúde, que a LGPD trata como sensível. Antes de ligar, confira com quem cuida da LGPD da empresa se o contrato da TypeSafe cobre esse tipo de dado.",
+        )}
+      </p>
 
       {/* Depois de colar a chave nada confirmava que ela FUNCIONA: esta linha é
           o resultado do teste, dito em palavras (o ✓ é enfeite). */}

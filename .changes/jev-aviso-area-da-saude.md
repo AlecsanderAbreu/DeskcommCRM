@@ -1,9 +1,9 @@
 ---
 impacto: capacidade_nova
 secao: adicionado
-titulo: Aviso da área da saúde no cartão do Jev
+titulo: O cartão do Jev avisa quem é da área da saúde
 ---
 
-Instalações da área da saúde agora veem um aviso no cartão do Jev — a tela onde ele observa e decide sobre as conversas. O aviso lembra que as mensagens podem conter dado de saúde, protegido pela LGPD, e que o Jev é um operador novo nos Estados Unidos: antes de ligá-lo, a empresa deve conferir o registro de operadores e a política de privacidade desta instalação. O aviso aparece quando a organização está marcada na área da saúde (`settings.area_saude`); fora dela, nada muda.
+O cartão do Jev passa a mostrar um aviso para empresas da área da saúde: as mensagens que o Jev lê podem conter dado de saúde, que a LGPD trata como sensível. Antes de ligar, a empresa deve conferir com quem cuida da LGPD se o contrato da TypeSafe cobre esse tipo de dado. O aviso aparece para todos, escrito para quem é da área; para as demais empresas, nada muda no funcionamento.
 
 Contribuição de @webtecnica (#2085).

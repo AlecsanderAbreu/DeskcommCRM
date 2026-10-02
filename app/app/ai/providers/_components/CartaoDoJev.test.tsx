@@ -57,7 +57,6 @@ function dados(extra: Parcial = {}): DadosDoJev {
       },
     ],
     tem_ia_de_sempre: true,
-    area_saude: false,
     numeros: {
       dias: 7,
       decisoes: 0,
@@ -1548,19 +1547,11 @@ describe("CartaoDoJev — a tarefa do follow-up, que só observa", () => {
 });
 
 describe("CartaoDoJev — o aviso da área da saúde (DEC-012 #2)", () => {
-  it("com a organização na área da saúde, a tela exibe o aviso onde o Jev observa/decide", () => {
-    montar(dados({ area_saude: true }));
+  it("avisa quem é da área da saúde que o dado é sensível e que o contrato da TypeSafe precisa cobri-lo", () => {
+    montar(dados());
     const aviso = screen.getByTestId("jev-aviso-area-saude");
-    expect(aviso).toHaveTextContent(/dado de saúde, protegido pela LGPD/);
-  });
-
-  it("sem a marca de área da saúde, não há aviso (fora do critério)", () => {
-    montar(dados({ area_saude: false }));
-    expect(screen.queryByTestId("jev-aviso-area-saude")).toBeNull();
-  });
-
-  it("a marca ausente vale como fora da área da saúde (rollback da imagem anterior)", () => {
-    montar(dados({ area_saude: undefined as never }));
-    expect(screen.queryByTestId("jev-aviso-area-saude")).toBeNull();
+    expect(aviso).toHaveTextContent(/Se a sua empresa é da área da saúde/);
+    expect(aviso).toHaveTextContent(/LGPD trata como sensível/);
+    expect(aviso).toHaveTextContent(/contrato da TypeSafe/);
   });
 });

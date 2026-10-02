@@ -556,13 +556,6 @@ export async function GET(): Promise<Response> {
         ]),
       ),
       tem_ia_de_sempre: iaDeSempre !== null,
-      // Área da saúde (DEC-012 #2): a organização marcada em
-      // `organizations.settings.area_saude` trata mensagens que podem conter
-      // dado de saúde (LGPD). O cartão mostra o aviso onde o Jev observa/decide
-      // (ver CartaoDoJev.tsx). é uma flag persistida em settings (jsonb), sem
-      // migration. [TEXTO/condição INFERIDO — confirmar com o mantenedor o
-      // DEC-012, que não está neste repo ("Decisão Implementações/DEC-012").]
-      area_saude: (orgRes.data?.settings as Record<string, unknown> | null | undefined)?.area_saude === true,
       numeros: {
         ...numeros,
         irritados: irritadosPercebidos(percebidasRes.data ?? []),
