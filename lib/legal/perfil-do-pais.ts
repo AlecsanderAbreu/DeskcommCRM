@@ -29,14 +29,9 @@
  *     lei nenhuma. Não há fallback para a lei brasileira: afirmar a LGPD para
  *     um titular em Angola é exatamente a citação errada;
  *   • `paisesOferecidos()` — a lista que o seletor de Configurações mostra —
- *     só inclui país com citação revisada. Sai da lista também um país cujo
- *     documento tem checksum público (confereDigito), mesmo antes de a citação
- *     estar revisada: o NIF português valida com o mod-11 oficial, então o
- *     país entra com o documento certo e o documento legal simplesmente não
- *     cita lei (ver `citacaoDaLei`) até a revisão — afirmar a LGPD para um
- *     titular português é a citação errada, e isso não acontece. O registro
- *     pode conhecer mais países do que a lista oferece; é o que permite
- *     preparar o trabalho sem publicar o que ninguém revisou.
+ *     só inclui país com citação revisada. O registro pode conhecer mais
+ *     países do que a lista oferece; é o que permite preparar o trabalho sem
+ *     publicar o que ninguém revisou.
  *
  * ─── A separação documento × forma (regra adotada do #928) ────────────────
  *
@@ -304,7 +299,7 @@ export function perfilDoPais(codigo: CodigoDePais | null | undefined): PerfilDoP
 /** O que o seletor de Configurações › Empresa oferece. */
 export function paisesOferecidos(): PerfilDoPais[] {
   return Object.values(PERFIS_DO_PAIS)
-    .filter((p) => p.lei?.revisada === true || p.documento.confereDigito === true)
+    .filter((p) => p.lei?.revisada === true)
     .sort((a, b) => a.nome.localeCompare(b.nome));
 }
 

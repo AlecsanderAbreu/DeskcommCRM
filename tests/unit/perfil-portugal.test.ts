@@ -12,10 +12,12 @@ import {
 import { contactCreateSchemaDoPais } from "@/lib/schemas/contacts";
 
 describe("perfil de Portugal (issue #1946)", () => {
-  it("Portugal entra na lista que o seletor de Configurações oferece", () => {
+  it("Portugal está no registro, mas o seletor só o oferece com a lei revisada (#1033)", () => {
+    expect(Object.keys(PERFIS_DO_PAIS)).toContain("PT");
     const codigos = paisesOferecidos().map((p) => p.codigo);
-    expect(codigos).toContain("PT");
     expect(codigos).toContain("BR");
+    // Preparar sem publicar: com `lei.revisada === false`, PT fica fora da lista.
+    expect(codigos).not.toContain("PT");
   });
 
   it("o perfil PT não decai para o Brasil quando pedido por código", () => {
@@ -70,14 +72,13 @@ describe("perfil de Portugal (issue #1946)", () => {
     expect(citacaoDaLei(perfilDoPais("PT"))).toBeNull();
   });
 
-  it("o país entra na lista pelo checksum público, não pela lei revisada", () => {
-    // prova a porta aberta no paisesOferecidos: PT está oferecido mesmo com
-    // lei.revisada false e sem afirmar citação — o NIF chega a quem está em
-    // Portugal enquanto o documento legal fica sem citação.
-    const pt = paisesOferecidos().find((p) => p.codigo === "PT")!;
-    expect(pt).toBeDefined();
+  it("checksum público NÃO abre a porta da lista sem a lei revisada", () => {
+    // A regra do #1033 (decisão 25): país entra no seletor com citação revisada
+    // ou não entra. Ter documento com dígito de controlo não muda isso.
+    const pt = perfilDoPais("PT");
     expect(pt.documento.confereDigito).toBe(true);
     expect(pt.lei?.revisada).toBe(false);
+    expect(paisesOferecidos().some((p) => p.codigo === "PT")).toBe(false);
   });
 
   it("padroesDePii declara NIF e código postal 1234-567", () => {
