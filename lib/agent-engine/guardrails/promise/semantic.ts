@@ -11,9 +11,12 @@
  * {isPromise, suspectPhrase}. suspectPhrase é o trecho da PRÓPRIA candidata (mensagem que o
  * agente quer enviar) — volta ao modelo no veto (erro de ensino), mas NUNCA vai a log.
  *
- * Como Gate.evaluate é SÍNCRONO (before-send.ts), a chamada async roda na FASE DE CARGA do
- * GateContext (sob o advisory lock, junto de loadPromiseTable); o resultado entra no ctx e o
- * `semanticPromiseGate` (sync) lê e veta. Este módulo não persiste nada.
+ * Como Gate.evaluate é SÍNCRONO (before-send.ts), a chamada async roda ANTES da cadeia e
+ * entra no GateContext pronta; o `semanticPromiseGate` (sync) lê e veta. Ela roda antes do
+ * `begin` do runBeforeSend, FORA do advisory lock do número: é uma chamada de modelo que não
+ * lê nada do que o lock protege, e dentro da transação ela fechava um ciclo de travas com DDL
+ * (o `runModelCall` grava `llm_calls`, que tem FK para `contacts`, por outra conexão).
+ * Este módulo não persiste nada.
  *
  * organization_id/contact_id vêm da ROW do job (closure do run), nunca do payload (regra dura 1).
  */

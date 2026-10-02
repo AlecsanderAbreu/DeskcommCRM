@@ -1096,7 +1096,10 @@ const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTim
  * O que NÃO muda de ordem: a cadeia continua julgando (e o estado sob o lock sendo
  * lido) exatamente quando julgava, o `send` continua acontecendo sob o lock, uma vez
  * por re-run, e o `finalBody` pós-disclosure continua sendo o que vai ao canal. A
- * espera é a única coisa que sai da janela da transação.
+ * espera é uma das duas coisas que saem da janela da transação; a outra é o
+ * classificador semântico de promessa (F4-02), que roda antes do `begin` — uma chamada
+ * de modelo sem nada a ler sob o lock, que lá dentro fechava um ciclo de travas com DDL
+ * (ver o comentário no ponto da chamada).
  */
 export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSendResult> {
   const gates = args.gates ?? BEFORE_SEND_GATES;
@@ -1112,6 +1115,31 @@ export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSend
       args.enforceInternalVocabulary !== undefined
         ? await lerAjustesDeEstiloDaOrg(client, args.tenantId)
         : null;
+
+    // O campo `enforceInternalVocabulary` tem três estados no seam: AUSENTE nos
+    // envios determinísticos/humanos, `true` no texto normal do modelo e `false`
+    // somente no re-run do fail-safe do próprio modelo. A PRESENÇA, portanto, é
+    // o marcador estável de "este corpo foi escrito pela IA" sem fazer template,
+    // resposta aprovada ou aviso de código passarem por uma preferência de estilo.
+    const bodyDoModelo =
+      estilo !== null ? aplicarAjustesDeEstilo(args.body, estilo.ajustes) : args.body;
+
+    // Camada semântica (F4-02) ANTES do `begin`, e pelo motivo da espera humana (#654):
+    // ela é uma chamada de modelo (segundos; sem prazo próprio, o fetch do Node só
+    // desiste de um provedor parado em 300 s por tentativa) e não lê nada do que o lock
+    // protege — só o corpo. Dentro da transação, ela segurava o lock do NÚMERO e as
+    // travas de leitura já tomadas (`contacts`, via readStopFlags) enquanto o
+    // `runModelCall` gravava `llm_calls` por OUTRA conexão do pool — e `llm_calls` tem FK
+    // para `contacts`. Com um DDL na fila de `contacts` (o `update.sh` reaplicando o
+    // baseline), o insert entra na fila atrás do DDL, o DDL espera esta transação e esta
+    // transação espera o insert: um ciclo que o Postgres não detecta, porque uma das
+    // arestas mora no processo. Medido numa VPS em 2026-10-02: 8m47s `idle in
+    // transaction`, o worker inteiro parado e o PostgREST sem cache de schema (503) até
+    // alguém encerrar o DDL. Recebe o MESMO corpo final de estilo que os gates
+    // determinísticos receberão: classificar `args.body` julgaria outra frase.
+    const semanticPromise = args.classifyPromiseSemantic
+      ? await args.classifyPromiseSemantic(bodyDoModelo)
+      : null;
 
     await client.query('begin');
     // Serialização por número: dois workers no MESMO channel_session esperam a vez.
@@ -1149,14 +1177,6 @@ export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSend
     )
       throw new Error('reply_scope_mismatch');
 
-    // O campo `enforceInternalVocabulary` tem três estados no seam: AUSENTE nos
-    // envios determinísticos/humanos, `true` no texto normal do modelo e `false`
-    // somente no re-run do fail-safe do próprio modelo. A PRESENÇA, portanto, é
-    // o marcador estável de "este corpo foi escrito pela IA" sem fazer template,
-    // resposta aprovada ou aviso de código passarem por uma preferência de estilo.
-    const bodyDoModelo =
-      estilo !== null ? aplicarAjustesDeEstilo(args.body, estilo.ajustes) : args.body;
-
     const optedOut =
       args.optedOutThisTurn ||
       (await readStopFlags(
@@ -1190,12 +1210,7 @@ export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSend
     );
     // org de fonte confiável (RunBeforeSendArgs.tenantId = organization_id do row do job) — regra dura nº 1.
     const promise = await loadPromiseTable(client, args.tenantId);
-    // Camada semântica (F4-02): recebe o MESMO corpo final de estilo que os gates
-    // determinísticos receberão. Se classificasse `args.body`, a cadeia julgaria
-    // uma frase diferente da que efetivamente pode chegar ao cliente.
-    const semanticPromise = args.classifyPromiseSemantic
-      ? await args.classifyPromiseSemantic(bodyDoModelo)
-      : null;
+    // A camada semântica (F4-02) já rodou ANTES do `begin` — ver o porquê lá em cima.
     // Disclosure (F4-05): template por ponteiro da org + detecção de 1º outbound via
     // send_ledger (só conta se há template — sem template o gate é no-op de qualquer forma).
     const disclosure = await loadDisclosureTemplate(client, args.tenantId);
