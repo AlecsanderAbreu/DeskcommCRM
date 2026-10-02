@@ -131,7 +131,7 @@ check "cada chave aparece exatamente uma vez no .env do Supabase" \
 #     já nasce configurado, e numa re-execução o compose recria o contêiner cujo
 #     ambiente mudou. Se gravasse depois, a instalação terminaria com o GoTrue
 #     no modelo padrão até alguém reiniciar o serviço à mão.
-linha_gravacao="$(grep -n '^[[:space:]]*gravar_modelo_do_gotrue GOTRUE' "$INSTALADOR" | head -1 | cut -d: -f1)"
+linha_gravacao="$(grep -n '^[[:space:]]*gravar_modelos_do_gotrue ' "$INSTALADOR" | head -1 | cut -d: -f1)"
 linha_boot="$(grep -nE '^[[:space:]]*dc_supabase up -d --wait' "$INSTALADOR" | head -1 | cut -d: -f1)"
 gravacao_antes_do_boot() {
   [ -n "$linha_gravacao" ] && [ -n "$linha_boot" ] && [ "$linha_gravacao" -lt "$linha_boot" ]
@@ -161,6 +161,48 @@ check "override entrega o molde de confirmação ao serviço auth (default vazio
   grep -qxF '      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: "${GOTRUE_MAILER_TEMPLATES_CONFIRMATION:-}"' "$OVERRIDE"
 check "override entrega o molde de recuperação ao serviço auth (default vazio)" \
   grep -qxF '      GOTRUE_MAILER_TEMPLATES_RECOVERY: "${GOTRUE_MAILER_TEMPLATES_RECOVERY:-}"' "$OVERRIDE"
+
+# (7) QUEM JÁ INSTALOU: o update.sh chama `atualizar_supabase_single_server`
+#     (_common.sh), e é no CORPO dela que a gravação tem de acontecer — numa
+#     atualização quem executa é o update.sh ANTIGO, que relê o _common.sh
+#     novo (#1653). O .env de partida é o de uma instalação anterior a este
+#     conserto: tem o SITE_URL que o instalador gravou e nenhuma das chaves.
+#     A ref já é a pinada, então o update.sh oficial do Supabase não é chamado.
+ANTIGA="$WORK/antiga"
+SB_A="$ANTIGA/.runtime/supabase"
+mkdir -p "$SB_A"
+ref_pinada="$(bash -c 'KIT_DIR="$1"; . "$KIT_DIR/_common.sh"; printf %s "$SUPABASE_REF"' _ "$KIT")"
+printf 'ref=%s\n' "$ref_pinada" > "$SB_A/.supabase-version"
+instalacao_antiga() {  # instalacao_antiga [<linha extra do .env>]
+  { printf 'SITE_URL=https://%s\n' "$DOMINIO"; printf 'DISABLE_SIGNUP=false\n'
+    [ $# -gt 0 ] && printf '%s\n' "$1"; } > "$SB_A/.env"
+}
+# O compose do Supabase roda sob `env -i` (dc_supabase): o caminho do log vai
+# ESCRITO no dublê, porque DOCKER_LOG não sobrevive até ele.
+mkdir -p "$WORK/bin-update"
+{ printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >> %q\nexit 0\n' "$WORK/docker-update.log"; } \
+  > "$WORK/bin-update/docker"
+chmod +x "$WORK/bin-update/docker"
+atualizar_antiga() {
+  PATH="$WORK/bin-update:$PATH" PROJECT_DIR="$ANTIGA" \
+    bash -c 'KIT_DIR="$1"; . "$KIT_DIR/_common.sh"; atualizar_supabase_single_server' _ "$KIT" \
+    > "$WORK/update.log" 2>&1
+}
+instalacao_antiga
+check "update: atualizar_supabase_single_server termina bem numa instalação antiga" atualizar_antiga
+check "update: quem já instalou recebe o molde de recuperação" grep -qxF "$RECOVERY" "$SB_A/.env"
+check "update: quem já instalou recebe o molde de confirmação" grep -qxF "$CONFIRMACAO" "$SB_A/.env"
+check "update: o Supabase sobe depois da gravação (o compose recria o auth)" \
+  grep -qF 'compose up -d --wait' "$WORK/docker-update.log"
+instalacao_antiga 'GOTRUE_MAILER_TEMPLATES_RECOVERY=https://molde.do.operador.br/recupera'
+atualizar_antiga
+check "update: molde que o operador já apontou não é sobrescrito" \
+  grep -qxF 'GOTRUE_MAILER_TEMPLATES_RECOVERY=https://molde.do.operador.br/recupera' "$SB_A/.env"
+check "update: e a chave que faltava é completada" grep -qxF "$CONFIRMACAO" "$SB_A/.env"
+printf 'DISABLE_SIGNUP=false\n' > "$SB_A/.env"
+atualizar_antiga
+check "update: sem SITE_URL https, não inventa molde" \
+  bash -c '! grep -q "^GOTRUE_MAILER_TEMPLATES_" "$1"' _ "$SB_A/.env"
 
 if [[ "$FAILS" -ne 0 ]]; then
   printf '\n%d teste(s) falharam.\n' "$FAILS"
