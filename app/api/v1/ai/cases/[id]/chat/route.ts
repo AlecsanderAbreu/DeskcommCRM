@@ -289,11 +289,14 @@ async function casoEstaObsoleto(
   }
 }
 
-/** Quantos trechos do acervo a resposta pode citar — mesmo teto da F1 (#1869). */
+/** Quantos trechos do acervo a tela pode mostrar — mesmo teto da F1 (#1869). */
 const QUANTIDADE_DE_CITACOES = 6;
 
 /**
- * F3 da #1869: consulta o acervo e devolve as citações da resposta.
+ * Parte da F3 da #1869: consulta o acervo e devolve os trechos ligados à
+ * PERGUNTA. Eles NÃO entram no prompt — a busca roda depois de
+ * `responderSobreOCaso` —, então não sustentam a resposta e a tela não pode
+ * dizer que sustentam. Ancorar a resposta neles é o passo seguinte da #1869.
  *
  * Espelha o padrão que a F1 já fixou (`app/api/v1/ai/knowledge/busca`): o MESMO
  * `resolverAcervoDoAgente` + `buscarConhecimento` + `LIMIAR_PADRAO_BUSCA`. Não
@@ -462,6 +465,9 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
         order by created_at asc, id asc`,
       [c.orgId, c.caseId, turnId],
     );
+    // Sem `citacoes`: quem consome este POST trata o campo como opcional
+    // (`useAskCase`), porque o `apiClient` refaz o POST em 429/503 com o
+    // mesmo `turn_id` e pode receber ESTE formato.
     return ok({ turno: rows, replay: true }, { requestId });
   }
 
@@ -613,7 +619,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
     },
   });
 
-  // ─── F3 (#1869): a citação do acervo ─────────────────────────────────────
+  // ─── F3 (#1869): os trechos do acervo ligados à pergunta ─────────────────
+  // A busca vem DEPOIS do modelo: o que ela acha vai à tela, não ao prompt.
   // A busca acontece SÓ se a resposta saiu (resposta != null). Não mede o que
   // não aconteceu. E nunca derruba o POST: falha vira `[]`, e a resposta segue
   // sem citação — sem erro, sem alucinar uma fonte.
@@ -643,7 +650,8 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
       persona: personaParaTela(persona),
       service_stale: obsoleto === true,
       contato_bloqueado: bloqueado,
-      // F3 (#1869): os materiais do acervo que sustentaram a resposta. `[]`
+      // F3 (#1869): os trechos do acervo ligados à pergunta — não ao que o
+      // modelo leu, que não os recebeu. `[]`
       // quando não há acervo, nada passou no limiar, ou a busca falhou.
       citacoes,
     },

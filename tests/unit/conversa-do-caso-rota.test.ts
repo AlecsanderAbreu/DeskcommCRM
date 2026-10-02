@@ -535,7 +535,10 @@ describe("POST — F3 (#1869): o chat cita o acervo", () => {
 
     const r = await t({ resolverAcervo, buscar });
     expect(r.status).toBe(200);
-    expect(await r.json()).toMatchObject({ data: { replay: true } });
+    const corpo = (await r.json()) as { data: Record<string, unknown> };
+    expect(corpo).toMatchObject({ data: { replay: true } });
+    // O formato que a guarda `?.` da tela protege: o replay volta SEM `citacoes`.
+    expect(corpo.data).not.toHaveProperty("citacoes");
     expect(resolverAcervo).not.toHaveBeenCalled();
     expect(buscar).not.toHaveBeenCalled();
   });

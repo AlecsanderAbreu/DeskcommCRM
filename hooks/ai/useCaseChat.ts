@@ -135,12 +135,13 @@ export function useCaseChat(caseId: string | null) {
 export function useAskCase() {
   const qc = useQueryClient();
   return useMutation({
-    // A resposta do POST carrega as citações do acervo (F3 da #1869); a tela
-    // as devolve no `ask.data` e as abre no painel logo depois de perguntar.
+    // A resposta do POST carrega os trechos do acervo ligados à pergunta (F3
+    // da #1869); a tela os abre no painel logo depois de perguntar. Opcional:
+    // o replay do mesmo `turn_id` (retry de 429/503 do `apiClient`) não os traz.
     mutationFn: ({ id, pergunta }: { id: string; pergunta: string }) =>
       apiClient
         .post<{
-          data: { turn_id: string; citacoes: Citation[] };
+          data: { turn_id: string; citacoes?: Citation[] };
         }>(
           `/api/v1/ai/cases/${id}/chat`,
           { turn_id: randomId(), pergunta },

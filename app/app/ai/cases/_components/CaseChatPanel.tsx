@@ -226,16 +226,18 @@ export function CaseChatPanel({ caseId }: { caseId: string }) {
         {ask.isPending ? <Pensando t={t} /> : null}
       </div>
 
-      {/* F3 (#1869): as citações do acervo que sustentaram a última resposta.
-          Elas voltam no POST (a thread periódica lê só o banco, que não guarda
+      {/* F3 (#1869): os trechos do acervo ligados à última pergunta. Não são
+          a fonte da resposta — o modelo não os recebe —, e o texto diz isso.
+          Eles voltam no POST (a thread periódica lê só o banco, que não guarda
           a lista — sem migração). Ainda no ar na troca de mensagens; somem num
           recarregamento completo da página, e sem elas a resposta segue
-          legível. `length > 0` é a régua: sem acervo não há botão. */}
-      {ask.data && ask.data.citacoes.length > 0 ? (
+          legível. `length > 0` é a régua: sem acervo não há botão. `?.` porque o
+          replay do mesmo `turn_id` volta sem `citacoes`. */}
+      {ask.data?.citacoes?.length ? (
         <div className="flex items-center gap-2">
-          <CitationButton citations={ask.data.citacoes} messageId={ask.data.turn_id} />
+          <CitationButton citations={ask.data.citacoes ?? []} messageId={ask.data.turn_id} />
           <span className="text-xs text-muted-foreground">
-            {t("A resposta citou o acervo.")}
+            {t("Trechos do acervo ligados à pergunta.")}
           </span>
         </div>
       ) : null}
