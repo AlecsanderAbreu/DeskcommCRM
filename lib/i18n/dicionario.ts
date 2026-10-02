@@ -2465,6 +2465,26 @@ export const DICIONARIO: Traducoes = {
     es: "Si el caso se resuelve antes, el seguimiento se cancela solo.",
   },
   "Minutos de silêncio": { es: "Minutos de silencio" },
+  // ─── gatilho de silêncio — pausa de reentrada (lib/followup/pausa-de-reentrada.ts) ───
+  "Pausa antes de recomeçar (horas)": { es: "Pausa antes de volver a empezar (horas)" },
+  "Silêncio máximo, em minutos (opcional)": { es: "Silencio máximo, en minutos (opcional)" },
+  "Da última mensagem do cliente": { es: "Desde el último mensaje del cliente" },
+  "Do último envio deste fluxo": { es: "Desde el último envío de este flujo" },
+  "Contar a pausa a partir do último envio deste fluxo (e não da última mensagem do cliente)": {
+    es: "Contar la pausa desde el último envío de este flujo (y no desde el último mensaje del cliente)",
+  },
+  "no máximo 1× a cada": { es: "como máximo 1× cada" },
+  "Precisa ser maior que o mínimo e no máximo 10080 (7 dias).": {
+    es: "Tiene que ser mayor que el mínimo y como máximo 10080 (7 días).",
+  },
+  "Com um máximo, o fluxo só começa enquanto o silêncio for recente — por exemplo, entre 10 e 60 minutos depois da última mensagem do cliente. Quem está calado há mais tempo fica de fora. 0 = sem máximo.": {
+    es: "Con un máximo, el flujo solo empieza mientras el silencio sea reciente — por ejemplo, entre 10 y 60 minutos después del último mensaje del cliente. Quien lleva más tiempo callado queda afuera. 0 = sin máximo.",
+  },
+  "Use de 0 a 2160 horas (90 dias).": { es: "Usa de 0 a 2160 horas (90 días)." },
+  "pausa de": { es: "pausa de" },
+  "Vale para quem já passou por este fluxo e respondeu ou chegou ao fim: ele só recomeça depois deste tempo sem o cliente escrever. Quem nunca passou por ele entra no tempo de silêncio de sempre. 0 = sem pausa.": {
+    es: "Vale para quien ya pasó por este flujo y respondió o llegó al final: solo vuelve a empezar después de este tiempo sin que el cliente escriba. Quien nunca pasó por él entra en el tiempo de silencio de siempre. 0 = sin pausa.",
+  },
   "Mínimo de": { es: "Mínimo de" },
   "minutos.": { es: "minutos." },
   "Segmentos (tags, opcional)": { es: "Segmentos (tags, opcional)" },
@@ -12204,6 +12224,8 @@ export const DICIONARIO: Traducoes = {
     { es: "Hiciste demasiadas preguntas seguidas. Inténtalo de nuevo en un minuto." },
   "As perguntas dos colegas aparecem aqui em alguns segundos.":
     { es: "Las preguntas de tus colegas aparecen aquí en unos segundos." },
+  "Trechos do acervo ligados à pergunta.":
+    { es: "Fragmentos del acervo relacionados con la pregunta." },
   // lib/escalacao/passagem.ts (migration 0291) — por que a conversa saiu do
   // automático, e por que o cliente não foi avisado. A frase existe para a
   // TELA: `requested_human` é vocabulário de constraint, não texto para uma
@@ -13745,6 +13767,20 @@ export const DICIONARIO: Traducoes = {
   "Não dá para ver daqui": { es: "No se puede ver desde aquí" },
   "Ajustar": { es: "Ajustar" },
   "Tudo o que se liga e desliga, se está ligado e onde se ajusta.": { es: "Todo lo que se activa y desactiva, si está activado y dónde se ajusta." },
+  // ─── Cadastrar um campo do formulário a partir da captação ───
+  "Cadastrar como campo do lead": { es: "Registrar como campo del lead" },
+  "Texto longo": { es: "Texto largo" },
+  "Link": { es: "Enlace" },
+  "Sim/Não": { es: "Sí/No" },
+  "Não foi possível ler o funil desta fonte.": { es: "No se pudo leer el embudo de esta fuente." },
+  "Não foi possível cadastrar o campo. Só quem administra o funil pode fazer isso.": { es: "No se pudo registrar el campo. Solo quien administra el embudo puede hacerlo." },
+  "Campo cadastrado. Ele já aparece no card do lead e pode ser usado nas mensagens.": { es: "Campo registrado. Ya aparece en la tarjeta del lead y se puede usar en los mensajes." },
+  "Este nome de campo não pode ser cadastrado aqui. Cadastre em Configurações › Funis.": { es: "Este nombre de campo no se puede registrar aquí. Regístralo en Configuración › Embudos." },
+  "Esse campo já está cadastrado.": { es: "Ese campo ya está registrado." },
+  "O funil já tem o máximo de campos.": { es: "El embudo ya tiene el máximo de campos." },
+  "Dê um rótulo ao campo.": { es: "Ponle una etiqueta al campo." },
+  'Em "Ações após o envio", adicione "Webhook" e cole o endereço acima em "URL do Webhook".': { es: 'En "Acciones después del envío", agrega "Webhook" y pega la dirección de arriba en "URL del Webhook".' },
+  'Adicione a ação "Call Webhook" ao formulário e cole o endereço acima.': { es: 'Agrega la acción "Call Webhook" al formulario y pega la dirección de arriba.' },
 };
 
 /**
