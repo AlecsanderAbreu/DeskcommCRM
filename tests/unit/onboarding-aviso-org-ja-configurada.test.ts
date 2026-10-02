@@ -1,31 +1,27 @@
 /**
- * BOAS-VINDAS NÃO RENOMEIAM ORGANIZAÇÃO JÁ CONFIGURADA (#2113).
+ * AVISO DE ORGANIZAÇÃO JÁ CONFIGURADA NO ENVIO DAS BOAS-VINDAS (#2146).
  *
  * ─── O DEFEITO ────────────────────────────────────────────────────────────
- * `patchOnboardingState` (`app/actions/onboarding/_shared.ts`) fazia
- * `update(...).eq("id", orgId)` SEM condição sobre `onboarded_at`. Uma aba
- * `/onboarding/welcome` aberta antes de o onboarding terminar (por exemplo,
- * concluído em OUTRA aba) ainda regravava `display_name` e
- * `onboarding_state` depois que a organização já estava configurada — o
- * nome que a pessoa deu no wizard sumia e o estado do onboarding voltava
- * atrás.
+ * `acceptWelcome` (`app/actions/onboarding/acceptWelcome.ts`) transformava
+ * QUALQUER `OnboardingError` em `db_error`. A aba `/onboarding/welcome` que
+ * ficou aberta depois de o onboarding terminar em OUTRA aba é recusada com
+ * `org_ja_configurada` — a recusa está certa, nada é gravado —, mas a tela
+ * mostrava "Falha: db_error", com o detalhe "Organização já configurada.":
+ * um erro de banco que não aconteceu.
  *
  * ─── O CONSORTE ───────────────────────────────────────────────────────────
- * A cadeia do update ganhou `.is("onboarded_at", null)` (grava só em org que
- * ainda está no wizard) e `.select("id")` (PostgREST devolve as linhas
- * afetadas). ZERO linhas → `OnboardingError("org_ja_configurada",
- * "Organização já configurada.")` e nada é gravado.
+ * O `catch` de `patchOnboardingState` reconhece `org_ja_configurada` e
+ * redireciona para `/app/inbox` (era para onde o onboarding levaria a pessoa
+ * em seguida). Todos os OUTROS códigos seguem exatamente o de antes:
+ * `db_error` com o mesmo `details`.
  *
- * ─── O QUE ESTE ARQUIVO MEDE ─────────────────────────────────────────────
- * - Org com `onboarded_at` preenchido: a escrita LANÇA `org_ja_configurada`
- *   e `display_name`/`onboarding_state` ficam intactos (o caso que fica
- *   VERMELHO sem a guarda).
- * - Controle: org com `onboarded_at` nulo segue gravando normalmente.
- * - O mesmo caminho visto pela action `acceptWelcome`: o submit de uma aba
- *   antiga recebe recusa e NÃO escreve. O mapeamento do erro é o da própria
- *   action; o #2146 trocou esse mapeamento por um redirect para
- *   `/app/inbox` (o caso abaixo), medido em
- *   `tests/unit/onboarding-aviso-org-ja-configurada.test.ts`.
+ * ─── O QUE ESTE ARQUIVO MEDE ──────────────────────────────────────────────
+ * - org já configurada → o submit SAI para `/app/inbox` e jamais devolve
+ *   `db_error` (este é o caso VERMELHO sem a mudança).
+ * - controle: erro de banco de verdade continua `db_error` com o mesmo
+ *   `details` de hoje, sem redirect.
+ * - controle: entrada inválida continua `invalid_input` com o `flatten()`
+ *   do zod, sem redirect.
  *
  * O dublê do client simula o PostgREST de verdade: filtro `.is` que não bate
  * = ZERO linhas = `data: []`. Não mede o banco real (sem Docker nesta VPS;
@@ -44,7 +40,7 @@ interface Linha {
   onboarded_at: string | null;
 }
 
-/** A "linha" da tabela `organizations` — é ela que precisa sobreviver à recusa. */
+/** A "linha" da tabela `organizations`. */
 let linha: Linha;
 /** Payloads que o dublê efetivamente aplicou (a prova de que NADA foi gravado). */
 let escritas: Record<string, unknown>[] = [];
@@ -97,7 +93,6 @@ vi.mock("@/lib/auth/server", () => ({
 }));
 
 import { acceptWelcome } from "@/app/actions/onboarding/acceptWelcome";
-import { OnboardingError, patchOnboardingState } from "@/app/actions/onboarding/_shared";
 
 /** Construtor de consulta no formato do PostgREST: encadeável, thenable. */
 function clienteFalso() {
@@ -134,11 +129,12 @@ function clienteFalso() {
 }
 
 /**
- * Sem `.is("onboarded_at", null)` a escrita bate na linha (é o defeito);
- * com ele, a linha NÃO bate e o PostgREST devolve `data: []` — é o contrato
- * que a guarda lê.
+ * Sem `.is("onboarded_at", null)` a escrita bate na linha (é o defeito do
+ * #2113); com ele, a linha NÃO bate e o PostgREST devolve `data: []` — é o
+ * contrato que lê `org_ja_configurada`. `falhaDb` simula erro REAL do banco
+ * (outro caminho: o `db_error` de sempre).
  */
-function montarBanco(opts: { onboardedAt: string | null }) {
+function montarBanco(opts: { onboardedAt: string | null; falhaDb?: string }) {
   linha = {
     id: ORG,
     display_name: "Nome Antigo",
@@ -157,6 +153,7 @@ function montarBanco(opts: { onboardedAt: string | null }) {
     if (c.op === "select") {
       return { data: { onboarding_state: linha.onboarding_state, onboarded_at: linha.onboarded_at }, error: null };
     }
+    if (opts.falhaDb) return { data: null, error: { message: opts.falhaDb } };
     const idBate = String(c.filtros.id ?? "") === linha.id;
     const filtroOnboarded = c.filtros["is:onboarded_at"];
     const onboardedBate =
@@ -164,7 +161,6 @@ function montarBanco(opts: { onboardedAt: string | null }) {
     if (!idBate || !onboardedBate) return { data: [], error: null };
     escritas.push({ ...(c.payload ?? {}) });
     linha = { ...linha, ...(c.payload as Partial<Linha>) };
-    // Com `.select("id")` o PostgREST devolve as linhas afetadas.
     return { data: [{ id: linha.id }], error: null };
   };
 }
@@ -193,61 +189,49 @@ beforeEach(() => {
   mundo.redirects = [];
 });
 
-describe("patchOnboardingState: organização já configurada não é regravada", () => {
-  it("org com onboarded_at: lança org_ja_configurada e display_name/onboarding_state ficam intactos", async () => {
-    montarBanco({ onboardedAt: "2026-01-01T00:00:00.000Z" });
-    const estadoAntes = structuredClone(linha.onboarding_state);
-
-    const erro = await patchOnboardingState(
-      ORG,
-      { welcome: { accepted_at: "2026-02-02T00:00:00.000Z", timezone: "America/Sao_Paulo", display_name: "Clínica Nova" } },
-      { display_name: "Clínica Nova", timezone: "America/Sao_Paulo" },
-    ).then(
-      () => null,
-      (e: unknown) => e,
-    );
-
-    // SEM a guarda nada é lançado e a linha é regravada — este caso é o VERMELHO.
-    expect(erro).toBeInstanceOf(OnboardingError);
-    expect((erro as OnboardingError).code).toBe("org_ja_configurada");
-    expect((erro as OnboardingError).message).toBe("Organização já configurada.");
-    expect(linha.display_name).toBe("Nome Antigo");
-    expect(linha.onboarding_state).toEqual(estadoAntes);
-    expect(escritas).toEqual([]);
-  });
-
-  it("controle: org com onboarded_at nulo segue gravando normalmente", async () => {
-    montarBanco({ onboardedAt: null });
-
-    await patchOnboardingState(
-      ORG,
-      { welcome: { accepted_at: "2026-02-02T00:00:00.000Z", timezone: "America/Sao_Paulo", display_name: "Clínica Nova" } },
-      { display_name: "Clínica Nova", timezone: "America/Sao_Paulo" },
-    );
-
-    expect(escritas).toHaveLength(1);
-    expect(linha.display_name).toBe("Clínica Nova");
-    expect(linha.onboarding_state).toEqual({
-      welcome: {
-        accepted_at: "2026-02-02T00:00:00.000Z",
-        timezone: "America/Sao_Paulo",
-        display_name: "Clínica Nova",
-      },
-    });
-    expect(linha.onboarded_at).toBeNull();
-  });
-
-  it("aba antiga enviando as boas-vindas depois do fim: sai para /app/inbox e nada é gravado", async () => {
+describe("acceptWelcome: organização já configurada não vira db_error na tela (#2146)", () => {
+  it("org já configurada: o submit sai para /app/inbox e nunca devolve db_error", async () => {
     montarBanco({ onboardedAt: "2026-01-01T00:00:00.000Z" });
 
     const r = await executar(formulario("Clínica Nova"));
 
-    // A RECUSA é o essencial deste teste do #2113: nada é gravado. Como a
-    // action resolve (#2146) o submit sai para a caixa de entrada em vez de
-    // devolver `db_error` — o código de recusa foi o defeito do #2146.
+    // SEM a mudança o catch devolve { ok: false, error: "db_error",
+    // details: "Organização já configurada." } e nenhum redirect acontece —
+    // é exatamente o VERMELHO deste caso.
     expect(r).toBe("REDIRECT");
     expect(mundo.redirects).toEqual(["/app/inbox"]);
+    // A recusa continua certa: nada foi gravado.
+    expect(escritas).toEqual([]);
     expect(linha.display_name).toBe("Nome Antigo");
+  });
+
+  it("controle: erro de banco de verdade continua db_error com o mesmo details de hoje", async () => {
+    montarBanco({ onboardedAt: null, falhaDb: "permission denied for table organizations" });
+
+    const r = await executar(formulario("Clínica Nova"));
+
+    expect(r).toEqual({
+      ok: false,
+      error: "db_error",
+      details: "permission denied for table organizations",
+    });
+    expect(mundo.redirects).toEqual([]);
+    expect(escritas).toEqual([]);
+  });
+
+  it("controle: entrada inválida continua invalid_input com o flatten do zod", async () => {
+    montarBanco({ onboardedAt: null });
+
+    // display_name com 1 caractere: `welcomeSchema` exige `.min(2)`.
+    const r = await executar(formulario("x"));
+
+    expect(r).toMatchObject({ ok: false, error: "invalid_input" });
+    const detalhes = (r as { details?: { fieldErrors?: Record<string, string[]> } }).details;
+    expect(detalhes?.fieldErrors?.display_name).toEqual([
+      "Too small: expected string to have >=2 characters",
+    ]);
+    expect(mundo.redirects).toEqual([]);
+    // A validação acontece ANTES da escrita: nada chegou ao banco.
     expect(escritas).toEqual([]);
   });
 });
