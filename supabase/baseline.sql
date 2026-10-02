@@ -35193,7 +35193,6 @@ notify pgrst, 'reload schema';
 alter table public.prospecting_candidates add column if not exists suppression_salt bytea;
 alter table public.prospecting_candidates add column if not exists suppression_place bytea;
 alter table public.prospecting_candidates add column if not exists suppression_phone bytea;
-alter table public.prospecting_candidates add column if not exists selected boolean not null default true;
 create index if not exists prospecting_suppressed_org
   on public.prospecting_candidates(organization_id) where suppression_salt is not null;
 
@@ -45972,3 +45971,9 @@ comment on column public.ai_agent_versions.inbound_debounce_ms is
 alter table public.ai_agent_versions
   add constraint ai_agent_versions_inbound_debounce_ms_check
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
+
+-- ---- seleção de empresas na prospecção, issue #1896 (migration 0506) ----
+-- O operador escolhe quais empresas da busca entram na fila. Padrão TUDO
+-- marcado: quem só atualiza continua com a mesma fila de antes.
+alter table public.prospecting_candidates
+  add column if not exists selected boolean not null default true;
