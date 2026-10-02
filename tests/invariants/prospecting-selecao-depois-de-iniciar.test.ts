@@ -164,14 +164,6 @@ describe("desmarcar quem está na fila", () => {
     expect((await estado(3))?.status).toBe("failed");
     expect((await estado(4))?.status).toBe("sending");
   });
-
-  it("o envio, que só pega `queued`, não alcança mais a desmarcada", async () => {
-    const { rows } = await pool.query(
-      "select id from prospecting_candidates where organization_id=$1 and campaign_id=$2 and status='queued'",
-      [ORG_A, PAUSADA_NO_ENVIO],
-    );
-    expect(rows.map((x) => x.id)).not.toContain(cand(1));
-  });
 });
 
 describe("marcar de novo", () => {
@@ -303,12 +295,38 @@ describe("excluir as desmarcadas", () => {
 
   it("apaga SÓ a linha da busca de quem o operador tirou e que nunca virou registro do CRM", async () => {
     const r = await descartarDesmarcadas(db, ORG_A, PAUSADA_NO_ENVIO);
-    expect(r.discarded).toBeGreaterThanOrEqual(1);
+    expect(r.discarded, "só a 50 é descartável neste ponto").toBe(1);
     expect(await estado(50)).toBeUndefined();
     expect(await estado(51), "já tem conversa: é registro do CRM").toBeDefined();
     expect(await estado(52), "linha-tomba de supressão nunca se apaga").toBeDefined();
     expect(await estado(53), "recusada pelo produto, não escolhida pelo operador").toBeDefined();
     expect(await estado(54), "marcada e na fila").toBeDefined();
+  });
+
+  it("empresa que já tem CONTATO, mesmo sem conversa nem negócio, também não é apagada", async () => {
+    const contato = "0b120000-6666-4000-8000-000000000099";
+    await pool.query(
+      "insert into contacts(id,organization_id,display_name) values($1,$2,'Empresa com contato')",
+      [contato, ORG_A],
+    );
+    await candidato(56, PAUSADA_NO_ENVIO, ORG_A, {
+      status: "skipped",
+      selected: false,
+      error: RAZAO_NAO_SELECIONADA,
+      contact: contato,
+    });
+    const r = await descartarDesmarcadas(db, ORG_A, PAUSADA_NO_ENVIO);
+    expect(r.discarded).toBe(0);
+    expect(await estado(56)).toBeDefined();
+  });
+
+  it("em RASCUNHO, apaga a desmarcada `new` e preserva a marcada", async () => {
+    await candidato(60, RASCUNHO, ORG_A, { status: "new", selected: false });
+    await candidato(61, RASCUNHO, ORG_A, { status: "new", selected: true });
+    const r = await descartarDesmarcadas(db, ORG_A, RASCUNHO);
+    expect(r.discarded).toBe(1);
+    expect(await estado(60)).toBeUndefined();
+    expect(await estado(61)).toBeDefined();
   });
 
   it("a outra organização não perde nada", async () => {

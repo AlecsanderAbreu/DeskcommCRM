@@ -6,6 +6,8 @@
  * Aqui, sem banco: o formato aceito pelas ações novas, a ordem das guardas nas funções e o
  * TEXTO dos três comandos, onde mora o que eles não podem alcançar.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/audit", () => ({ audit: vi.fn() }));
@@ -176,5 +178,21 @@ describe("o texto dos comandos carrega as guardas no próprio where", () => {
     expect(t).toContain("selected=false");
     expect(t).toContain("contact_id is null and lead_id is null and conversation_id is null");
     expect(t).toContain("suppression_salt is null");
+  });
+});
+
+describe("o envio só pega o que está na fila (leitura do worker)", () => {
+  const worker = fs.readFileSync(
+    path.resolve(__dirname, "../../lib/prospecting/worker.ts"),
+    "utf8",
+  );
+
+  it("o candidato do próximo envio sai de `status='queued'`, então a desmarcada (skipped) nunca é alcançada", () => {
+    const i = worker.indexOf("select * from prospecting_candidates");
+    expect(
+      i,
+      "o worker precisa continuar escolhendo o próximo candidato por consulta",
+    ).toBeGreaterThan(-1);
+    expect(worker.slice(i, i + 220)).toContain("status='queued'");
   });
 });

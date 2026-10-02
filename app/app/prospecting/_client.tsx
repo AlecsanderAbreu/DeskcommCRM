@@ -38,6 +38,7 @@ type Candidate = {
   data: Prospect;
   selected?: boolean;
   status?: string;
+  lead_id?: string | null;
   progress: string;
   message_status: string | null;
   error: string | null;
@@ -204,6 +205,19 @@ export function ProspectingClient() {
   const elegiveis = canSelect ? candidates.filter(marcavel) : [];
   const allSelected = elegiveis.length > 0 && elegiveis.every((c) => c.selected !== false);
   const desmarcadas = candidates.filter((c) => c.selected === false);
+  /**
+   * O que o botão "Excluir desmarcadas" realmente apaga. Espelha o `where` do servidor: sem
+   * negócio nem conversa (o que já virou registro do CRM não é daqui) e só o que o operador
+   * tirou. Numa campanha que criou o contato ao iniciar, toda desmarcada da fila já tem
+   * conversa — e o botão não aparece, em vez de dizer "excluído" sem ter excluído nada.
+   * (A linha-tomba de LGPD tem `error` nulo, então também fica de fora.)
+   */
+  const descartaveis = desmarcadas.filter(
+    (c) =>
+      !c.conversation_id &&
+      !c.lead_id &&
+      (c.status === "new" || (c.status === "skipped" && c.error === RAZAO_NAO_SELECIONADA)),
+  );
   const visiveis =
     canSelect && !mostrarDesmarcadas ? candidates.filter((c) => c.selected !== false) : candidates;
   async function setSelection(candidateIds: string[], selected: boolean) {
@@ -409,6 +423,9 @@ export function ProspectingClient() {
                   onClick={() => {
                     setSelected(c.id);
                     setNotice(null);
+                    // A confirmação de exclusão vale para UMA campanha: ao trocar, ela some.
+                    setConfirmandoExclusao(false);
+                    setMostrarDesmarcadas(false);
                   }}
                   className={`w-full rounded-lg border p-3 text-left ${campaign?.id === c.id ? "border-primary bg-primary/5" : "bg-card"}`}
                 >
@@ -887,7 +904,7 @@ export function ProspectingClient() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={busy || allSelected}
+                            disabled={busy || elegiveis.length === 0 || allSelected}
                             onClick={() =>
                               setSelection(
                                 elegiveis.map((c) => c.id),
@@ -922,12 +939,12 @@ export function ProspectingClient() {
                                 : `${t("Mostrar desmarcadas")} (${desmarcadas.length})`}
                             </button>
                           )}
-                          {desmarcadas.length > 0 &&
+                          {descartaveis.length > 0 &&
                             (confirmandoExclusao ? (
                               <span className="flex flex-wrap items-center gap-2">
                                 <span className="text-xs text-muted-foreground">
                                   {t(
-                                    "Excluir tira essas empresas da lista. Numa busca futura, elas podem aparecer de novo como novas.",
+                                    "Excluir tira essas empresas da lista. Em outra busca, elas podem aparecer de novo como novas.",
                                   )}
                                 </span>
                                 <Button
@@ -957,7 +974,7 @@ export function ProspectingClient() {
                                 disabled={busy}
                                 onClick={() => setConfirmandoExclusao(true)}
                               >
-                                {t("Excluir desmarcadas")}
+                                {`${t("Excluir desmarcadas")} (${descartaveis.length})`}
                               </Button>
                             ))}
                           {naFilaPausada && !criaSoNoEnvio && (
@@ -981,7 +998,7 @@ export function ProspectingClient() {
                                 <input
                                   type="checkbox"
                                   checked={allSelected}
-                                  disabled={busy}
+                                  disabled={busy || elegiveis.length === 0}
                                   onChange={() =>
                                     setSelection(
                                       elegiveis.map((c) => c.id),

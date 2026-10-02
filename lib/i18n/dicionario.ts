@@ -13965,7 +13965,7 @@ export const DICIONARIO: Traducoes = {
   "Esconder desmarcadas": { es: "Ocultar desmarcadas" },
   "Excluir desmarcadas": { es: "Eliminar desmarcadas" },
   "Confirmar exclusão": { es: "Confirmar eliminación" },
-  "Excluir tira essas empresas da lista. Numa busca futura, elas podem aparecer de novo como novas.": { es: "Eliminar quita estas empresas de la lista. En una búsqueda futura pueden aparecer de nuevo como nuevas." },
+  "Excluir tira essas empresas da lista. Em outra busca, elas podem aparecer de novo como novas.": { es: "Eliminar quita estas empresas de la lista. En otra búsqueda pueden aparecer de nuevo como nuevas." },
   "Empresas desmarcadas excluídas.": { es: "Empresas desmarcadas eliminadas." },
   "Esta campanha já criou o contato e o negócio dessas empresas ao iniciar. Desmarcar só impede o envio: elas continuam no funil.": { es: "Esta campaña ya creó el contacto y el negocio de estas empresas al iniciar. Desmarcar solo impide el envío: siguen en el embudo." },
 };

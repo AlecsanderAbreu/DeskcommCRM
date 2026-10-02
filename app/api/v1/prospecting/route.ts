@@ -164,7 +164,14 @@ export async function POST(req: NextRequest) {
         return { selected: body.selected, candidates_id: rows.map((r) => r.id) };
       });
     } else if (body.action === "select_in_queue") {
-      result = await selecionarNaFila(pool, org, body.id, body.candidate_ids, body.selected);
+      const fila = await selecionarNaFila(pool, org, body.id, body.candidate_ids, body.selected);
+      result = fila;
+      // Quantas empresas de fato mudaram (o servidor ignora as que não podiam mudar).
+      auditMetadata = {
+        operation: body.action,
+        selected: body.selected,
+        changed: fila.changed_ids.length,
+      };
     } else if (body.action === "discard_unselected") {
       const descarte = await descartarDesmarcadas(pool, org, body.id);
       result = descarte;
