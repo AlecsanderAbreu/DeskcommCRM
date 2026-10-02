@@ -1,4 +1,4 @@
--- 0502: os dois avisos reais do Security Advisor do Supabase
+-- 0521: os dois avisos reais do Security Advisor do Supabase
 --
 -- Lido numa instalação v1.69 em 2026-10-02. Os demais avisos são desenho
 -- (definer chamável por authenticated que confere a organização; extensões em

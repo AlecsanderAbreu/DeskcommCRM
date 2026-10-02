@@ -45872,8 +45872,8 @@ alter table public.ai_agent_versions
   add constraint ai_agent_versions_inbound_debounce_ms_check
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
 
--- ---- avisos do Security Advisor: search_path fixo e definer só do servidor (migration 0502) ----
--- Cópia das instruções da migration 0502 (o porquê está no cabeçalho dela). Só ALTER/REVOKE:
+-- ---- avisos do Security Advisor: search_path fixo e definer só do servidor (migration 0521) ----
+-- Cópia das instruções da migration 0521 (o porquê está no cabeçalho dela). Só ALTER/REVOKE:
 -- não cria função, então pode ficar depois da VARREDURA anon.
 alter function public.fn_agent_versions_immutable() set search_path = '';
 alter function public.fn_ai_agent_version_content_immutable() set search_path = '';
