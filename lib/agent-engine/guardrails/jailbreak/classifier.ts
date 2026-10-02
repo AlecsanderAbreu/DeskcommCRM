@@ -21,7 +21,7 @@ import type { Logger } from '../../obs/logger';
 import type { ProviderRegistry } from '../../edge/llm/providers';
 import { LlmBudgetExceededError, runModelCall, type LlmEdgeConfig } from '../../edge/llm/run-model-call';
 import type { LlmResolveOverride } from '../../edge/llm/credentials';
-import { extrairJsonDoTexto } from '@/lib/agent-engine/texto/extrair-json-do-texto';
+import { extrairObjetoJsonDoTexto } from '@/lib/agent-engine/texto/extrair-json-do-texto';
 
 /** Severidade do sinal: none (limpo) < low (suspeito) < high (jailbreak/injeção claro). */
 export type JailbreakLevel = 'none' | 'low' | 'high';
@@ -88,7 +88,7 @@ export function parseJailbreakClassification(text: string): JailbreakClassificat
   // e JSON REPETIDO — a saída ecoada derrubava o recorte antigo). O que NÃO muda:
   // sem objeto parseável o veredito é `semVeredito()` — flag:false, level:'none',
   // falhou:true —, ou seja, o fail-open de sempre; nenhuma regra de bloqueio mudou.
-  const bruto = extrairJsonDoTexto(text);
+  const bruto = extrairObjetoJsonDoTexto(text);
   if (bruto === null || typeof bruto !== 'object') return semVeredito();
   const obj = bruto as Record<string, unknown>;
   const raw = typeof obj.level === 'string' ? obj.level.trim().toLowerCase() : '';

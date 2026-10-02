@@ -15,7 +15,7 @@ import type { Logger } from '../obs/logger';
 import type { ProviderRegistry } from '../edge/llm/providers';
 import { runModelCall, type LlmEdgeConfig } from '../edge/llm/run-model-call';
 import type { LeadContext } from '../edge/crm/get-lead-context';
-import { extrairJsonDoTexto } from '@/lib/agent-engine/texto/extrair-json-do-texto';
+import { extrairObjetoJsonDoTexto } from '@/lib/agent-engine/texto/extrair-json-do-texto';
 import { fusoDaOrganizacao } from './fuso-da-org';
 import { renderAgora } from '@/lib/tempo/agora';
 
@@ -43,7 +43,7 @@ function buildClassifyMessage(candidate: string, classes: string[], hint?: strin
  * JSON parseável) vira `null`, nunca um palpite.
  */
 export function parseFollowupClassification(text: string, classes: string[]): string | null {
-  const bruto = extrairJsonDoTexto(text);
+  const bruto = extrairObjetoJsonDoTexto(text);
   if (bruto === null || typeof bruto !== 'object') return null;
   const obj = bruto as Record<string, unknown>;
   const value = typeof obj.class === 'string' ? obj.class : null;
@@ -156,7 +156,7 @@ function buildPlanMessage(
  * acessório. Fica registrado que o modelo não explicou.
  */
 export function parsePlanoDeEsperas(text: string, nodeIdsDoFluxo: string[]): PropostaDeEsperaBruta[] {
-  const bruto = extrairJsonDoTexto(text);
+  const bruto = extrairObjetoJsonDoTexto(text);
   if (bruto === null || typeof bruto !== 'object') return [];
   const obj = bruto as Record<string, unknown>;
   if (!Array.isArray(obj.esperas)) return [];

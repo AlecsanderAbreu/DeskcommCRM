@@ -18,7 +18,7 @@
  * e-commerce que o gatilho semeou, que é exatamente o defeito que este passo
  * existe para consertar.
  */
-import { extrairJsonDoTexto } from "@/lib/agent-engine/texto/extrair-json-do-texto";
+import { extrairObjetoJsonDoTexto } from "@/lib/agent-engine/texto/extrair-json-do-texto";
 import {
   normalizarProposta,
   validarProposta,
@@ -125,7 +125,7 @@ export function pedidoDeSugestao(
  * quando não há nenhum (o desfecho de falha de quem chama não muda).
  */
 export function extrairJson(texto: string): unknown {
-  return extrairJsonDoTexto(texto);
+  return extrairObjetoJsonDoTexto(texto);
 }
 
 /** De onde veio o quadro que a tela vai mostrar. A tela DIZ isto à pessoa. */

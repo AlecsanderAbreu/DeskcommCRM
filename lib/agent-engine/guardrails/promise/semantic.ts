@@ -23,7 +23,7 @@ import type { Logger } from '../../obs/logger';
 import type { ProviderRegistry } from '../../edge/llm/providers';
 import { runModelCall, type LlmEdgeConfig } from '../../edge/llm/run-model-call';
 import type { LlmResolveOverride } from '../../edge/llm/credentials';
-import { extrairJsonDoTexto } from '@/lib/agent-engine/texto/extrair-json-do-texto';
+import { extrairObjetoJsonDoTexto } from '@/lib/agent-engine/texto/extrair-json-do-texto';
 
 /** Veredito binário do classificador. suspectPhrase = null quando isPromise = false. */
 export interface PromiseClassification {
@@ -71,7 +71,7 @@ export function parsePromiseClassification(text: string, log?: Logger): PromiseC
   // warn de antes — e o `reason` usa o mesmo critério de antes (havia `{`…`}` para
   // o regex antigo = havia JSON candidato que não parseou → invalid_json; sem ele →
   // no_json). A regex abaixo é SÓ o critério do motivo do log, não o parser.
-  const bruto = extrairJsonDoTexto(text);
+  const bruto = extrairObjetoJsonDoTexto(text);
   if (bruto === null || typeof bruto !== 'object') {
     const haviaJsonCandidato = /\{[\s\S]*\}/.test(text);
     // degrade OBSERVÁVEL (F4-08 ressalva 2): sem o warn, um classificador sistematicamente
