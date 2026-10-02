@@ -8357,6 +8357,7 @@ export const DICIONARIO: Traducoes = {
   "Sem evidências registradas.": { es: "Sin evidencias registradas." },
   "Sem resposta há": { es: "Sin respuesta hace" },
   "Cliente solicitou cancelamento": { es: "El cliente pidió cancelar" },
+  "Pediu para não receber mensagens": { es: "Pidió no recibir mensajes" },
   "Preço": { es: "Precio" },
   "Sem resposta do cliente": { es: "Sin respuesta del cliente" },
   "Produto indisponível": { es: "Producto no disponible" },

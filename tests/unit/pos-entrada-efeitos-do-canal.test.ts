@@ -365,8 +365,12 @@ describe("opt-out fecha o negócio aberto como perdido", () => {
       expect(entrada).toMatchObject({
         leadId,
         desfecho: "lost",
-        motivo: "requested_by_customer",
+        // Decisão do dono (doc 85, opção B): motivo próprio. "Cliente solicitou
+        // cancelamento" diria algo que o cliente não pediu — pedir silêncio não é
+        // cancelar.
+        motivo: "opted_out_of_messages",
       });
+      expect(entrada.motivo).not.toBe("requested_by_customer");
     }
   });
 

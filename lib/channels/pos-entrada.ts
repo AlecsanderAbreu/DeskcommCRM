@@ -41,6 +41,7 @@
 import { audit } from "@/lib/audit";
 import { encerraDemanda } from "@/lib/leads/encerramento";
 import { garantirLeadDaConversa } from "@/lib/leads/nascimento-do-lead";
+import type { CanonicalLostReason } from "@/lib/schemas/leads";
 import {
   ehAPrimeiraMensagemDoContato,
   estamparOrigemDaPagina,
@@ -276,12 +277,17 @@ async function aplicarOptOut(admin: Admin, entrada: EntradaDeMensagem): Promise<
   await fecharNegociosAbertosDeQuemPediuParar(admin, entrada);
 }
 
-/** Motivo canônico de perda (`CANONICAL_LOST_REASONS`): foi o cliente quem pediu. */
-const MOTIVO_DA_PERDA_POR_OPT_OUT = "requested_by_customer";
+/**
+ * Motivo canônico de perda (`CANONICAL_LOST_REASONS`, migration 0513): "Pediu
+ * para não receber mensagens". Não é `requested_by_customer` ("Cliente solicitou
+ * cancelamento") — pedir silêncio não é cancelar (decisão do dono, doc 85).
+ */
+const MOTIVO_DA_PERDA_POR_OPT_OUT = "opted_out_of_messages" satisfies CanonicalLostReason;
 
 /**
  * Quem pediu para parar não é mais uma oportunidade: o negócio aberto dele vira
- * "Perdido — Cliente solicitou cancelamento".
+ * "Perdido — Pediu para não receber mensagens". Inclusive pedido já pago — o
+ * dono escolheu fechar TODO negócio aberto (opção B, não B').
  *
  * Medido em produção: os dois opt-outs de um dia bloquearam o contato um segundo
  * depois do "parar" (`contact.blocked`, sem usuário), mas o negócio ficou aberto
