@@ -1,5 +1,5 @@
 /**
- * 0505 — NOTA INTERNA: EDITAR E APAGAR SÓ O AUTOR OU MANAGER+ (#1870, cont. da #1868).
+ * 0509 — NOTA INTERNA: EDITAR E APAGAR SÓ O AUTOR OU MANAGER+ (#1870, cont. da #1868).
  *
  * A #1868 (0478) fez a nota seguir a visibilidade da conversa na leitura e na
  * escrita. O que continuava aberto (a própria issue #1870): a ESCRITA era uma
@@ -11,7 +11,7 @@
  * autor+/manager+ no app (`[noteId]/route.ts`); o banco era porta tão aberta
  * quanto ela.
  *
- * Este arquivo mede a RLS por operação (formato 0464/0489/0490) que a 0505
+ * Este arquivo mede a RLS por operação (formato 0464/0489/0490) que a 0509
  * instala:
  *   · INSERT  = org + `agent` + ver a conversa + autor = a própria sessão;
  *   · UPDATE  = autor OU manager+, sempre dentro da visibilidade da conversa;
@@ -50,11 +50,13 @@ const NOTA_DE_B = "d0d0d0d0-0503-4000-8000-000000000001";
 /** Sondas de UPDATE/DELETE; recriadas no seed para o controle contar a cada rodada. */
 const SONDA_UPDATE = "d0d0d0d0-0503-4000-8000-000000000002";
 const SONDA_DELETE = "d0d0d0d0-0503-4000-8000-000000000003";
+/** Nota que GOV_AGENT_A tenta criar em nome de GOV_AGENT_B; nunca deve existir. */
+const SONDA_FORJADA = "d0d0d0d0-0503-4000-8000-000000000004";
 
 beforeAll(() => {
   seedGov();
   sql(`
-    delete from public.conversation_notes where id in ('${NOTA_DE_B}', '${SONDA_UPDATE}', '${SONDA_DELETE}');
+    delete from public.conversation_notes where id in ('${NOTA_DE_B}', '${SONDA_UPDATE}', '${SONDA_DELETE}', '${SONDA_FORJADA}');
     insert into public.conversation_notes
       (id, organization_id, conversation_id, body, created_by_user_id, created_by_name)
       values
@@ -64,7 +66,7 @@ beforeAll(() => {
   `);
 });
 
-describe("0505 — edita e apaga nota só o autor ou manager+", () => {
+describe("0509 — edita e apaga nota só o autor ou manager+", () => {
   it("os dois agentes VÊEM a conversa livre (controle de cenário)", () => {
     const contar = `select count(*) from public.conversation_notes where id = '${NOTA_DE_B}';`;
     expect(countAs(GOV_AGENT_A, contar)).toBe(1);
@@ -72,7 +74,7 @@ describe("0505 — edita e apaga nota só o autor ou manager+", () => {
   });
 
   it("o agent que VÊ a conversa mas NÃO é o autor NÃO edita a nota", () => {
-    // sem a 0505 isto devolve 1 — era o buraco da #1870
+    // sem a 0509 isto devolve 1 — era o buraco da #1870
     expect(
       writeCountAs(
         GOV_AGENT_A,
@@ -110,6 +112,37 @@ describe("0505 — edita e apaga nota só o autor ou manager+", () => {
         `update public.conversation_notes set body = 'x' where id = '${NOTA_DE_B}'`,
       ),
     ).toBe(0);
+  });
+
+  it("o agent NÃO cria nota em nome de outro", () => {
+    // sem o `created_by_user_id = auth.uid()` do INSERT isto devolve 1
+    expect(
+      writeCountAs(
+        GOV_AGENT_A,
+        `insert into public.conversation_notes
+           (id, organization_id, conversation_id, body, created_by_user_id, created_by_name)
+           values ('${SONDA_FORJADA}', '${GOV_ORG}', '${GOV_CONV_UNASSIGNED}', 'forjada', '${GOV_AGENT_B}', 'B')`,
+      ),
+    ).toBe(0);
+  });
+
+  it("o AUTOR NÃO transfere a autoria da própria nota para um colega", () => {
+    // o `with check` do UPDATE exige que a linha gravada siga sendo dele (ou manager+)
+    expect(
+      writeCountAs(
+        GOV_AGENT_B,
+        `update public.conversation_notes set created_by_user_id = '${GOV_AGENT_A}' where id = '${SONDA_UPDATE}'`,
+      ),
+    ).toBe(0);
+  });
+
+  it("MANAGER+ edita nota de colega (que ele vê)", () => {
+    expect(
+      writeCountAs(
+        GOV_MANAGER,
+        `update public.conversation_notes set body = 'editada pelo manager' where id = '${NOTA_DE_B}'`,
+      ),
+    ).toBe(1);
   });
 
   it("MANAGER+ apaga nota de colega (que ele vê)", () => {

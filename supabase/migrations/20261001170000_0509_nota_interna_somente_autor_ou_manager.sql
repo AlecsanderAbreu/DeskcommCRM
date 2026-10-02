@@ -1,5 +1,5 @@
--- 20261001170000_0505_nota_interna_somente_autor_ou_manager.sql
--- 0505 — RLS por operação em `conversation_notes`: editar/apagar só o autor ou
+-- 20261001170000_0509_nota_interna_somente_autor_ou_manager.sql
+-- 0509 — RLS por operação em `conversation_notes`: editar/apagar só o autor ou
 -- manager+ (#1870, continuação da #1868).
 --
 -- ─── O buraco que isto fecha ────────────────────────────────────────────────
@@ -35,6 +35,10 @@
 -- mesmo buraco — o gate `baseline-nao-constroi-o-que-derruba` chama isso de
 -- "definição intermediária". O `drop policy if exists` do apêndice cuida do
 -- clone antigo.
+
+-- Policies permissivas se somam por OR: sem este drop, a `for all` da 0478
+-- segue liberando quem não é autor no clone que aplica a cadeia.
+drop policy if exists "conversation_notes_write" on public.conversation_notes;
 
 -- ─── INSERT: autor = a própria sessão ──────────────────────────────────────
 -- O autor da nota nasce = quem está criando; ninguém cria nota em nome de

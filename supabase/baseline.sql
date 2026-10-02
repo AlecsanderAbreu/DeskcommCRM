@@ -45509,7 +45509,7 @@ create policy "conversation_notes_select" on public.conversation_notes
 -- anulada. O teste `F2: ... não lê a nota` pegou exatamente isso (devolveu 1 em
 -- vez de 0) antes do conserto (0478).
 --
--- Desde a 0505 a escrita é por OPERAÇÃO (formato 0464/0489/0490, issue #1870):
+-- Desde a 0509 a escrita é por OPERAÇÃO (formato 0464/0489/0490, issue #1870):
 -- entre quem VÊ a conversa, editar e apagar são só do AUTOR (`created_by_user_id`)
 -- ou de manager+ da organização — a policy `for all` não distinguia o autor e
 -- qualquer agent podia mexer na nota de um colega pelo PostgREST. Molde da
