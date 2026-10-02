@@ -106,10 +106,10 @@ function utcDeDiaCivil(dia: string): number | null {
  * `due_at` guarda a meia-noite UTC de um dia útil. Passar esse instante por um
  * formatador com fuso — `toLocaleString` com `timeZone`, `date-fns` `format`,
  * `differenceInDays` — redesenha o DIA no eixo de quem lê, e o dia civil guardado
- * deixa de ser o dia civil mostrado. O erro é de UM DIA e muda de sinal com o
- * fuso: quem lê a oeste de UTC (Brasil, Colômbia, Peru) vê o prazo **antes**;
- * quem lê a leste (Angola, Lisboa) vê **depois**. No Brasil, que é onde o produto
- * roda, o prazo aparece no dia anterior.
+ * deixa de ser o dia civil mostrado. Quem lê a oeste de UTC (Brasil, Colômbia,
+ * Peru) vê o prazo UM DIA **antes**; a leste (Angola, Lisboa) a meia-noite UTC
+ * ainda cai no mesmo dia, e o dia mostrado acerta por acaso. No Brasil, que é
+ * onde o produto roda, o prazo aparece no dia anterior.
  *
  * A correção é não "ajustar o fuso", é ler o dia que a coluna guarda — que é o
  * dia que o motor contou.
