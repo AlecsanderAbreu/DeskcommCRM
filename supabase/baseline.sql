@@ -45874,7 +45874,7 @@ alter table public.ai_agent_versions
   add constraint ai_agent_versions_inbound_debounce_ms_check
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
 
--- 0502 (#1095, de @webtecnica): o gancho de TEMA. A permissão `theme.apply`
+-- 0511 (#1095, de @webtecnica): o gancho de TEMA. A permissão `theme.apply`
 -- entra no conjunto fechado (`fn_extensions_permissoes_validas`, bloco acima) e
 -- a configuração do vínculo passa a admitir UMA chave opcional `theme` = a
 -- paleta escolhida pela organização. Par drop/add da CHECK para o `update.sh`

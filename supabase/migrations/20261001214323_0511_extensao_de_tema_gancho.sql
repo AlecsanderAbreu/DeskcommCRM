@@ -1,4 +1,4 @@
--- 0502 — Extensão declarativa ganha o GANCHO de tema (issue #1095)
+-- 0511 — Extensão declarativa ganha o GANCHO de tema (issue #1095)
 --
 -- O perfil declarativo v1 aceitava só cards; um pacote não tinha como oferecer
 -- um TEMA. Esta migration abre o contrato do banco para a contribuição
