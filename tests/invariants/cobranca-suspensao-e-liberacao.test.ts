@@ -140,6 +140,19 @@ describe("suspensão por cobrança e liberação", () => {
     expect(contagensDaVolta(PAGANTE_2)).toBe("0|0");
   });
 
+  it("a volta conta só o disparo único de follow-up, o mesmo recorte da fila de IA › Follow-ups", () => {
+    const contato = uuid(P, 203);
+    sql(`insert into public.contacts (id, organization_id, display_name)
+           values ('${contato}', '${ADMINISTRATIVA}', 'Contato 0510 3') on conflict (id) do nothing;`);
+    suspender(ADMINISTRATIVA, "administrativa");
+    sql(`${agendamentoDesligado(ADMINISTRATIVA, contato)}
+         -- outro job_kind: a fila não o lista (queue/route.ts filtra followup_turn), o aviso não o conta
+         insert into public.cron_jobs (organization_id, contact_id, kind, job_kind, next_run_at, enabled, last_error)
+           values ('${ADMINISTRATIVA}', '${contato}', 'at', 'case_reply_turn', now(), false, 'org_nao_operante');`);
+    expect(reativar(ADMINISTRATIVA, "administrativa")).toEqual({ changed: true });
+    expect(contagensDaVolta(ADMINISTRATIVA)).toBe("1|0");
+  });
+
   it("⭐ desligar a chave libera só as suspensas por cobrança, pela porta de reativação", () => {
     suspender(PAGANTE, "cobranca");
     suspender(PAGANTE_2, "cobranca");

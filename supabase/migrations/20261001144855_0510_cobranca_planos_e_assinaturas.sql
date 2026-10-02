@@ -612,10 +612,14 @@ begin
     -- 0510: disparo único que venceu com a org parada e que o scheduler
     -- DESLIGOU (lib/agent-engine/cron/scheduler.ts: `enabled = false,
     -- last_error = 'org_nao_operante'`). O recorrente só é adiado e segue vivo.
+    -- Só `followup_turn`: é o mesmo recorte da fila de IA › Follow-ups
+    -- (app/api/v1/ai/followups/queue/route.ts), para onde o aviso manda; um
+    -- disparo único de outro job_kind seria contado e não apareceria em tela.
     select count(*) into v_agendamentos
       from public.cron_jobs cj
      where cj.organization_id = p_org
        and cj.kind = 'at'
+       and cj.job_kind = 'followup_turn'
        and not cj.enabled
        and cj.last_error = 'org_nao_operante'
        and cj.updated_at >= v_desde;
