@@ -28,6 +28,18 @@ export interface McpAuthResult {
   actor: Actor;
   apiTokenId: string;
   scopes: string[];
+  /**
+   * Token vivo de empresa que NÃO opera, aceito porque o chamador pediu
+   * `permiteOrgSuspensa` (só o `/api/mcp`). O servidor então recusa toda
+   * ferramenta que não declara `permiteOrgSuspensa` — LGPD nunca é bloqueada
+   * (decisão do dono, 30/09). Ausente = empresa opera.
+   */
+  orgSuspensa?: true;
+}
+
+/** Opção de quem valida o token: aceitar o da empresa suspensa, marcado. */
+export interface OpcoesDoToken {
+  permiteOrgSuspensa?: boolean;
 }
 
 export class McpAuthError extends Error {
@@ -104,6 +116,8 @@ export interface ResolvedApiToken {
   scopes: string[];
   /** `api_tokens.created_by` — quem provisionou o token. `uuid not null` no schema. */
   createdBy: string;
+  /** Ver `McpAuthResult.orgSuspensa`. Só aparece com `permiteOrgSuspensa`. */
+  orgSuspensa?: true;
 }
 
 /**
@@ -122,7 +136,10 @@ export interface ResolvedApiToken {
  * Efeito colateral idêntico ao de antes: atualiza `last_used_at`
  * fire-and-forget, depois de todas as validações.
  */
-export async function resolveApiToken(plaintext: string): Promise<ResolvedApiToken> {
+export async function resolveApiToken(
+  plaintext: string,
+  opcoes: OpcoesDoToken = {},
+): Promise<ResolvedApiToken> {
   if (!plaintext.startsWith("dsk_")) {
     throw new ApiTokenError("malformed", "Invalid token format.");
   }
@@ -151,8 +168,11 @@ export async function resolveApiToken(plaintext: string): Promise<ResolvedApiTok
   }
   // Token vivo de empresa parada: a integração não opera enquanto a conta está
   // suspensa (spec da cobrança §4 item 6). Antes do `last_used_at`: recusa não é uso.
+  // Exceção: quem pede `permiteOrgSuspensa` recebe o token MARCADO e recusa por
+  // ferramenta (o `/api/mcp`, para a de privacidade).
   const orgDoToken = Array.isArray(data.organizations) ? data.organizations[0] : data.organizations;
-  if (!ehOperante(orgDoToken?.status)) {
+  const orgSuspensa = !ehOperante(orgDoToken?.status);
+  if (orgSuspensa && !opcoes.permiteOrgSuspensa) {
     throw new ApiTokenError("org_suspended", "Organization suspended.");
   }
 
@@ -169,6 +189,7 @@ export async function resolveApiToken(plaintext: string): Promise<ResolvedApiTok
     organizationId: data.organization_id,
     scopes: parseScopes(data.scopes),
     createdBy: data.created_by,
+    ...(orgSuspensa ? { orgSuspensa: true as const } : {}),
   };
 }
 
@@ -183,6 +204,7 @@ const TETO_DE_TOKEN_MSG =
 
 export async function validateBearerToken(
   authHeader: string | null,
+  opcoes: OpcoesDoToken = {},
 ): Promise<McpAuthResult> {
   const plaintext = extractBearer(authHeader);
   if (!plaintext) {
@@ -200,7 +222,7 @@ export async function validateBearerToken(
 
   let resolved: ResolvedApiToken;
   try {
-    resolved = await resolveApiToken(plaintext);
+    resolved = await resolveApiToken(plaintext, opcoes);
   } catch (err) {
     if (err instanceof ApiTokenError) {
       if (err.reason === "org_suspended") {
@@ -234,6 +256,7 @@ export async function validateBearerToken(
     actor,
     apiTokenId: resolved.id,
     scopes: resolved.scopes,
+    ...(resolved.orgSuspensa ? { orgSuspensa: true as const } : {}),
   };
 }
 

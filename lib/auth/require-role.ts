@@ -65,6 +65,35 @@ interface RequireRoleOpts {
   permiteOrgSuspensa?: boolean;
 }
 
+/** O 403 da org não operante — o MESMO em `requireRole` e em `orgAtivaDaApi`. */
+function orgSuspensa(user: AuthUser, requestId?: string): NextResponse<ApiError> {
+  return fail("org_suspended", traduzir("A conta desta empresa está suspensa.", user.idioma), 403, {
+    requestId,
+  });
+}
+
+export type OrgDaApi =
+  | { ok: true; org: ActiveOrg | null }
+  | { ok: false; response: NextResponse<ApiError> };
+
+/**
+ * A org ativa para Route Handler que não passa por `requireRole` (rotas que
+ * escolhem o próprio 401/403 de "sem org"). Org não operante → 403
+ * `org_suspended` em JSON, e o cliente (lib/api/client.ts) leva a janela ao hub.
+ *
+ * NÃO use `resolveActiveOrg` em `app/api/**`: ele REDIRECIONA, o `fetch` segue
+ * o 307 e entrega o HTML de `/account-suspended` à tela como se fosse o dado
+ * (cerca `tests/unit/api-nao-redireciona-org-suspensa.test.ts`).
+ * Sem usuário, sem org: `{ ok: true, org: null }`, e a rota responde o seu "sem org".
+ */
+export async function orgAtivaDaApi(user: AuthUser | null, requestId?: string): Promise<OrgDaApi> {
+  const org = user ? await orgAtivaSemPortao(user) : null;
+  if (user && org && !ehOperante(org.org_status)) {
+    return { ok: false, response: orgSuspensa(user, requestId) };
+  }
+  return { ok: true, org };
+}
+
 /**
  * Gate de rota: `const authz = await requireRole("manager", { requestId });`
  * `if (!authz.ok) return authz.response;`
@@ -125,10 +154,7 @@ export async function requireRole(min: Role, opts: RequireRoleOpts = {}): Promis
   // ANTES do atalho de platform admin: nada que custe ou saia roda em org
   // parada, nem pelas mãos do dono da instalação.
   if (!permiteOrgSuspensa && !ehOperante(org.org_status)) {
-    return {
-      ok: false,
-      response: fail("org_suspended", t("A conta desta empresa está suspensa."), 403, { requestId }),
-    };
+    return { ok: false, response: orgSuspensa(user, requestId) };
   }
 
   if (user.is_platform_admin && !user.support && allowPlatformAdmin !== false) {

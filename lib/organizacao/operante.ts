@@ -3,7 +3,7 @@
  * (docs/superpowers/specs/2026-09-29-cobranca-do-revendedor-design.md §4).
  *
  * operante ⇔ organizations.status = 'active'. Espelho SQL:
- * `public.fn_org_operante(uuid)` (migration 0496). Mesma régua dos porteiros SQL
+ * `public.fn_org_operante(uuid)` (migration 0501). Mesma régua dos porteiros SQL
  * que já existiam (fn_accept_team_invite, fn_reply_delivery_policy,
  * fn_meet_delivery_current). `suspended`, `redacted`, `archived` e qualquer
  * status futuro ficam NÃO operantes: falha fechada.
@@ -11,19 +11,21 @@
  * ── Leitura de `suspended_kind` ──────────────────────────────────────────────
  * Só significa algo com status='suspended'. O lgpd-redact-worker troca o status
  * para 'redacted' sem limpar o tipo, e por isso o banco NÃO tem CHECK de
- * coerência entre as duas colunas: quem lê o tipo confere antes que a org está
- * parada. Suspensão com tipo NULO (gravada por uma imagem anterior à 0496,
+ * coerência entre as duas colunas: quem lê o tipo confere antes que o status é
+ * 'suspended' — "parada" não basta, a redigida também é parada. Suspensão com tipo NULO (gravada por uma imagem anterior à 0501,
  * depois de um rollback) vale como `administrativa`, como nas funções de estado.
  *
  * ── Deliberadamente NÃO gatilhados (spec §4, decisões D-11 e D-12) ───────────
- * - webhooks de entrada de canal (as rotas `<canal>/[token]` e `channel/[token]`),
+ * - webhooks de entrada de canal (as rotas `<canal>/[token]` e `channel/[token]`,
+ *   e a rota global do canal, sem token),
  *   in/[token], channels/official/webhook, nuvemshop/[event] e
  *   lib/channels/inbound.ts — a mensagem que CHEGA continua gravada;
  * - landings anuncios/{google,meta}/[org] e rastreio/[id] (D-11);
  * - recover-stuck-messages; sync/push do Google Agenda; contact-avatars;
  * - leitura via RLS, Realtime e Storage;
  * - escrita de dados de negócio via PostgREST por membro de org suspensa (D-12);
- * - LGPD: nunca bloqueada (requireRole({ permiteOrgSuspensa: true })).
+ * - LGPD: nunca bloqueada (requireRole({ permiteOrgSuspensa: true }), e no MCP a
+ *   ferramenta de privacidade — `lib/mcp/tools/privacidade.ts`).
  *
  * Este módulo NÃO importa `next/*` nem `server-only`: o dreno do event_log e o
  * do agent-engine o carregam sob `tsx` no worker
@@ -35,7 +37,7 @@ import { ApiError } from "@/lib/api/types";
 
 export const STATUS_OPERANTE = "active" as const;
 
-/** Por que a organização está suspensa. Par de `organizations_suspended_kind_check` (0496). */
+/** Por que a organização está suspensa. Par de `organizations_suspended_kind_check` (0501). */
 export const TIPOS_DE_SUSPENSAO = ["administrativa", "cobranca"] as const;
 export type TipoDeSuspensao = (typeof TIPOS_DE_SUSPENSAO)[number];
 

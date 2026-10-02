@@ -298,7 +298,8 @@ export const loadAuthUser = cache(async (): Promise<AuthUser | null> => {
  * `org_suspended` em JSON, não 307), o hub `/account-suspended`, leitura que não
  * pode sumir para o suspenso (`lib/legal/operador.ts`) e o início de um
  * acompanhamento, que só guarda para onde voltar (`admin/tenants/[id]/impersonate`).
- * O resto usa `resolveActiveOrg`.
+ * Rota de API usa `orgAtivaDaApi` (lib/auth/require-role.ts: 403 JSON); o resto,
+ * `resolveActiveOrg`.
  */
 export const orgAtivaSemPortao = cache(async (authUser: AuthUser): Promise<ActiveOrg | null> => {
   if (authUser.support) {
@@ -351,6 +352,8 @@ export const orgAtivaSemPortao = cache(async (authUser: AuthUser): Promise<Activ
  *
  * Org NÃO operante redireciona para `/account-suspended` (mesmo precedente do
  * `/support-ended`). É isto que fecha páginas, layouts e server actions de uma vez.
+ * NUNCA em rota de API (`app/api/**`): o `fetch` seguiria o 307 para HTML — lá
+ * é `orgAtivaDaApi` (cerca `tests/unit/api-nao-redireciona-org-suspensa.test.ts`).
  */
 export const resolveActiveOrg = cache(async (authUser: AuthUser): Promise<ActiveOrg | null> => {
   const org = await orgAtivaSemPortao(authUser);

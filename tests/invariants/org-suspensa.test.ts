@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { lastLine, sql, writeCountAs } from "./gov-helpers";
 
 /**
- * A SUSPENSÃO QUE SUSPENDE (migration 0496; spec cobrança do revendedor §2.1,
+ * A SUSPENSÃO QUE SUSPENDE (migration 0501; spec cobrança do revendedor §2.1,
  * §3.1 e §12, invariantes 2 a 4).
  *
  * Antes: suspender só tirava a pessoa da tela. A rota fazia leitura, UPDATE e
@@ -48,6 +48,7 @@ const CONVERSA_B = "c0de0496-4444-4000-8000-0000000000b1";
 const CONVERSA_GRUPO = "c0de0496-4444-4000-8000-0000000000a3"; // grupo da org A
 const JOB_A = "c0de0496-5555-4000-8000-00000000000a";
 const JOB_B = "c0de0496-5555-4000-8000-00000000000b";
+const JOB_REMANESCENTE = "c0de0496-5555-4000-8000-00000000000c"; // escapa para a fila durante a suspensão
 const MSG_A = "c0de0496-6666-4000-8000-00000000000a";
 const MSG_B = "c0de0496-6666-4000-8000-00000000000b";
 const PEDIDO_LGPD = "c0de0496-7777-4000-8000-000000000001";
@@ -57,7 +58,7 @@ const JOB_RASCUNHO = "c0de0496-5555-4000-8000-0000000000d1"; // approved_reply d
 const JOB_ENTREGA = "c0de0496-5555-4000-8000-0000000000e1"; // transactional_delivery do link do Meet
 const COMPROMISSO_A = "c0de0496-9999-4000-8000-0000000000a1";
 
-const MOTIVO = "motivo de teste do invariante 0496";
+const MOTIVO = "motivo de teste do invariante 0501";
 
 type Resultado = { changed: boolean; motivo?: string };
 
@@ -117,7 +118,7 @@ function reiniciar(): void {
   sql(`
     update public.organizations
        set status = 'active', suspended_kind = null, suspended_at = null,
-           suspended_reason = null, suspended_by = null
+           suspended_reason = null, suspended_by = null, redacted_at = null
      where id in ('${ORG_A}', '${ORG_B}', '${ORG_C}');
     update public.job_queue set status = 'pending', last_error = null
      where id in ('${JOB_A}', '${JOB_B}', '${JOB_RASCUNHO}', '${JOB_ENTREGA}');
@@ -134,32 +135,32 @@ function reiniciar(): void {
 beforeAll(() => {
   sql(`
     insert into auth.users (id, email) values
-      ('${DONO}', 'dono-0496@invariant.test'),
-      ('${SUPORTE}', 'suporte-0496@invariant.test'),
-      ('${ADMIN_A}', 'admin-a-0496@invariant.test')
+      ('${DONO}', 'dono-0501@invariant.test'),
+      ('${SUPORTE}', 'suporte-0501@invariant.test'),
+      ('${ADMIN_A}', 'admin-a-0501@invariant.test')
       on conflict do nothing;
     insert into public.platform_admins (user_id, granted_by, scope, mfa_required, reason) values
-      ('${DONO}', '${DONO}', 'full', false, 'fixture do invariante 0496'),
-      ('${SUPORTE}', '${DONO}', 'support_readonly', false, 'fixture do invariante 0496')
+      ('${DONO}', '${DONO}', 'full', false, 'fixture do invariante 0501'),
+      ('${SUPORTE}', '${DONO}', 'support_readonly', false, 'fixture do invariante 0501')
       on conflict do nothing;
     insert into public.organizations (id, slug, legal_name, display_name) values
-      ('${ORG_A}', 'org-0496-a', 'Org 0496 A', 'Org 0496 A'),
-      ('${ORG_B}', 'org-0496-b', 'Org 0496 B', 'Org 0496 B'),
-      ('${ORG_C}', 'org-0496-c', 'Org 0496 C', 'Org 0496 C'),
-      ('${ORG_R}', 'org-0496-r', 'Org 0496 R', 'Org 0496 R')
+      ('${ORG_A}', 'org-0501-a', 'Org 0501 A', 'Org 0501 A'),
+      ('${ORG_B}', 'org-0501-b', 'Org 0501 B', 'Org 0501 B'),
+      ('${ORG_C}', 'org-0501-c', 'Org 0501 C', 'Org 0501 C'),
+      ('${ORG_R}', 'org-0501-r', 'Org 0501 R', 'Org 0501 R')
       on conflict (id) do nothing;
     insert into public.user_organizations (user_id, organization_id, role, accepted_at)
       values ('${ADMIN_A}', '${ORG_A}', 'admin', now()) on conflict do nothing;
     do $s$ begin
       insert into public.channel_sessions (id, organization_id, waha_session_name, webhook_secret_encrypted) values
-        ('${SESSAO_A}', '${ORG_A}', 'org-0496-a', '\\x00'::bytea),
-        ('${SESSAO_B}', '${ORG_B}', 'org-0496-b', '\\x00'::bytea);
+        ('${SESSAO_A}', '${ORG_A}', 'org-0501-a', '\\x00'::bytea),
+        ('${SESSAO_B}', '${ORG_B}', 'org-0501-b', '\\x00'::bytea);
     exception when unique_violation then null; end $s$;
     insert into public.contacts (id, organization_id, display_name) values
-      ('${CONTATO_A1}', '${ORG_A}', 'Contato 0496 A1'),
-      ('${CONTATO_A2}', '${ORG_A}', 'Contato 0496 A2'),
-      ('${CONTATO_B}', '${ORG_B}', 'Contato 0496 B'),
-      ('${CONTATO_GRUPO}', '${ORG_A}', 'Grupo 0496 A')
+      ('${CONTATO_A1}', '${ORG_A}', 'Contato 0501 A1'),
+      ('${CONTATO_A2}', '${ORG_A}', 'Contato 0501 A2'),
+      ('${CONTATO_B}', '${ORG_B}', 'Contato 0501 B'),
+      ('${CONTATO_GRUPO}', '${ORG_A}', 'Grupo 0501 A')
       on conflict (id) do nothing;
     insert into public.conversations (id, organization_id, contact_id, channel_session_id, status) values
       ('${CONVERSA_A1}', '${ORG_A}', '${CONTATO_A1}', '${SESSAO_A}', 'open'),
@@ -185,7 +186,7 @@ beforeAll(() => {
     -- (fn_reply_settle / fn_meet_delivery_settle) nunca alcança se o job é
     -- falhado por fora.
     insert into public.ai_agents (id, organization_id, name, system_prompt)
-      values ('${AGENTE_A}', '${ORG_A}', 'Agente 0496', 'x') on conflict (id) do nothing;
+      values ('${AGENTE_A}', '${ORG_A}', 'Agente 0501', 'x') on conflict (id) do nothing;
     insert into public.ai_agent_versions (id, organization_id, agent_id, version_number, system_prompt, provider, model)
       values ('${VERSAO_A}', '${ORG_A}', '${AGENTE_A}', 1, 'x', 'anthropic', 'm') on conflict (id) do nothing;
     insert into public.job_queue (id, organization_id, contact_id, kind, status) values
@@ -199,7 +200,7 @@ beforeAll(() => {
               '{}', 1, 1, 'approved', '${JOB_RASCUNHO}')
       on conflict do nothing;
     insert into public.calendar_appointments (id, organization_id, title, starts_at, ends_at, contact_id)
-      values ('${COMPROMISSO_A}', '${ORG_A}', 'Reunião 0496', now() + interval '1 day', now() + interval '1 day 1 hour', '${CONTATO_A1}')
+      values ('${COMPROMISSO_A}', '${ORG_A}', 'Reunião 0501', now() + interval '1 day', now() + interval '1 day 1 hour', '${CONTATO_A1}')
       on conflict (id) do nothing;
     update public.calendar_appointments set meeting_delivery_job_id = '${JOB_ENTREGA}' where id = '${COMPROMISSO_A}';
   `);
@@ -221,10 +222,10 @@ describe("fn_org_operante — a régua SQL do predicado", () => {
     expect(operante(ORG_FORJADA)).toBe("false");
   });
 
-  it("o COMMENT da coluna que todo self-hoster grava cita a migration certa (0496; na main, 0495 é outra)", () => {
+  it("o COMMENT da coluna que todo self-hoster grava cita a migration certa (0501; na main, 0495 a 0499 são de outros PRs)", () => {
     expect(
       valor(`select col_description('public.organizations'::regclass, (select attnum from pg_attribute where attrelid = 'public.organizations'::regclass and attname = 'suspended_kind'));`),
-    ).toContain("(migration 0496)");
+    ).toContain("(migration 0501)");
   });
 
   it("⭐ o tipo da suspensão é vocabulário fechado", () => {
@@ -275,11 +276,18 @@ describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
       expect(estado(ORG_C)).toBe("active/-");
     });
 
+    it(`⭐ platform admin ${scope} não grava a data de anonimização pelo PostgREST`, () => {
+      const e = erroDe(comoUsuario(usuario, `update public.organizations set redacted_at = now() where id = '${ORG_C}'`));
+      expect(e).toContain("42501");
+      expect(e).toContain("estado_da_organizacao_so_pelo_servidor");
+      expect(valor(`select coalesce(redacted_at::text, '-') from public.organizations where id = '${ORG_C}';`)).toBe("-");
+    });
+
     it(`⭐ platform admin ${scope} não cria organização pelo PostgREST`, () => {
       const e = erroDe(
         comoUsuario(
           usuario,
-          `insert into public.organizations (id, slug, legal_name, display_name) values ('${ORG_FORJADA}', 'forjada-0496', 'Forjada', 'Forjada')`,
+          `insert into public.organizations (id, slug, legal_name, display_name) values ('${ORG_FORJADA}', 'forjada-0501', 'Forjada', 'Forjada')`,
         ),
       );
       expect(e).toContain("42501");
@@ -292,17 +300,20 @@ describe("inv. 2 — status e suspensão só mudam pelo servidor", () => {
     expect(
       writeCountAs(
         DONO,
-        `update public.organizations set display_name = 'Org 0496 C renomeada', timezone = 'America/Manaus' where id = '${ORG_C}'`,
+        `update public.organizations set display_name = 'Org 0501 C renomeada', timezone = 'America/Manaus' where id = '${ORG_C}'`,
       ),
     ).toBe(1);
     expect(valor(`select display_name || '|' || timezone from public.organizations where id = '${ORG_C}';`)).toBe(
-      "Org 0496 C renomeada|America/Manaus",
+      "Org 0501 C renomeada|America/Manaus",
     );
   });
 
   it("controle: service_role (rota de servidor, worker de LGPD) escreve o status", () => {
     sql(`set role service_role;\nupdate public.organizations set status = 'redacted' where id = '${ORG_C}';`);
     expect(estado(ORG_C)).toBe("redacted/-");
+    // A escrita real do lgpd-redact-worker leva a data junto.
+    sql(`set role service_role;\nupdate public.organizations set redacted_at = now() where id = '${ORG_C}';`);
+    expect(valor(`select (redacted_at is not null)::text from public.organizations where id = '${ORG_C}';`)).toBe("true");
   });
 });
 
@@ -454,7 +465,7 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
     // Durante a suspensão: as duas conversas recebem mensagem e um job escapa para a fila.
     sql(`
       update public.conversations set last_inbound_at = clock_timestamp() where id in ('${CONVERSA_A1}', '${CONVERSA_A2}');
-      insert into public.job_queue (organization_id, kind, status) values ('${ORG_A}', 'watchdog', 'pending');
+      insert into public.job_queue (id, organization_id, kind, status) values ('${JOB_REMANESCENTE}', '${ORG_A}', 'watchdog', 'pending');
     `);
     const antes = eventos(ORG_A, "tenant.reactivated");
 
@@ -467,6 +478,10 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
       ),
     ).toBe("true");
     expect(valor(`select count(*) from public.job_queue where organization_id = '${ORG_A}' and status = 'pending';`)).toBe("0");
+    // Sair de 'pending' não basta: apagado ou 'done' também passaria acima.
+    expect(valor(`select status || '|' || last_error from public.job_queue where id = '${JOB_REMANESCENTE}';`)).toBe(
+      "failed|org_nao_operante",
+    );
     expect(corpoDoItem()).toBe(
       "warn|null|2 conversas receberam mensagem enquanto a conta estava suspensa.",
     );
@@ -527,7 +542,7 @@ describe("inv. 4 — fn_reativar_organizacao volta sem rajada e chama o humano",
     expect(operante(ORG_R)).toBe("false");
   });
 
-  it("suspensão legada sem tipo (imagem anterior à 0496) vale como administrativa", () => {
+  it("suspensão legada sem tipo (imagem anterior à 0501) vale como administrativa", () => {
     sql(`update public.organizations set status = 'suspended', suspended_at = now() where id = '${ORG_A}';`);
     expect(reativar(ORG_A, "cobranca")).toEqual({ changed: false, motivo: "suspensao_administrativa" });
     expect(reativar(ORG_A, "administrativa")).toEqual({ changed: true });

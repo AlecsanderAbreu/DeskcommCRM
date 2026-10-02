@@ -1,6 +1,6 @@
 /**
  * O diálogo de suspensão é onde o dono decide. Ele dizia que a suspensão só
- * bloqueava o acesso e que "pode ser revertida" — e desde a migration 0496
+ * bloqueava o acesso e que "pode ser revertida" — e desde a migration 0501
  * suspender cala a IA, os envios e as automações, e descarta SEM volta as
  * mensagens na fila e as tarefas agendadas.
  */

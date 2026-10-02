@@ -1,4 +1,4 @@
--- 0496 — A SUSPENSÃO QUE SUSPENDE: org operante, suspensão tipada e estado só pelo servidor
+-- 0501 — A SUSPENSÃO QUE SUSPENDE: org operante, suspensão tipada e estado só pelo servidor
 --        (spec docs/superpowers/specs/2026-09-29-cobranca-do-revendedor-design.md §2.1, §2.5, §2.6, §3.1)
 --
 -- ── A causa ───────────────────────────────────────────────────────────────────
@@ -17,7 +17,7 @@
 --    predicado (`status = 'active'`, falha fechada).
 -- B. Gatilho `trg_organizacao_estado_so_pelo_servidor` (molde: `fn_meet_stamp`):
 --    a sessão (`authenticated`/`anon`) não cria organização nem muda status,
---    tipo, campos de suspensão ou `created_by`.
+--    tipo, campos de suspensão, `redacted_at` ou `created_by`.
 -- C. `fn_suspender_organizacao`: uma transação, lock na linha, anti-backlog
 --    (jobs `pending` → `failed`/`org_nao_operante`; mensagens `queued` →
 --    `failed`/`org_suspensa`) e `tenant.suspended` no `event_log` na MESMA
@@ -33,6 +33,8 @@
 --    motor de follow-up não avança, não enfileira e não paga LLM por ela. Na
 --    reativação a inscrição RETOMA: a de um nó `action` cujo turno a C0 descartou
 --    (evento `turn_discarded`) ganha um turno novo, em vez de esgotar o dead-man.
+--    O turno que JÁ RODAVA na suspensão grava o mesmo evento pelo worker, pela
+--    mesma regra (`fn_followup_turno_descartado`, seção C0a).
 -- G. `fn_followup_generation_write` recusa `turn_discarded` vindo da sessão
 --    (`auth.uid()`): só o servidor grava o evento que faz o motor enfileirar.
 --
@@ -58,7 +60,7 @@ alter table public.organizations
   add constraint organizations_suspended_kind_check check (suspended_kind in ('administrativa', 'cobranca'));
 
 comment on column public.organizations.suspended_kind is
-  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0496).';
+  'Por que a organização está suspensa: administrativa (platform admin) ou cobranca (régua de cobrança). Só significa algo com status = suspended: o lgpd-redact-worker troca para redacted sem limpar. Escrito só por fn_suspender_organizacao e fn_reativar_organizacao (migration 0501).';
 
 create or replace function public.fn_org_operante(p_org uuid)
 returns boolean
@@ -76,8 +78,9 @@ grant execute on function public.fn_org_operante(uuid) to service_role;
 -- ── B. o estado da organização só muda pelo servidor ─────────────────────────
 -- `orgs_write_platform_admin` aceita qualquer `fn_is_platform_admin()`, que
 -- ignora o scope, e `authenticated` tem GRANT ALL: sem isto um support_readonly
--- reativaria uma suspensa, trocaria o tipo da suspensão ou criaria org isenta
--- pelo PostgREST. Todo escritor legítimo é service_role ou função definer, onde
+-- reativaria uma suspensa, trocaria o tipo da suspensão, gravaria uma data de
+-- anonimização (`redacted_at`, escrita só pelo lgpd-redact-worker) ou criaria
+-- org isenta pelo PostgREST. Todo escritor legítimo é service_role ou função definer, onde
 -- `current_user` é o dono da função. Molde: `fn_meet_stamp`.
 create or replace function public.fn_organizacao_estado_so_pelo_servidor()
 returns trigger
@@ -99,10 +102,11 @@ begin
      or new.suspended_at is distinct from old.suspended_at
      or new.suspended_reason is distinct from old.suspended_reason
      or new.suspended_by is distinct from old.suspended_by
+     or new.redacted_at is distinct from old.redacted_at
      or new.created_by is distinct from old.created_by then
     raise exception 'estado_da_organizacao_so_pelo_servidor'
       using errcode = '42501',
-            detail = 'Status, suspensão e autoria mudam só por fn_suspender_organizacao, fn_reativar_organizacao ou rota de servidor.';
+            detail = 'Status, suspensão, anonimização e autoria mudam só por fn_suspender_organizacao, fn_reativar_organizacao ou rota de servidor.';
   end if;
   return new;
 end;
@@ -114,6 +118,49 @@ drop trigger if exists trg_organizacao_estado_so_pelo_servidor on public.organiz
 create trigger trg_organizacao_estado_so_pelo_servidor
   before insert or update on public.organizations
   for each row execute function public.fn_organizacao_estado_so_pelo_servidor();
+
+-- ── C0a. o turno de envio que sai sem rodar ─────────────────────────────────
+-- O turno de envio de uma inscrição parada num nó `action` saiu sem ter rodado.
+-- O evento diz isso ao motor, que enfileira um turno novo quando a organização
+-- volta a operar (EVENTO_TURNO_DESCARTADO em lib/followup/node-handlers.ts).
+-- Sem ele, os rechecks da reativação esgotavam o dead-man e matavam a inscrição
+-- com `action_turn_never_completed` e um `followup_dead` de motivo falso. Duas
+-- origens, uma regra: a C0 (turno `pending` falhado pela suspensão) e o worker
+-- (turno que JÁ RODAVA na suspensão, com o envio barrado por
+-- `OrgNaoOperanteError` — a C0 não toca `running`). A chave não termina em
+-- `:<número>`: não conta como passo para fn_followup_job_current. Idempotente
+-- pela chave; devolve se gravou. Sem guarda de status da org: a reativação
+-- chama a C0 com a org já `active`.
+create or replace function public.fn_followup_turno_descartado(p_org uuid, p_job uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$
+  with gravado as (
+    insert into public.followup_enrollment_events
+      (organization_id, enrollment_id, node_id, event_type, payload, idempotency_key)
+    select p_org, e.id, e.current_node_id, 'turn_discarded',
+           jsonb_build_object('job_id', j.id, 'motivo', 'org_nao_operante'),
+           coalesce(j.payload->>'source_step_key', j.id::text) || ':descartado'
+      from public.job_queue j
+      join public.followup_enrollments e
+        on e.organization_id = p_org
+       and e.id::text = j.payload->>'followup_enrollment_id'
+       and e.current_node_id = j.payload->>'node_id'
+       and e.status in ('active', 'waiting_reply', 'dormente')
+     where j.id = p_job
+       and j.organization_id = p_org
+       and j.kind = 'followup_turn'
+       and j.payload->>'purpose' = 'send_message'
+    on conflict (enrollment_id, idempotency_key) where idempotency_key is not null do nothing
+    returning 1
+  )
+  select exists (select 1 from gravado);
+$$;
+
+revoke execute on function public.fn_followup_turno_descartado(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.fn_followup_turno_descartado(uuid, uuid) to service_role;
 
 -- ── C0. a fila que a organização parada descarta ────────────────────────────
 -- Falhar o job `pending` por fora não basta: o estado que dependia dele só é
@@ -130,6 +177,7 @@ set search_path = ''
 as $$
 declare
   v_entregas    uuid[];
+  v_turnos      uuid[];
   v_compromisso uuid;
 begin
   with falhados as (
@@ -145,34 +193,14 @@ begin
      where d.organization_id = p_org and d.send_job_id = f.id
        and f.kind = 'approved_reply' and d.status = 'approved'
     returning d.id
-  ),
-  turnos as (
-    -- O turno de envio de uma inscrição parada num nó `action` sai da fila sem
-    -- ter rodado. O evento diz isso ao motor, que enfileira um turno novo quando
-    -- a organização volta a operar (EVENTO_TURNO_DESCARTADO em
-    -- lib/followup/node-handlers.ts). Sem ele, os rechecks da reativação
-    -- esgotavam o dead-man e matavam a inscrição com `action_turn_never_completed`
-    -- e um `followup_dead` de motivo falso. A chave não termina em `:<número>`:
-    -- não conta como passo para fn_followup_job_current.
-    insert into public.followup_enrollment_events
-      (organization_id, enrollment_id, node_id, event_type, payload, idempotency_key)
-    select p_org, e.id, e.current_node_id, 'turn_discarded',
-           jsonb_build_object('job_id', f.id, 'motivo', 'org_nao_operante'),
-           coalesce(f.payload->>'source_step_key', f.id::text) || ':descartado'
-      from falhados f
-      join public.followup_enrollments e
-        on e.organization_id = p_org
-       and e.id::text = f.payload->>'followup_enrollment_id'
-       and e.current_node_id = f.payload->>'node_id'
-       and e.status in ('active', 'waiting_reply', 'dormente')
-     where f.kind = 'followup_turn'
-       and f.payload->>'purpose' = 'send_message'
-    on conflict (enrollment_id, idempotency_key) where idempotency_key is not null do nothing
-    returning 1
   )
-  select coalesce(array_agg(f.id) filter (where f.kind = 'transactional_delivery'), '{}')
-    into v_entregas
+  select coalesce(array_agg(f.id) filter (where f.kind = 'transactional_delivery'), '{}'),
+         coalesce(array_agg(f.id) filter (where f.kind = 'followup_turn'), '{}')
+    into v_entregas, v_turnos
     from falhados f;
+
+  -- O turno de envio que saiu da fila sem rodar avisa o motor (C0a).
+  perform public.fn_followup_turno_descartado(p_org, t.id) from unnest(v_turnos) as t(id);
 
   for v_compromisso in
     update public.calendar_appointments a
@@ -194,7 +222,7 @@ revoke execute on function public.fn_org_parada_descarta_fila(uuid) from public,
 -- `failed` e não `dead` nos jobs: é o terminal de veto (queue.ts); `dead` abre
 -- aviso `job_dead`. A mensagem `queued` vira `failed` para o redrive não a
 -- mandar quando alguém olhar de novo. Suspensão com tipo NULO (imagem anterior
--- à 0496, depois de rollback) vale como administrativa.
+-- à 0501, depois de rollback) vale como administrativa.
 create or replace function public.fn_suspender_organizacao(
   p_org uuid, p_kind text, p_motivo text, p_ator uuid
 ) returns jsonb
@@ -263,7 +291,6 @@ $$;
 revoke execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) from public, anon, authenticated;
 grant execute on function public.fn_suspender_organizacao(uuid, text, text, uuid) to service_role;
 
-
 -- ── D. agent_inbox_items.kind ganha 'org_reativada' ──────────────────────────
 -- Lista COMPLETA do bloco único do baseline (kind-check-migration-x-baseline):
 -- esta passa a ser a última migration que reconstrói a constraint.
@@ -281,6 +308,11 @@ alter table public.agent_inbox_items
     'proposal_expired_notice','proposal_acceptance_rate_drop','proposal_promised_not_created',
     'proposta_travada',
     'proposta_pronta_para_revisao',
+    -- (migration 0500) os dois avisos do Jev: entram aqui porque esta migration
+    -- roda DEPOIS da 0500 e reconstrói a lista inteira — sem eles, a 0501 apagaria
+    -- o vocabulário da 0500 (ou falharia com avisos do Jev já gravados).
+    'jev_pedido_de_humano',
+    'jev_parar_de_receber',
     -- a organização voltou de uma suspensão e há conversas para revisar.
     'org_reativada',
     'other'
@@ -389,7 +421,7 @@ as $$
      where status in ('active','waiting_reply','dormente')
        and next_eval_at <= now()
        -- Organização parada (suspensa, redigida, arquivada) não roda follow-up
-       -- (migration 0496).
+       -- (migration 0501).
        and exists (select 1 from public.organizations o
                     where o.id = followup_enrollments.organization_id
                       and o.status = 'active')

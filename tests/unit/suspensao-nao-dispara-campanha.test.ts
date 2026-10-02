@@ -5,15 +5,24 @@
  * Este arquivo substitui `suspensao-campanha-nao-existe.test.ts`, que era o
  * congelamento: ele ficava vermelho no dia em que alguém criasse disparo em
  * massa, justamente para obrigar esta decisão em vez de deixar a linha
- * "coberta" num documento. O dia chegou; a decisão é a mesma da fila do agente
- * — organização suspensa não fala com ninguém, e prospecção ativa é a última
- * coisa que ela deveria continuar fazendo.
+ * "coberta" num documento. O dia chegou: organização suspensa não fala com
+ * ninguém, e a régua é a de `lib/organizacao/operante.ts` — prospecção ativa é
+ * a última coisa que ela deveria continuar fazendo.
  *
  * Mede pelo COMPORTAMENTO (a rodada não escolhe nem PROMOVE a campanha da org
  * suspensa), não pela presença do filtro no código: um teste que procurasse a
  * string `suspended` ficaria verde com o filtro aplicado à consulta errada.
  */
 import { describe, expect, it, vi } from "vitest";
+
+const avisos = vi.hoisted(() => [] as Array<[string, Record<string, unknown>]>);
+vi.mock("@/lib/logger", () => ({
+  logger: {
+    info: () => undefined,
+    error: () => undefined,
+    warn: (msg: string, meta: Record<string, unknown>) => avisos.push([msg, meta]),
+  },
+}));
 
 import { registrarExcecaoDoEnvio, rodarUmaRodadaDeCampanha } from "@/lib/campanhas/rodada";
 import { OrgNaoOperanteError } from "@/lib/organizacao/operante";
@@ -30,7 +39,7 @@ interface Chamada {
 }
 
 /** Supabase falso: registra o que foi perguntado e devolve o que o teste manda. */
-function fakeAdmin(opts: { campanhas: unknown[] }) {
+function fakeAdmin(opts: { campanhas: unknown[]; erroNaBusca?: string }) {
   const chamadas: Chamada[] = [];
   const builder = (tabela: string) => {
     let operacao: "select" | "update" = "select";
@@ -63,6 +72,9 @@ function fakeAdmin(opts: { campanhas: unknown[] }) {
       then: (resolve: (v: unknown) => unknown) => {
         chamadas.push({ tabela, operacao, selectEmbuteOrg, eqOrgStatus, notIn });
         const data = tabela === "campaigns" ? opts.campanhas : null;
+        if (opts.erroNaBusca && tabela === "campaigns" && operacao === "select") {
+          return Promise.resolve({ data: null, error: { message: opts.erroNaBusca } }).then(resolve);
+        }
         return Promise.resolve({ data, error: null }).then(resolve);
       },
     };
@@ -120,6 +132,18 @@ describe("suspensão × campanha", () => {
     await rodarUmaRodadaDeCampanha(admin as never);
     for (const c of chamadas) expect(c.notIn, JSON.stringify(c)).toBeUndefined();
     expect(chamadas.filter((c) => c.tabela === "organizations")).toHaveLength(0);
+  });
+});
+
+describe("a busca das campanhas em andamento falhou", () => {
+  it("⭐ registra o erro e não responde 'nada a fazer' — a falha não se disfarça de rodada vazia", async () => {
+    avisos.length = 0;
+    const { admin } = fakeAdmin({ campanhas: [], erroNaBusca: "timeout do PostgREST" });
+    const r = await rodarUmaRodadaDeCampanha(admin as never);
+
+    expect(r.detalhe).toBe("busca_falhou");
+    expect(r.enviadas).toBe(0);
+    expect(avisos).toContainEqual(["[campanha] busca das campanhas em andamento falhou", { motivo: "timeout do PostgREST" }]);
   });
 });
 

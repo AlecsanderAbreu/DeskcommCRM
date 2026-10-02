@@ -6,11 +6,13 @@
  * é a suspensão ADMINISTRATIVA, que já existia e só tirava a pessoa da tela.
  *
  * Um caso só, porque cada passo depende do estado do anterior:
- *   1. quem só tem leitura clica em Suspender e vê o erro. A empresa segue ativa;
+ *   1. quem só tem leitura clica em Suspender: 403 `forbidden_scope`, o erro na
+ *      tela, e a empresa segue ativa;
  *   2. o dono suspende B pela tela. Job pendente e mensagem na fila viram `failed`,
  *      e o gate de elegibilidade (pelo PostgREST real) passa a negar;
  *   3. a admin de B cai no hub, abre um pedido de LGPD ali mesmo e vê a volta para C;
- *   4. `/app/inbox` volta para o hub, e o token `dsk_` de B responde 403;
+ *   4. `/app/inbox` volta para o hub, o token `dsk_` de B responde 403, e a volta
+ *      para C, clicada, leva ao inbox de C;
  *   5. a captação por `webhooks/in/[token]` é GRAVADA, e nada responde:
  *      nenhuma `llm_calls`, nenhuma mensagem de saída;
  *   6. a atendente de B lê "Avise o administrador", sem LGPD, e "Sair" encerra a sessão;
@@ -182,7 +184,13 @@ test("suspender cala B pela tela; o hub atende quem ficou; reativar não solta r
     await pLeitura.goto(`/admin/tenants/${orgB}`);
     await pLeitura.getByRole("button", { name: "Suspender tenant" }).click();
     await pLeitura.locator("#suspend-reason").fill("Tentativa de quem só tem leitura");
-    await pLeitura.getByRole("button", { name: "Confirmar suspensão" }).click();
+    // O toast é o mesmo para qualquer falha; a resposta diz que foi o scope.
+    const [recusa] = await Promise.all([
+      pLeitura.waitForResponse((r) => r.url().endsWith(`/api/v1/admin/tenants/${orgB}/suspend`) && r.request().method() === "POST"),
+      pLeitura.getByRole("button", { name: "Confirmar suspensão" }).click(),
+    ]);
+    expect(recusa.status()).toBe(403);
+    expect(((await recusa.json()) as { error: { code: string } }).error.code).toBe("forbidden_scope");
     await expect(pLeitura.getByText("Erro ao suspender tenant")).toBeVisible();
     expect((await estadoDaOrg(orgB)).status).toBe("active");
     await pLeitura.screenshot({ path: `${EVIDENCIA}/leitura-recusada.png` });
@@ -214,6 +222,8 @@ test("suspender cala B pela tela; o hub atende quem ficou; reativar não solta r
     await expect(pAdminB.getByTestId("sair-do-onboarding")).toContainText(`Ativa C ${sufixo}`);
     // Medida, não olho: o hub cabe na largura, sem rolagem horizontal.
     expect(await pAdminB.evaluate(() => document.body.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    // A tabela carrega no cliente: sem esperar o pedido, a foto sai com o esqueleto.
+    await expect(pAdminB.getByRole("link", { name: "Ver" })).toBeVisible();
     await pAdminB.screenshot({ path: `${EVIDENCIA}/hub-admin.png`, fullPage: true });
     // A LGPD não para: o pedido abre no próprio hub.
     await pAdminB.getByRole("link", { name: "Ver" }).click();
@@ -228,6 +238,10 @@ test("suspender cala B pela tela; o hub atende quem ficou; reativar não solta r
     const depois = await request.get("/api/v1/contacts", comToken);
     expect(depois.status(), await depois.text()).toBe(403);
     expect(((await depois.json()) as { error: { code: string } }).error.code).toBe("org_suspended");
+    // A volta para C funciona, não só aparece: o clique leva ao inbox de C.
+    await pAdminB.getByTestId("sair-do-onboarding").click();
+    await pAdminB.waitForURL("**/app/inbox");
+    expect((await ctxAdminB.cookies()).find((c) => c.name === "active_org")?.value).toBe(orgC);
 
     // ── 5. A entrada continua gravando; nada responde ──────────────────────
     const captura = await request.post(`/api/v1/webhooks/in/${pathToken}`, {
@@ -280,6 +294,8 @@ test("suspender cala B pela tela; o hub atende quem ficou; reativar não solta r
     if (itens.error) throw itens.error;
     expect(itens.data).toEqual([{ severity: "warn", ref_kind: null, ref_id: null }]);
 
+    // A admin tinha voltado para C no passo 4; volta a trabalhar em B.
+    await ctxAdminB.addCookies([{ name: "active_org", value: orgB, url: test.info().project.use.baseURL! }]);
     await pAdminB.goto("/app/inbox");
     await expect(pAdminB).toHaveURL(/\/app\/inbox/);
     await pAdminB.goto("/app/ai/inbox");

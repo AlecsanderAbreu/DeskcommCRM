@@ -45,7 +45,7 @@ async function enfileirarFollowup(job: FollowupJobRequest): Promise<void> {
  * avançamos quem já respondeu.
  */
 export async function aplicarRespostasQueChegaram(admin: SupabaseClient, deps: TickDeps): Promise<number> {
-  // Org parada não avança fluxo (migration 0496 — o claim do motor também a pula).
+  // Org parada não avança fluxo (migration 0501 — o claim do motor também a pula).
   // O status da org vem embutido no `select` e quem decide é `ehOperante` — nunca
   // uma lista de ids negada na URL, que cortaria em `max_rows` sem aviso e faria
   // a org parada voltar a avançar fluxo.

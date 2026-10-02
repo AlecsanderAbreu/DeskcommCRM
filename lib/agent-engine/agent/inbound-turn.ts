@@ -93,6 +93,7 @@ import {
 import {
   CHECKPOINT_INSTRUCTION,
   checkpointContentSchema,
+  fecharOTurno,
   insertCheckpoint,
   parseCheckpointText,
   type CheckpointContent,
@@ -2620,6 +2621,19 @@ async function executarTurnoDoAgente(
   // turno com dois vetos ficaria mudo por mais de 20 segundos: o conserto do
   // "rápido demais" viraria o defeito simétrico, mais caro que o original.
   let jaEsperouComoHumano = false;
+  // Knobs de atraso humano por conexão (0499) — lidos UMA vez por turno para a
+  // pausa antes da 1ª bolha (`esperarComoHumano`) e para o jitter entre bolhas
+  // (`throttle_ms + jitter_max_ms`). Sem linha em channel_knobs caem nos defaults
+  // de defaults.ts — que espelham os valores históricos (regressão zero).
+  const pacingDoTurno = !preview
+    ? await loadChannelKnobs(pool, tenantId, input.channelSessionId, runLog)
+    : null;
+  const knobsDeAtrasoHumano = {
+    atrasoNotarMs: pacingDoTurno?.knobs.atrasoNotarMs,
+    msPorCaractere: pacingDoTurno?.knobs.msPorCaractere,
+    atrasoMinimoMs: pacingDoTurno?.knobs.atrasoMinimoMs,
+    atrasoMaximoMs: pacingDoTurno?.knobs.atrasoMaximoMs,
+  };
   // Cap de envio (warm-up/diário) vetado neste turno — capturado aqui porque o veto
   // não empurra outcome nenhum a `outcomes` (ver comentário no ponto de captura, mais
   // abaixo). Diferente da janela horária (checada ANTES do modelo rodar, linha ~1233):
@@ -3169,6 +3183,9 @@ async function executarTurnoDoAgente(
                     agentConfig?.splitMaxChars ?? 600,
                     Math.max(1, maxSendsPerTurn - seq),
                   )[0] ?? body,
+                // Os quatro números do atraso por conexão (0499). Vazios (sem
+                // linha em channel_knobs / preview) = defaults históricos.
+                knobs: knobsDeAtrasoHumano,
                 // `processamentoMs` é a contribuição do #849 (@Teowfb): a pausa humana desconta o
                 // tempo que o turno JÁ gastou pensando, em vez de somar em cima dele. Sem este
                 // argumento o `gasto` de `atraso-humano.ts` cai no `?? 0` e o desconto não acontece —
@@ -3192,7 +3209,13 @@ async function executarTurnoDoAgente(
               corposEnviados.push(finalBody);
               const sleep =
                 deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-              const jitter = () => 1200 + Math.floor(Math.random() * 800); // piso no throttle anti-ban (1.2s) — bolhas são mensagens físicas
+              const jitter = () =>
+                // Piso no throttle anti-ban do número (1.2s default) — bolhas são
+                // mensagens físicas. Lê os knobs da CONEXÃO (throttle_ms + jitter_max_ms,
+                // 0499) e não o literal: desde a 0010 os dois já são configuração por
+                // número, e o call site estava cravando `1200 + rand*800` ignorando-a.
+                (pacingDoTurno?.knobs.throttleMs ?? 1200) +
+                Math.floor(Math.random() * (pacingDoTurno?.knobs.jitterMaxMs ?? 800));
               const enviar = (
                 corpo: string,
                 media?: FotoParaEnvio,
@@ -3441,6 +3464,7 @@ async function executarTurnoDoAgente(
               tenantId,
               leadId,
               toStage: update.transition.to,
+              ...(agentConfig !== null ? { pipelineIds: agentConfig.pipelineIds } : {}),
               ...(update.transition.reason !== undefined
                 ? { reason: update.transition.reason }
                 : {}),
@@ -4351,40 +4375,45 @@ async function executarTurnoDoAgente(
       avisarSemCandidato(preview);
       return;
     }
-    const closing = await runModelCall(
-      pool,
-      deps.llmCfg,
-      {
-        tenantId,
-        leadId: leadId || null,
-        jobId: job?.id,
-        purpose: 'checkpoint',
-        ...(agentConfig !== null
-          ? {
-              model: agentConfig.model,
-              llmOverride: {
-                provider: agentConfig.provider,
-                credentialId: agentConfig.credentialId,
-              },
-            }
-          : {}),
-        system,
-        messages: [
-          // prune: o checkpoint reusa a abertura só como texto — a mídia nativa (cara) já
-          // fez seu trabalho na 1ª chamada e não precisa ir de novo.
-          ...openingTextOnly,
-          ...responseMessages,
-          { role: 'user', content: CHECKPOINT_INSTRUCTION },
-        ],
+    // Uma correção antes de re-tentar o turno inteiro (`fecharOTurno`): o JSON
+    // recusado volta ao modelo com o problema, numa 2ª chamada de fechamento.
+    const { content, resposta: closing } = await fecharOTurno({
+      pedir: async (correcao) => {
+        const chamada = await runModelCall(
+          pool,
+          deps.llmCfg,
+          {
+            tenantId,
+            leadId: leadId || null,
+            jobId: job?.id,
+            purpose: 'checkpoint',
+            ...(agentConfig !== null
+              ? {
+                  model: agentConfig.model,
+                  llmOverride: {
+                    provider: agentConfig.provider,
+                    credentialId: agentConfig.credentialId,
+                  },
+                }
+              : {}),
+            system,
+            messages: [
+              // prune: o checkpoint reusa a abertura só como texto — a mídia nativa (cara) já
+              // fez seu trabalho na 1ª chamada e não precisa ir de novo.
+              ...openingTextOnly,
+              ...responseMessages,
+              { role: 'user', content: CHECKPOINT_INSTRUCTION },
+              ...correcao,
+            ],
+          },
+          { registry: deps.registry, log: runLog },
+        );
+        return { text: chamada.result.text, callId: chamada.callId };
       },
-      { registry: deps.registry, log: runLog },
-    );
-    const content = parseCheckpointText(
-      closing.result.text.replace(
-        /https:\/\/meet\.google\.com\/[a-zA-Z0-9-]+/g,
-        '[link da reunião disponível na Agenda]',
-      ),
-    );
+      ajustar: (text) =>
+        text.replace(/https:\/\/meet\.google\.com\/[a-zA-Z0-9-]+/g, '[link da reunião disponível na Agenda]'),
+      log: runLog,
+    });
 
     if (preview) {
       preview.result.checkpoint = content;

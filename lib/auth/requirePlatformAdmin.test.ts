@@ -30,6 +30,8 @@ import {
   requirePlatformAdminEscrita,
 } from "./requirePlatformAdmin";
 import { escreveComoPlatformAdmin } from "./types";
+import { escritaDeAdminOuRecusa } from "./escritaDeAdminOuRecusa";
+import { MENSAGEM_DA_RECUSA_DE_ESCRITA, ehRecusaDeEscrita } from "./recusa-de-escrita-de-admin";
 
 const linha = (scope: string) => ({ user_id: "pa-1", scope, mfa_required: false, revoked_at: null });
 async function recusa(): Promise<unknown> {
@@ -66,6 +68,32 @@ describe("requirePlatformAdminEscrita", () => {
     expect((await a.json()).error.code).toBe("forbidden_scope");
     const b = falhaDaEscritaDePlatformAdmin(new Error("redirect:/admin/forbidden"), "r2", "Só o dono.");
     expect(await b.json()).toMatchObject({ error: { code: "forbidden", message: "Só o dono." } });
+  });
+});
+
+describe("escritaDeAdminOuRecusa — a recusa de server action é RESULTADO, não throw", () => {
+  it("full em dia → ok com o contexto", async () => {
+    h.linha = linha("full");
+    await expect(escritaDeAdminOuRecusa()).resolves.toMatchObject({ ok: true, ctx: { platformAdmin: { scope: "full" } } });
+  });
+  it("support_readonly → {ok:false, error:'forbidden_scope'} (a tela lê o motivo, não o error boundary)", async () => {
+    h.linha = linha("support_readonly");
+    await expect(escritaDeAdminOuRecusa()).resolves.toEqual({ ok: false, error: "forbidden_scope" });
+  });
+  it("MFA em dívida → {ok:false, error:'mfa_required'}", async () => {
+    h.linha = linha("full");
+    h.divida = true;
+    await expect(escritaDeAdminOuRecusa()).resolves.toEqual({ ok: false, error: "mfa_required" });
+  });
+  it("quem não é platform admin segue REDIRECIONADO (o throw do redirect não é engolido)", async () => {
+    await expect(escritaDeAdminOuRecusa()).rejects.toThrow("redirect:/admin/forbidden");
+  });
+  it("a frase da tela é a mesma que o servidor lança, e só os dois códigos a têm", async () => {
+    h.linha = linha("support_readonly");
+    expect(await recusa()).toMatchObject({ message: MENSAGEM_DA_RECUSA_DE_ESCRITA.forbidden_scope });
+    expect(ehRecusaDeEscrita("mfa_required")).toBe(true);
+    expect(ehRecusaDeEscrita("write_failed")).toBe(false);
+    expect(ehRecusaDeEscrita(undefined)).toBe(false);
   });
 });
 

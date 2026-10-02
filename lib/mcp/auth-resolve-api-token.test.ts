@@ -392,6 +392,20 @@ describe("validateBearerToken — a tradução para MCP não mudou", () => {
     });
   });
 
+  // Decisão do dono (30/09): a ferramenta de privacidade atende empresa suspensa.
+  // Só o `/api/mcp` passa a opção; sem ela, a régua acima (403) vale.
+  it("com `permiteOrgSuspensa`, token de org suspensa autentica marcado `orgSuspensa`", async () => {
+    armar(achou(linhaViva({ organizations: { status: "suspended" } })));
+    const r = await validateBearerToken(`Bearer ${PLAINTEXT}`, { permiteOrgSuspensa: true });
+    expect(r).toMatchObject({ organizationId: ORG_ID, orgSuspensa: true });
+  });
+
+  it("com `permiteOrgSuspensa`, org que opera não ganha a marca", async () => {
+    armar(achou(linhaViva()));
+    const r = await validateBearerToken(`Bearer ${PLAINTEXT}`, { permiteOrgSuspensa: true });
+    expect(r).not.toHaveProperty("orgSuspensa");
+  });
+
   it("erro que NÃO é `ApiTokenError` sobe inteiro, sem virar recusa de auth", async () => {
     // Se a casca tivesse um `catch` genérico, um defeito de infraestrutura
     // (env faltando, client que não constrói) sairia como 401 e ninguém

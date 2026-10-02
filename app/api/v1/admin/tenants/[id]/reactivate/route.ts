@@ -17,7 +17,7 @@ import {
   requirePlatformAdminEscrita,
   type PlatformAdminContext,
 } from "@/lib/auth/requirePlatformAdmin";
-import { ehOperante, type TipoDeSuspensao } from "@/lib/organizacao/operante";
+import { type TipoDeSuspensao } from "@/lib/organizacao/operante";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ok, fail } from "@/lib/api/wrappers";
 import { audit } from "@/lib/audit";
@@ -67,9 +67,10 @@ export async function POST(
     return fail("not_found", "Tenant not found", 404, { requestId });
   }
 
-  // `suspended_kind` só significa algo com a org parada (operante.ts). A função
-  // também recusa o kind divergente; aqui é para a mensagem ter nome.
-  if (!ehOperante(org.status) && org.suspended_kind === KIND_DE_COBRANCA) {
+  // `suspended_kind` só significa algo com status='suspended' (operante.ts): a
+  // org redigida é parada e guarda o tipo residual, e não se negocia pagamento
+  // com ela. A função também recusa o kind divergente; aqui é para a mensagem ter nome.
+  if (org.status === "suspended" && org.suspended_kind === KIND_DE_COBRANCA) {
     return fail(
       "suspensao_de_cobranca",
       "Esta suspensão é por falta de pagamento. Use Dar prazo ou Tornar isenta.",

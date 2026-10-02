@@ -717,7 +717,8 @@ describe("processNode — ai_classify / action", () => {
       edge({ source: "ac1", target: "no-reply-node", condition: { type: "class_match", value: "no_reply" } }),
     ];
     const result = processNode({ node, edges, enrollment: enrollment(), lead: lead(), clock, waitElapsed: true });
-    expect(result).toEqual({ kind: "advance", next_node_id: "no-reply-node", next_eval_at: NOW });
+    // `class` é o desfecho que a condição "Desfecho do passo anterior" lê depois.
+    expect(result).toEqual({ kind: "advance", next_node_id: "no-reply-node", next_eval_at: NOW, class: "no_reply" });
   });
 
   it("ai_classify re-entry without an explicit no_reply edge falls back to the 'always' edge", () => {
@@ -733,7 +734,8 @@ describe("processNode — ai_classify / action", () => {
       edge({ source: "ac1", target: "fallback-node", condition: { type: "always" } }),
     ];
     const result = processNode({ node, edges, enrollment: enrollment(), lead: lead(), clock, waitElapsed: true });
-    expect(result).toEqual({ kind: "advance", next_node_id: "fallback-node", next_eval_at: NOW });
+    // Pela saída de escape ou não, o lead saiu por "sem resposta": é esse o desfecho.
+    expect(result).toEqual({ kind: "advance", next_node_id: "fallback-node", next_eval_at: NOW, class: "no_reply" });
   });
 
   it("ai_classify re-entry with neither a no_reply nor an always edge: fails", () => {
@@ -1174,7 +1176,7 @@ describe("processNode — repeat", () => {
   });
 });
 
-describe("turno descartado pela suspensão (migration 0496)", () => {
+describe("turno descartado pela suspensão (migration 0501)", () => {
   const ev = (event_type: string, node_id = "a1") => ({ node_id, event_type, idempotency_key: null, payload: {} });
 
   it("o último turno descartado e não substituído pede um turno novo", () => {

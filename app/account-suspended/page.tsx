@@ -66,7 +66,14 @@ export default async function AccountSuspendedPage({
   // banco (a leitura por service role, a do `orgRow.status` do layout). O layout
   // manda para cá quando QUALQUER uma diz parada; olhar só uma aqui faria da
   // divergência um laço de 307.
-  if (ehOperante(ativa.org_status) && ehOperante(statusDe.get(ativa.orgId))) redirect("/app");
+  // Com `?pedido=` (o e-mail de prazo da LGPD chega aqui por
+  // `app/lgpd/pedido/[id]/route.ts`), volta ao PEDIDO: é aqui que o link decide
+  // no clique se a empresa opera.
+  const { pedido } = await searchParams;
+  const pedidoValido = PEDIDO.safeParse(pedido).success ? pedido : undefined;
+  if (ehOperante(ativa.org_status) && ehOperante(statusDe.get(ativa.orgId))) {
+    redirect(pedidoValido ? `/app/lgpd/requests/${pedidoValido}` : "/app");
+  }
 
   const idioma = user.idioma;
   const t = (texto: string) => traduzir(texto, idioma);
@@ -77,14 +84,15 @@ export default async function AccountSuspendedPage({
   const outras = user.organizations
     .filter((o) => o.organization_id !== ativa.orgId && ehOperante(statusDe.get(o.organization_id)))
     .map((o) => ({ id: o.organization_id, nome: o.organization_name }));
-  const { pedido } = await searchParams;
-  const pedidoAberto = administra && PEDIDO.safeParse(pedido).success ? pedido : undefined;
+  const pedidoAberto = administra ? pedidoValido : undefined;
 
   return (
     <IdiomaProvider locale={idioma}>
       <main className="flex min-h-screen flex-col items-center gap-8 p-4 sm:p-8">
         <Card className="w-full max-w-md space-y-4 p-8 text-center">
           <h1 className="text-2xl font-semibold">{t("Conta suspensa")}</h1>
+          {/* Quem participa de várias empresas precisa saber QUAL parou. Dado, não interface: sem t(). */}
+          <p className="text-base font-medium">{ativa.name}</p>
           {!administra ? (
             <p className="text-sm text-muted-foreground">
               {t("Sua conta está suspensa. Avise o administrador da sua empresa.")}
