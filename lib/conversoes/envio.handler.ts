@@ -208,7 +208,10 @@ export async function processarConversao(
   // a chave do canal, desligada, deixar de valer "nem as conversas são lidas".
   // Por isso a decisão da Meta sem valor também espera a credencial.
   const valorPodeVirDaConversa =
-    !qualificacao && !registro?.remote_request_id && valorDaVenda === null && plataforma === "meta_ads";
+    !qualificacao &&
+    !registro?.remote_request_id &&
+    valorDaVenda === null &&
+    plataforma === "meta_ads";
   let semValor = !qualificacao && !registro?.remote_request_id && valorDaVenda === null;
   const lerOValorNaConversa = async () => {
     const lido = await lerValorDaConversa(
