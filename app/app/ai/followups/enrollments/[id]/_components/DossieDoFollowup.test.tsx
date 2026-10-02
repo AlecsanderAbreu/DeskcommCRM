@@ -1,16 +1,18 @@
 /**
- * O DOSSIÊ DO FOLLOW-UP FALA DE REENVIO TÉCNICO, NÃO DE CONTATO (#2014).
+ * O DOSSIÊ DO FOLLOW-UP NÃO LÊ FALHA DO MOTOR COMO CONTATO (#2014).
  *
  * O rastro do defeito: "Última falha … (tentativa 2 de 5)" fazia quem opera
- * ler como se o cliente tivesse sido procurado 2 de 5 vezes — mas
- * `followup_enrollments.attempts` conta REENVIOS depois de erro técnico. Um
- * gestor abrindo o dossiê após uma instabilidade concluía que o cliente fora
- * procurado várias vezes quando não fora.
+ * ler como se o cliente tivesse sido procurado 2 de 5 vezes. Mas
+ * `followup_enrollments.attempts` só sobe em `applyHandlerFailure`
+ * (lib/followup/engine.ts): é o motor tentando de novo processar a MESMA etapa
+ * depois de falhar — quase sempre uma etapa sem saída ligada no grafo. Falha
+ * de ENVIO pelo canal não chega aqui: ela é contada no `job_queue` e vira
+ * aviso na Central. Por isso o rótulo não fala de "envio" nem de "reenvio".
  *
  * Este arquivo monta o dossiê de verdade e afirma o TEXTO que aparece:
- * "Erro no envio … (reenvio automático X de Y)", "Etapas executadas" (não
- * "Passos dados") e desfecho legível ("Encerrado sem resposta") em vez do
- * valor cru do wire. A ser a regressão reintroduzida, é aqui que ela acorda.
+ * "Falha ao processar a etapa … (nova tentativa automática X de Y)",
+ * "Etapas executadas" (não "Passos dados") e desfecho legível em vez do valor
+ * cru do wire. Se a regressão voltar, é aqui que ela acorda.
  */
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -76,18 +78,19 @@ vi.mock("@/hooks/i18n/useLocaleDeData", async () => {
 });
 
 describe("o dossiê distingue reenvio técnico de contato com o cliente (#2014)", () => {
-  it("Erro no envio: o rótulo e a contagem falam de reenvio automático, nunca de tentativa", () => {
+  it("Falha do motor: o rótulo fala da etapa e da nova tentativa automática, não de contato nem de envio", () => {
     dados.data.outcome = null;
-    dados.data.last_error = "timeout ao falar com a WAHA";
+    // Um `last_error` que o motor de fato grava (lib/followup/node-handlers.ts).
+    dados.data.last_error = 'wait node "n1" has no outbound edge after elapsing';
     dados.data.attempts = 2;
     dados.data.max_attempts = 5;
     render(<DossieDoFollowup id={dados.data.id} canWrite={true} />);
-    const aviso = screen.getByText(/Erro no envio/);
-    expect(aviso.textContent).toContain("timeout ao falar com a WAHA");
-    expect(aviso.textContent).toContain("reenvio automático");
+    const aviso = screen.getByText(/Falha ao processar a etapa/);
+    expect(aviso.textContent).toContain('wait node "n1" has no outbound edge after elapsing');
+    expect(aviso.textContent).toContain("nova tentativa automática");
     expect(aviso.textContent).toContain("2");
     expect(aviso.textContent).toContain("5");
-    expect(aviso.textContent).not.toMatch(/tentativa|Última falha/i);
+    expect(aviso.textContent).not.toMatch(/Última falha|envio/i);
   });
 
   it("Etapas executadas: o contador de passos não usa mais o jargão de tentativa", () => {

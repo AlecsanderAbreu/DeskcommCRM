@@ -263,7 +263,7 @@ export function DossieDoFollowup({ id, canWrite }: Props) {
           )}
           {data.last_error && (
             <p className="flex items-center gap-1.5 text-sm text-warning-fg">
-              <Warning size={14} aria-hidden /> {t("Erro no envio")}: {data.last_error} ({t("reenvio automático")}{" "}
+              <Warning size={14} aria-hidden /> {t("Falha ao processar a etapa")}: {data.last_error} ({t("nova tentativa automática")}{" "}
               {data.attempts} {t("de")} {data.max_attempts})
             </p>
           )}
