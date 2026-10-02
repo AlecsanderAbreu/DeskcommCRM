@@ -65,4 +65,24 @@ describe("ConversationListItem — bolinha de quem atende", () => {
     );
     expect(screen.getByRole("img", { name: "Encerrada" })).toHaveAttribute("title", "Encerrada");
   });
+
+  // O caminho comum da aba de fechadas: alguém assumiu e fechou. Fechar não solta
+  // o dono (`fn_service_status`), e `comandoDaConversa` segue dizendo `humano` de
+  // propósito — mas a PALAVRA "Em atendimento" afirmaria um atendimento que acabou.
+  it("conversa encerrada COM dono: a bolinha diz Encerrada, nunca Em atendimento", () => {
+    render(
+      <ConversationListItem
+        conversation={{
+          ...conversaDeExemplo.conversation,
+          status: "closed",
+          assigned_to_user_id: "user-1",
+          assigned_to_user_name: "Ana",
+          assignee_kind: "user",
+        }}
+        {...conversaDeExemplo.props}
+      />,
+    );
+    expect(screen.getByRole("img", { name: "Encerrada" })).toHaveAttribute("title", "Encerrada");
+    expect(screen.queryByRole("img", { name: "Em atendimento" })).toBeNull();
+  });
 });

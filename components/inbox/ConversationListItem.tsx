@@ -11,7 +11,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ChipDeEtiqueta } from "@/components/tags/ChipDeEtiqueta";
 import { OwnerBadge } from "@/components/kanban/OwnerBadge";
-import { comandoDaConversa, esperaDaConversa, ROTULO_DO_COMANDO } from "@/lib/inbox/comando-da-conversa";
+import {
+  comandoDaConversa,
+  esperaDaConversa,
+  ROTULO_DO_COMANDO,
+  STATUS_ENCERRADOS,
+} from "@/lib/inbox/comando-da-conversa";
 import { cn } from "@/lib/utils";
 import type { ConversationWithContact } from "@/hooks/inbox/useConversationsRealtime";
 import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
@@ -188,9 +193,20 @@ export function ConversationListItem({
   const isAi = comando.quem === "automatico";
   const dot = COR_DO_COMANDO[comando.quem] ?? COR_DO_COMANDO.ninguem;
   // A cor sozinha não se explica: quem não decorou a tabela perguntava o que
-  // cada bolinha queria dizer. A palavra é a do cabeçalho (ROTULO_DO_COMANDO),
-  // no passar do mouse e no leitor de tela — antes ela era `aria-hidden`.
-  const rotuloDoComando = t(ROTULO_DO_COMANDO[comando.quem] ?? ROTULO_DO_COMANDO.ninguem);
+  // cada bolinha queria dizer. A palavra é a de ROTULO_DO_COMANDO, o rótulo que
+  // o produto já define para cada estado, no passar do mouse e no leitor de
+  // tela — antes ela era `aria-hidden`.
+  //
+  // Encerrada vence `humano` só na PALAVRA. Fechar não solta o dono
+  // (`fn_service_status`), e `comandoDaConversa` segue dizendo `humano` para
+  // nomear quem atendeu — a cor acompanha isso e fica como estava. Mas escrever
+  // "Em atendimento" numa conversa fechada afirmaria no presente um atendimento
+  // que acabou.
+  const rotuloDoComando = t(
+    STATUS_ENCERRADOS.has(conversation.status)
+      ? ROTULO_DO_COMANDO.encerrada
+      : (ROTULO_DO_COMANDO[comando.quem] ?? ROTULO_DO_COMANDO.ninguem),
+  );
 
   // O número DA EMPRESA por onde esta conversa chegou — não o do cliente. Com
   // dois canais é o que decide o tom da resposta e qual número a pessoa vê
