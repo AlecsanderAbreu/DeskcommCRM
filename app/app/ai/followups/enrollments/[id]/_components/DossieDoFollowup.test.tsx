@@ -77,7 +77,7 @@ vi.mock("@/hooks/i18n/useLocaleDeData", async () => {
   };
 });
 
-describe("o dossiê distingue reenvio técnico de contato com o cliente (#2014)", () => {
+describe("o dossiê não lê falha do motor como contato com o cliente (#2014)", () => {
   it("Falha do motor: o rótulo fala da etapa e da nova tentativa automática, não de contato nem de envio", () => {
     dados.data.outcome = null;
     // Um `last_error` que o motor de fato grava (lib/followup/node-handlers.ts).
@@ -101,12 +101,12 @@ describe("o dossiê distingue reenvio técnico de contato com o cliente (#2014)"
     expect(screen.getByText("Etapas executadas")).toBeTruthy();
   });
 
-  it("o desfecho saí legível em vez do valor cru do wire", () => {
+  it("o desfecho sai legível em vez do valor cru do wire", () => {
     dados.data.last_error = null;
     dados.data.outcome = "exhausted";
     render(<DossieDoFollowup id={dados.data.id} canWrite={true} />);
     const desfecho = screen.getByText(/Desfecho/);
-    expect(desfecho.textContent).toContain("Encerrado sem resposta");
+    expect(desfecho.textContent).toContain("Encerrado sem conversão");
     expect(desfecho.textContent).not.toContain("exhausted");
   });
 });

@@ -551,11 +551,13 @@ describe("o desfecho fala a língua de quem opera o dossiê (#2014)", () => {
     }
   });
 
-  it("o desfecho esgotado lê 'Encerrado sem resposta', e o nó final segue 'Esgotado'", () => {
+  it("o desfecho esgotado lê 'Encerrado sem conversão', e o nó final segue 'Esgotado'", () => {
     // A issue nomeia as duas palavras de propósito: a que o OPERADOR vê no fim do
     // acompanhamento (DESFECHOS) é frase; a que o DONO DO FLUXO escolhe no construtor
     // (RESULTADOS_DO_FIM) é contrato do e2e e não muda aqui.
-    expect(DESFECHOS.exhausted).toBe("Encerrado sem resposta");
+    // "sem conversão", não "sem resposta": o nó Fim nasce com `exhausted`, então
+    // o dado não garante que o contato ficou calado (ver o comentário de DESFECHOS).
+    expect(DESFECHOS.exhausted).toBe("Encerrado sem conversão");
     expect(RESULTADOS_DO_FIM.exhausted).toBe("Esgotado");
   });
 });

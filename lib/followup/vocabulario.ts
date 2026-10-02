@@ -575,15 +575,21 @@ export const SITUACOES_DO_ACOMPANHAMENTO: Record<EnrollmentStatus, string> = {
  *
  * Antes este mapa existia só para o teste. O desfecho agora sai por aqui na
  * tela do dossiê, e o rótulo de `exhausted` diverge de `RESULTADOS_DO_FIM` de
- * propósito: aqui é o desfecho VIVO (um follow-up que esgotou as tentativas de
- * reenvio termina "Encerrado sem resposta"), enquanto lá é a opção do nó final
- * no construtor, sob contrato do e2e ("Esgotado"). As duas palavras descrevem
- * coisas diferentes — o operador vê uma, o dono do fluxo escolhe a outra.
+ * propósito: lá é a opção do nó final no construtor, sob contrato do e2e
+ * ("Esgotado"); aqui é como o operador lê o fim do acompanhamento.
+ *
+ * De onde `exhausted` vem, para o rótulo não afirmar mais do que o dado sabe:
+ * do nó Fim (que NASCE com `exhausted` — nodeVisuals.ts) ou de uma pergunta de
+ * coleta esgotada (atendimento.ts), sempre como a alternativa a `converted`.
+ * NÃO vem de esgotar as novas tentativas do motor: isso leva o enrollment a
+ * `status='dead'` (`markDead`, engine.ts) sem tocar em `outcome`. E não prova
+ * que o contato ficou calado — um fluxo pode chegar ao nó Fim padrão depois de
+ * uma resposta. Por isso "sem conversão", e não "sem resposta".
  */
 export const DESFECHOS: Record<EnrollmentOutcome, string> = {
   converted: "Convertido",
   replied: "O contato respondeu",
-  exhausted: "Encerrado sem resposta",
+  exhausted: "Encerrado sem conversão",
   opted_out: "Pediu para parar",
   handoff: "Passou para um humano",
 };

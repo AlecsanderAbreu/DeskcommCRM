@@ -2489,7 +2489,7 @@ export const DICIONARIO: Traducoes = {
   "Falha ao processar a etapa": { es: "Error al procesar la etapa" },
   tentativa: { es: "intento" },
   "nova tentativa automática": { es: "nuevo intento automático" },
-  "Encerrado sem resposta": { es: "Cerrado sin respuesta" },
+  "Encerrado sem conversão": { es: "Cerrado sin conversión" },
   "Pediu para parar": { es: "Pidió que se detenga" },
   "Passou para um humano": { es: "Pasó a un humano" },
   "O contato respondeu": { es: "El contacto respondió" },
