@@ -44343,7 +44343,7 @@ create trigger trg_fechar_aviso_do_jev_ao_bloquear
  execute function public.fn_fechar_aviso_do_jev_ao_bloquear();
 
 notify pgrst, 'reload schema';
--- ---- classificador do roteador nasce "Automático" (migration 0523) ----
+-- ---- classificador do roteador nasce "Automático" (migration 0530) ----
 --
 -- `ai_routers.config` semeava `'classifier_model', 'claude-haiku-4-5'`: id fixo
 -- do Anthropic num produto multi-provedor. Numa organização configurada na

@@ -80,18 +80,18 @@ async function criarOrganizacao(settings: Record<string, unknown> = {}): Promise
 const NA_OPENROUTER = { llm: { provider: "openrouter" } };
 
 /**
- * O UPDATE da cura como o self-host o aplica: o texto do bloco da 0523 no
+ * O UPDATE da cura como o self-host o aplica: o texto do bloco da 0530 no
  * apêndice do `baseline.sql`, sem cópia. O escopo por id só existe para o teste
  * não alcançar linhas de outros arquivos da suíte — a guarda é a do arquivo.
  */
 const CURA_DO_APENDICE = (() => {
   const sql = readFileSync(join(process.cwd(), "supabase", "baseline.sql"), "utf8");
-  const rotulo = sql.indexOf('-- ---- classificador do roteador nasce "Automático" (migration 0523) ----');
-  if (rotulo < 0) throw new Error("bloco da 0523 ausente do apêndice do baseline.sql");
+  const rotulo = sql.indexOf('-- ---- classificador do roteador nasce "Automático" (migration 0530) ----');
+  if (rotulo < 0) throw new Error("bloco da 0530 ausente do apêndice do baseline.sql");
   const fimDoBloco = sql.indexOf("\n-- ---- ", rotulo + 10);
   const bloco = sql.slice(rotulo, fimDoBloco < 0 ? undefined : fimDoBloco);
   const update = bloco.match(/update public\.ai_routers r[\s\S]*?;/);
-  if (!update) throw new Error("UPDATE da cura ausente do bloco da 0523 no baseline.sql");
+  if (!update) throw new Error("UPDATE da cura ausente do bloco da 0530 no baseline.sql");
   return update[0].replace(/;$/, "");
 })();
 
@@ -161,7 +161,7 @@ describe("ai_routers — o classificador nasce em 'Automático'", () => {
     expect(rows[0]!.config).toMatchObject({ sticky: true, min_confidence: 0.6 });
   });
 
-  it("o default da coluna é o da 0523, não o id do Anthropic", async () => {
+  it("o default da coluna é o da 0530, não o id do Anthropic", async () => {
     // Pergunta ao CATÁLOGO, e não ao texto: é o que o banco realmente tem.
     const { rows } = await pool.query<{ dflt: string | null }>(
       `select pg_get_expr(adbin, adrelid) as dflt

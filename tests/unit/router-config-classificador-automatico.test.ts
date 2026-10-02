@@ -46,7 +46,7 @@ import type pg from "pg";
 const ID_INVALIDO_NA_OPENROUTER = "claude-haiku-4-5";
 
 /**
- * Onde o default de `ai_routers.config` é corrigido: a 0523 e o apêndice do
+ * Onde o default de `ai_routers.config` é corrigido: a 0530 e o apêndice do
  * baseline — os dois arquivos que o self-host aplica.
  *
  * A migration 0085 NÃO entra aqui, e é de propósito: ela é o dump histórico que
@@ -60,7 +60,7 @@ const ARQUIVOS_DO_DEFAULT = [
     process.cwd(),
     "supabase",
     "migrations",
-    "20261002212428_0523_classificador_do_roteador_automatico.sql",
+    "20261002220137_0530_classificador_do_roteador_automatico.sql",
   ),
 ];
 
@@ -69,7 +69,7 @@ const ARQUIVOS_DO_DEFAULT = [
  *
  * `baseline.sql` é dump + apêndice: o `create table` do dump ainda traz o id
  * antigo (e deve continuar trazendo — ele é o estado histórico), e o apêndice da
- * 0523 no fim o substitui. Ler o arquivo com `includes` responderia "o arquivo
+ * 0530 no fim o substitui. Ler o arquivo com `includes` responderia "o arquivo
  * menciona"; o que vale é a ÚLTIMA definição, a mesma regra de
  * `pg_get_functiondef` para função.
  */
@@ -125,7 +125,7 @@ describe("ai_routers.config — o default efetivo não semeia id de classificado
   });
 });
 
-describe("migration 0523 — a cura estreita", () => {
+describe("migration 0530 — a cura estreita", () => {
   const sql = () => readFileSync(ARQUIVOS_DO_DEFAULT[1]!, "utf8");
   /** O UPDATE de um arquivo, com espaços normalizados — para comparar os dois. */
   const cura = (texto: string) =>
@@ -157,7 +157,7 @@ describe("migration 0523 — a cura estreita", () => {
     // O invariante executa a do apêndice; esta régua amarra a da migration a ela.
     const doBaseline = readFileSync(ARQUIVOS_DO_DEFAULT[0]!, "utf8");
     const bloco = doBaseline.slice(
-      doBaseline.indexOf('-- ---- classificador do roteador nasce "Automático" (migration 0523) ----'),
+      doBaseline.indexOf('-- ---- classificador do roteador nasce "Automático" (migration 0530) ----'),
     );
     expect(cura(bloco)).not.toBe("");
     expect(cura(bloco)).toBe(cura(sql()));
