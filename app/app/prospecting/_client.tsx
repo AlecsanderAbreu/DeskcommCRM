@@ -79,6 +79,8 @@ const emptyConfig: CampaignConfig = {
   daily_limit: 10,
   interval_minutes: 15,
   legal_basis_ref: "",
+  // Campanha nova nasce no modo recomendado; a configuração já gravada manda no que existe.
+  funnel_entry: "on_send",
 };
 export function ProspectingClient() {
   const t = useT();
@@ -737,6 +739,45 @@ export function ProspectingClient() {
                               />
                             </div>
                           </div>
+                          <fieldset className="space-y-2">
+                            <legend className="text-sm font-medium">
+                              {t("Quando a empresa entra no funil")}
+                            </legend>
+                            <label className="flex items-start gap-2 text-sm">
+                              <input
+                                type="radio"
+                                name="prospecting-funnel-entry"
+                                checked={config.funnel_entry === "on_send"}
+                                onChange={() => update("funnel_entry", "on_send")}
+                                className="mt-1"
+                              />
+                              <span>
+                                {t("Só quando for abordada (recomendado)")}
+                                <span className="block text-xs text-muted-foreground">
+                                  {t(
+                                    "O funil mostra só quem recebeu mensagem, e desmarcar uma empresa não deixa nada para desfazer.",
+                                  )}
+                                </span>
+                              </span>
+                            </label>
+                            <label className="flex items-start gap-2 text-sm">
+                              <input
+                                type="radio"
+                                name="prospecting-funnel-entry"
+                                checked={config.funnel_entry === "on_start"}
+                                onChange={() => update("funnel_entry", "on_start")}
+                                className="mt-1"
+                              />
+                              <span>
+                                {t("Todas ao iniciar")}
+                                <span className="block text-xs text-muted-foreground">
+                                  {t(
+                                    "Contato, negócio e conversa de toda a fila são criados na hora de iniciar.",
+                                  )}
+                                </span>
+                              </span>
+                            </label>
+                          </fieldset>
                           <div>
                             <Label htmlFor="prospecting-basis">
                               {t("Referência da avaliação de legítimo interesse")}
@@ -757,9 +798,13 @@ export function ProspectingClient() {
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {t(
-                              "Ao iniciar, os contatos novos com telefone entram no funil. Contatos já existentes são preservados. A fila faz uma primeira abordagem; respostas seguem no Inbox. Uma mensagem já em transmissão pode concluir após a pausa.",
-                            )}
+                            {config.funnel_entry === "on_send"
+                              ? t(
+                                  "Ao iniciar, as empresas com telefone entram na fila. Cada uma entra no funil só quando for abordada. Contatos já existentes são preservados. A fila faz uma primeira abordagem; respostas seguem no Inbox. Uma mensagem já em transmissão pode concluir após a pausa.",
+                                )
+                              : t(
+                                  "Ao iniciar, os contatos novos com telefone entram no funil. Contatos já existentes são preservados. A fila faz uma primeira abordagem; respostas seguem no Inbox. Uma mensagem já em transmissão pode concluir após a pausa.",
+                                )}
                           </p>
                         </fieldset>
                         <Button

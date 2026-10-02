@@ -29,6 +29,7 @@ import {
   withProspectingLock,
   synchronizeSearch,
   validateConfig,
+  prepararCandidatoNoEnvio,
   type Campaign,
   type Candidate,
 } from "./store";
@@ -126,19 +127,28 @@ export async function sendNextCandidate(
       return;
     }
   }
-  const p = (
+  const queued = (
     await db.query<Candidate>(
       "select * from prospecting_candidates where organization_id=$1 and campaign_id=$2 and status='queued' order by created_at,id limit 1",
       [c.organization_id, c.id],
     )
   ).rows[0];
-  if (!p) {
+  if (!queued) {
     await db.query(
       "update prospecting_campaigns set status='completed',updated_at=now() where organization_id=$1 and id=$2 and status='running'",
       [c.organization_id, c.id],
     );
     return;
   }
+  // MODO `on_send`: a empresa está na fila, mas ainda NÃO existe no CRM — contato,
+  // negócio e conversa nascem agora, na vez dela de ser abordada. Se ela saiu da fila
+  // no caminho (virou contato por outro lado, ou o CRM recusou o cadastro), não houve
+  // tentativa: `attempted_at` não foi gravado, e a próxima rodada pega a seguinte.
+  const p =
+    cfg.funnel_entry === "on_send" && !queued.conversation_id
+      ? await prepararCandidatoNoEnvio(db, admin, c, cfg, queued)
+      : queued;
+  if (!p) return;
   // O idioma da instalação decide a PALAVRA de saída. Uma consulta por envio, no
   // mesmo caminho que já faz várias — e o envio é limitado a 1 por vez pelo
   // ritmo anti-banimento, então não há volume aqui para otimizar.

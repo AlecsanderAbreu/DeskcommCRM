@@ -263,6 +263,216 @@ export async function validateConfig(db: pg.PoolClient, org: string, input: Camp
     );
   return config;
 }
+/**
+ * TRIAGEM DE UMA EMPRESA: ela merece virar contato? Decide só olhando; não escreve nada.
+ *
+ * Mora fora de `activateCampaign` porque agora há DOIS momentos em que a pergunta é
+ * feita: ao iniciar (sempre — a contagem da fila precisa ser honesta desde o primeiro
+ * minuto) e, no modo `on_send`, de novo na hora do envio, porque entre uma coisa e
+ * outra o telefone pode ter virado contato do CRM por outro caminho. Atendimento que
+ * já existe nunca é atropelado por prospecção.
+ *
+ * `contatoDaCampanha` é o contato que ESTA campanha já criou numa execução
+ * interrompida (mesma origem, mesma campanha, mesmo lugar) — reaproveitado em vez de
+ * duplicado, que é o que torna a preparação idempotente.
+ */
+export async function triarCandidato(
+  db: pg.PoolClient,
+  org: string,
+  campaignId: string,
+  p: Candidate,
+): Promise<{ motivo: string } | { contatoDaCampanha: string | null }> {
+  if (!p.phone) return { motivo: "Sem telefone brasileiro válido." };
+  const known = await db.query(
+    "select id from contacts where organization_id=$1 and phone_number=any($2::text[])",
+    [org, phoneLookupVariants(p.phone)],
+  );
+  let contactId = p.contact_id;
+  if (known.rows.length && !contactId) {
+    const owned = await db.query(
+      "select id from contacts where organization_id=$1 and id=$2 and source='prospecting' and source_metadata->>'campaign_id'=$3 and source_metadata->>'place_id'=$4",
+      [org, known.rows[0].id, campaignId, p.data.key],
+    );
+    if (owned.rows[0]) contactId = owned.rows[0].id;
+  }
+  if (known.rows.length && !contactId)
+    return { motivo: "Contato já existe no CRM; atendimento preservado." };
+  return { contatoDaCampanha: contactId };
+}
+
+/**
+ * A PEGADA DE UMA EMPRESA NO CRM: contato, negócio no funil e conversa.
+ *
+ * Era o corpo do laço de `activateCampaign`, que criava isso para TODA a fila no
+ * instante de "Iniciar". Foi separada para o modo `on_send` poder criar a pegada de
+ * uma empresa só quando chega a vez dela de ser abordada. Medido numa campanha real:
+ * 47 empresas esperando, todas na etapa de entrada do funil há dois dias sem uma
+ * mensagem enviada — o funil dizia "Abordado" de quem ninguém tinha abordado.
+ *
+ * Idempotente por construção (contato da campanha reaproveitado, negócio procurado
+ * por `external_id`): uma execução que caiu no meio recomeça sem duplicar nada.
+ * Devolve a linha do candidato já `queued`, com contato, negócio, conversa e fronteira.
+ */
+export async function criarPegadaDoCandidato(
+  db: pg.PoolClient,
+  admin: SupabaseClient,
+  org: string,
+  c: Pick<Campaign, "id" | "name">,
+  config: CampaignConfig,
+  p: Candidate,
+  contatoDaCampanha: string | null,
+): Promise<Candidate> {
+  const ctx = {
+    organization_id: org,
+    actor: { type: "webhook_source" as const, id: c.id },
+    requestId: `rule:${c.id}`,
+  };
+  let contactId = contatoDaCampanha ?? p.contact_id;
+  if (!contactId) {
+    const contact = await createContactHandler(admin, ctx, {
+      name: p.data.name,
+      display_name: p.data.name,
+      phone_number: p.phone,
+      source: "prospecting",
+      source_metadata: { campaign_id: c.id, place_id: p.data.key, maps_url: p.data.maps_url },
+      consent: { legitimate_interest: { ref: config.legal_basis_ref } },
+    });
+    contactId = String(contact.contact.id);
+    await db.query(
+      "update prospecting_candidates set contact_id=$3 where organization_id=$1 and id=$2",
+      [org, p.id, contactId],
+    );
+  }
+  let leadId = p.lead_id;
+  if (!leadId) {
+    const existing = await db.query(
+      "select id from crm_leads where organization_id=$1 and source='prospecting' and external_id=$2",
+      [org, p.id],
+    );
+    leadId = existing.rows[0]?.id ?? null;
+  }
+  if (!leadId) {
+    const lead = await createLeadHandler(admin, ctx, {
+      ...createLeadSchema.parse({
+        pipeline_id: config.pipeline_id,
+        stage_id: config.stage_id,
+        title: p.data.name,
+        contact_id: contactId,
+        owner_agent_id: config.agent_id,
+        source: "prospecting",
+        description: `Campanha: ${c.name}\nQualificação: ${config.qualification}`.slice(0, 2000),
+      }),
+      external_id: p.id,
+    });
+    leadId = String(lead.id);
+    await db.query(
+      "update prospecting_candidates set lead_id=$3 where organization_id=$1 and id=$2",
+      [org, p.id, leadId],
+    );
+  }
+  await db.query(
+    "update prospecting_candidates set contact_id=$3,lead_id=$4 where organization_id=$1 and id=$2",
+    [org, p.id, contactId, leadId],
+  );
+  const boundary = await beginServiceAtOrigin(admin, org, contactId, config.channel_session_id);
+  await db.query(
+    "update conversations set active_ai_agent_id=$3,metadata=coalesce(metadata,'{}'::jsonb) || jsonb_build_object('prospecting_campaign_id',$4::text) where organization_id=$1 and id=$2",
+    [org, boundary.conversation_id, config.agent_id, c.id],
+  );
+  const { rows } = await db.query<Candidate>(
+    "update prospecting_candidates set status='queued',conversation_id=$3,service_boundary=$4,error=null,updated_at=now() where organization_id=$1 and id=$2 returning *",
+    [org, p.id, boundary.conversation_id, boundary],
+  );
+  return rows[0] as Candidate;
+}
+
+/**
+ * Modo `on_send`: prepara a empresa NA HORA de abordá-la. Devolve a linha pronta, ou
+ * `null` quando ela saiu da fila (pulada ou falhada) e o envio deve passar à próxima.
+ *
+ * O erro de uma empresa é DELA: uma recusa 4xx dos cadastros (telefone que o CRM não
+ * aceita, por exemplo) marca só essa empresa como `failed`, com o motivo. Sem isso o
+ * candidato continuaria `queued` e travaria a fila rodada após rodada — e o `catch` do
+ * envio só sabe marcar quem já está `sending`. Falha de infraestrutura (banco, rede)
+ * continua subindo: ela pausa a campanha com o motivo, como sempre pausou.
+ */
+export async function prepararCandidatoNoEnvio(
+  db: pg.PoolClient,
+  admin: SupabaseClient,
+  c: Pick<Campaign, "id" | "name" | "organization_id">,
+  config: CampaignConfig,
+  p: Candidate,
+): Promise<Candidate | null> {
+  const org = c.organization_id;
+  const triagem = await triarCandidato(db, org, c.id, p);
+  if ("motivo" in triagem) {
+    await db.query(
+      "update prospecting_candidates set status='skipped',error=$3,updated_at=now() where organization_id=$1 and id=$2 and status='queued'",
+      [org, p.id, triagem.motivo],
+    );
+    return null;
+  }
+  try {
+    return await criarPegadaDoCandidato(db, admin, org, c, config, p, triagem.contatoDaCampanha);
+  } catch (error) {
+    const status = (error as { status?: unknown } | null)?.status;
+    if (typeof status !== "number" || status < 400 || status >= 500) throw error;
+    const detalhe = error instanceof Error ? error.message.slice(0, 300) : "";
+    await db.query(
+      "update prospecting_candidates set status='failed',error=$3,updated_at=now() where organization_id=$1 and id=$2 and status='queued'",
+      [org, p.id, `Não foi possível colocar esta empresa no funil.${detalhe ? ` ${detalhe}` : ""}`],
+    );
+    return null;
+  }
+}
+/**
+ * Põe na fila as empresas que sobraram da busca, no instante de iniciar.
+ *
+ * Primeiro a escolha do operador (desmarcada nunca entra), depois a triagem (sem
+ * telefone, ou já é contato do CRM). O que acontece com quem passa depende de
+ * `config.funnel_entry`: `on_start` cria contato, negócio e conversa AGORA, para a fila
+ * inteira; `on_send` só enfileira, e cada empresa nasce no CRM na vez dela de ser
+ * abordada (`prepararCandidatoNoEnvio`).
+ */
+export async function enfileirarCandidatos(
+  db: pg.PoolClient,
+  admin: SupabaseClient,
+  org: string,
+  c: Pick<Campaign, "id" | "name">,
+  config: CampaignConfig,
+  candidates: Candidate[],
+) {
+  const id = c.id;
+  for (const p of candidates) {
+    const selectionReason = razaoDeAbordarSelecionado(p.selected);
+    if (selectionReason) {
+      await db.query(
+        "update prospecting_candidates set status='skipped',error=$3 where organization_id=$1 and id=$2",
+        [org, p.id, selectionReason],
+      );
+      continue;
+    }
+    const triagem = await triarCandidato(db, org, id, p);
+    if ("motivo" in triagem) {
+      await db.query(
+        "update prospecting_candidates set status='skipped',error=$3 where organization_id=$1 and id=$2",
+        [org, p.id, triagem.motivo],
+      );
+      continue;
+    }
+    if (config.funnel_entry === "on_send") {
+      // O contato, o negócio e a conversa NASCEM NO ENVIO (`prepararCandidatoNoEnvio`):
+      // aqui a empresa só entra na fila. O funil mostra quem foi abordado, e desmarcar
+      // uma empresa que ainda não foi abordada não deixa nada para desfazer.
+      await db.query(
+        "update prospecting_candidates set status='queued',error=null,updated_at=now() where organization_id=$1 and id=$2",
+        [org, p.id],
+      );
+      continue;
+    }
+    await criarPegadaDoCandidato(db, admin, org, c, config, p, triagem.contatoDaCampanha);
+  }
+}
 export async function activateCampaign(
   pool: pg.Pool,
   admin: SupabaseClient,
@@ -309,105 +519,7 @@ export async function activateCampaign(
         [org, id],
       )
     ).rows;
-    for (const p of candidates) {
-      const selectionReason = razaoDeAbordarSelecionado(p.selected);
-      if (selectionReason) {
-        await db.query(
-          "update prospecting_candidates set status='skipped',error=$3 where organization_id=$1 and id=$2",
-          [org, p.id, selectionReason],
-        );
-        continue;
-      }
-      if (!p.phone) {
-        await db.query(
-          "update prospecting_candidates set status='skipped',error='Sem telefone brasileiro válido.' where organization_id=$1 and id=$2",
-          [org, p.id],
-        );
-        continue;
-      }
-      const known = await db.query(
-        "select id from contacts where organization_id=$1 and phone_number=any($2::text[])",
-        [org, phoneLookupVariants(p.phone)],
-      );
-      if (known.rows.length && !p.contact_id) {
-        const owned = await db.query(
-          "select id from contacts where organization_id=$1 and id=$2 and source='prospecting' and source_metadata->>'campaign_id'=$3 and source_metadata->>'place_id'=$4",
-          [org, known.rows[0].id, id, p.data.key],
-        );
-        if (owned.rows[0]) p.contact_id = owned.rows[0].id;
-      }
-      if (known.rows.length && !p.contact_id) {
-        await db.query(
-          "update prospecting_candidates set status='skipped',error='Contato já existe no CRM; atendimento preservado.' where organization_id=$1 and id=$2",
-          [org, p.id],
-        );
-        continue;
-      }
-      const ctx = {
-        organization_id: org,
-        actor: { type: "webhook_source" as const, id },
-        requestId: `rule:${id}`,
-      };
-      let contactId = p.contact_id;
-      if (!contactId) {
-        const contact = await createContactHandler(admin, ctx, {
-          name: p.data.name,
-          display_name: p.data.name,
-          phone_number: p.phone,
-          source: "prospecting",
-          source_metadata: { campaign_id: id, place_id: p.data.key, maps_url: p.data.maps_url },
-          consent: { legitimate_interest: { ref: config.legal_basis_ref } },
-        });
-        contactId = String(contact.contact.id);
-        await db.query(
-          "update prospecting_candidates set contact_id=$3 where organization_id=$1 and id=$2",
-          [org, p.id, contactId],
-        );
-      }
-      let leadId = p.lead_id;
-      if (!leadId) {
-        const existing = await db.query(
-          "select id from crm_leads where organization_id=$1 and source='prospecting' and external_id=$2",
-          [org, p.id],
-        );
-        leadId = existing.rows[0]?.id ?? null;
-      }
-      if (!leadId) {
-        const lead = await createLeadHandler(admin, ctx, {
-          ...createLeadSchema.parse({
-            pipeline_id: config.pipeline_id,
-            stage_id: config.stage_id,
-            title: p.data.name,
-            contact_id: contactId,
-            owner_agent_id: config.agent_id,
-            source: "prospecting",
-            description: `Campanha: ${c.name}\nQualificação: ${config.qualification}`.slice(
-              0,
-              2000,
-            ),
-          }),
-          external_id: p.id,
-        });
-        leadId = String(lead.id);
-        await db.query(
-          "update prospecting_candidates set lead_id=$3 where organization_id=$1 and id=$2",
-          [org, p.id, leadId],
-        );
-      }
-      await db.query(
-        "update prospecting_candidates set contact_id=$3,lead_id=$4 where organization_id=$1 and id=$2",
-        [org, p.id, contactId, leadId],
-      );
-      const boundary = await beginServiceAtOrigin(admin, org, contactId, config.channel_session_id);
-      await db.query(
-        "update conversations set active_ai_agent_id=$3,metadata=coalesce(metadata,'{}'::jsonb) || jsonb_build_object('prospecting_campaign_id',$4::text) where organization_id=$1 and id=$2",
-        [org, boundary.conversation_id, config.agent_id, id],
-      );
-      await db.query(
-        "update prospecting_candidates set status='queued',conversation_id=$3,service_boundary=$4,error=null,updated_at=now() where organization_id=$1 and id=$2",
-        [org, p.id, boundary.conversation_id, boundary],
-      );
-    }
+    await enfileirarCandidatos(db, admin, org, c, config, candidates);
     await db.query(
       "update prospecting_campaigns set config=$3,status='running',next_send_at=now()+interval '1 minute',error=null,updated_at=now() where organization_id=$1 and id=$2",
       [org, id, config],

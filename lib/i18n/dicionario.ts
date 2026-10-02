@@ -13954,6 +13954,12 @@ export const DICIONARIO: Traducoes = {
   "A janela de esfriando vai de 1 hora a 8760 horas (365 dias).": {
     es: "La ventana de enfriamiento va de 1 hora a 8760 horas (365 días).",
   },
+  "Quando a empresa entra no funil": { es: "Cuándo entra la empresa al embudo" },
+  "Só quando for abordada (recomendado)": { es: "Solo cuando se la contacte (recomendado)" },
+  "O funil mostra só quem recebeu mensagem, e desmarcar uma empresa não deixa nada para desfazer.": { es: "El embudo muestra solo a quien recibió un mensaje, y desmarcar una empresa no deja nada que deshacer." },
+  "Todas ao iniciar": { es: "Todas al iniciar" },
+  "Contato, negócio e conversa de toda a fila são criados na hora de iniciar.": { es: "Contacto, negocio y conversación de toda la cola se crean al iniciar." },
+  "Ao iniciar, as empresas com telefone entram na fila. Cada uma entra no funil só quando for abordada. Contatos já existentes são preservados. A fila faz uma primeira abordagem; respostas seguem no Inbox. Uma mensagem já em transmissão pode concluir após a pausa.": { es: "Al iniciar, las empresas con teléfono entran a la cola. Cada una entra al embudo solo cuando se la contacta. Los contactos que ya existen se conservan. La cola hace un primer contacto y las respuestas llegan al Inbox. Un mensaje que ya está en transmisión puede completarse tras la pausa." },
 };
 
 /**
