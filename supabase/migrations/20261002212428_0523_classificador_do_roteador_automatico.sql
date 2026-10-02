@@ -1,4 +1,4 @@
--- 0502 — o classificador do roteador nasce "Automático"
+-- 0523 — o classificador do roteador nasce "Automático"
 --
 -- O `ai_routers.config` semeava `'classifier_model', 'claude-haiku-4-5'`, um id
 -- fixo do ANTHROPIC dentro de um produto multi-provedor. Medido numa instalação

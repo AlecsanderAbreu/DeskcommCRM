@@ -97,7 +97,7 @@ describe("ai_routers — o classificador nasce em 'Automático'", () => {
     expect(rows[0]!.config).toMatchObject({ sticky: true, min_confidence: 0.6 });
   });
 
-  it("o default da coluna é o da 0502, não o id do Anthropic", async () => {
+  it("o default da coluna é o da 0523, não o id do Anthropic", async () => {
     // Pergunta ao CATÁLOGO, e não ao texto: é o que o banco realmente tem.
     const { rows } = await pool.query<{ dflt: string | null }>(
       `select pg_get_expr(adbin, adrelid) as dflt
@@ -129,7 +129,7 @@ describe("a cura remove o id semeado e só ele", () => {
       ],
     );
 
-    // A mesma cura da 0502, aplicada na linha — o que `update.sh` faz.
+    // A mesma cura da 0523, aplicada na linha — o que `update.sh` faz.
     await pool.query(
       `update ai_routers set config = config - 'classifier_model'
        where config->>'classifier_model' in ($1, $2)
