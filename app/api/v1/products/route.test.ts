@@ -214,7 +214,7 @@ describe("GET /api/v1/products — o catálogo inteiro, não os 500 primeiros", 
 
     // Quatro colunas, quatro condições — nenhuma vinda do texto digitado.
     expect(consulta.or).toHaveLength(1);
-    expect(consulta.or[0].split(",")).toHaveLength(4);
+    expect(consulta.or[0]?.split(",")).toHaveLength(4);
   });
 
   it("termo feito só de pontuação não vira `%%` (que devolveria o catálogo inteiro)", async () => {
