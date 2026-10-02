@@ -14,6 +14,7 @@ import { decryptWebhookSecret, encryptWebhookSecret } from "@/lib/webhooks/secre
 import {
   campaignConfigSchema,
   normalizeProspect,
+  RAZAO_NAO_SELECIONADA,
   razaoDeAbordarSelecionado,
   type CampaignConfig,
   type SearchInput,
@@ -548,5 +549,107 @@ export async function activateCampaign(
       [org, id, config],
     );
     return { started: true };
+  });
+}
+
+/**
+ * DESMARCAR UMA EMPRESA QUE JÁ ESTÁ NA FILA: ela vira "Não abordado", com o motivo do
+ * operador, e o envio (que só pega `queued`) nunca mais a alcança.
+ *
+ * Só `queued`: `sending`, `sent` e `failed` já tiveram tentativa e não voltam atrás por
+ * um clique. Em `on_send` a empresa ainda nem existe no CRM, então não há nada a desfazer;
+ * em `on_start` o contato e o negócio já foram criados ao iniciar e FICAM onde estão — o
+ * produto não tem como ocultar nem apagar negócio, e inventar isso aqui seria escrever
+ * código irreversível por conta do botão de uma tela.
+ */
+export const FILA_DESMARCAR_SQL =
+  "update prospecting_candidates set selected=false,status='skipped',error=$4,updated_at=now() where organization_id=$1 and campaign_id=$2 and id=any($3::uuid[]) and status='queued' returning id";
+
+/**
+ * MARCAR DE NOVO: só devolve à fila quem o OPERADOR tirou (`selected=false`, `skipped` e o
+ * motivo exato dele). "Sem telefone brasileiro válido" e "Contato já existe no CRM" são
+ * `skipped` por outra razão e NÃO voltam por aqui — marcar a caixa não pode ressuscitar
+ * quem o produto recusou de propósito.
+ *
+ * `$5` é "a campanha cria a empresa só no envio": nesse modo qualquer desmarcada pode voltar
+ * (será preparada na vez dela); no modo antigo só volta quem JÁ tem conversa criada, porque
+ * a empresa desmarcada antes de iniciar nunca ganhou contato nem negócio, e criá-los num
+ * clique de "marcar" seria refazer a ativação por baixo da tela.
+ */
+export const FILA_REMARCAR_SQL =
+  "update prospecting_candidates set selected=true,status='queued',error=null,updated_at=now() where organization_id=$1 and campaign_id=$2 and id=any($3::uuid[]) and status='skipped' and selected=false and error=$4 and ($5::boolean or conversation_id is not null) returning id";
+
+export async function selecionarNaFila(
+  pool: pg.Pool,
+  org: string,
+  campaignId: string,
+  candidateIds: string[],
+  selected: boolean,
+) {
+  return withProspectingLock(pool, org, async (db) => {
+    const c = (
+      await db.query<{ status: string; config: Record<string, unknown> | null }>(
+        "select status, config from prospecting_campaigns where organization_id=$1 and id=$2",
+        [org, campaignId],
+      )
+    ).rows[0];
+    if (!c) throw new ProspectingError("Campanha não encontrada.", 404);
+    // Pausada: o envio só roda em `running`, então ninguém está no meio de uma abordagem.
+    if (c.status !== "paused" || !c.config)
+      throw new ProspectingError("Pause a campanha antes de mudar quem está na fila.", 409);
+    const soNoEnvio = c.config.funnel_entry === "on_send";
+    const { rows } = selected
+      ? await db.query<{ id: string }>(FILA_REMARCAR_SQL, [
+          org,
+          campaignId,
+          candidateIds,
+          RAZAO_NAO_SELECIONADA,
+          soNoEnvio,
+        ])
+      : await db.query<{ id: string }>(FILA_DESMARCAR_SQL, [
+          org,
+          campaignId,
+          candidateIds,
+          RAZAO_NAO_SELECIONADA,
+        ]);
+    return { selected, changed_ids: rows.map((r) => r.id) };
+  });
+}
+
+/**
+ * EXCLUIR AS DESMARCADAS: apaga a LINHA DA BUSCA de quem o operador tirou, para a lista não
+ * crescer com quem ele nunca vai abordar.
+ *
+ * Três guardas, todas no `where`:
+ * - sem contato, negócio nem conversa: o que já virou registro do CRM não é daqui;
+ * - `suppression_salt is null`: a linha de quem exerceu opt-out ou exclusão é a TOMBA que o
+ *   gatilho `prospecting_refuse_erased` consulta para barrar a reimportação — apagá-la
+ *   reabriria a porta que a anonimização fechou;
+ * - só o que o operador marcou: `new` desmarcada (rascunho) ou `skipped` com o motivo dele.
+ *
+ * O telefone dessas linhas é o que impede a mesma empresa de reaparecer como "nova" numa
+ * busca futura (índice único por organização + `on conflict do nothing`). Excluir é decidir
+ * que ela PODE voltar — por isso a tela pede confirmação e diz isso.
+ */
+export const DESCARTAR_DESMARCADAS_SQL =
+  "delete from prospecting_candidates where organization_id=$1 and campaign_id=$2 and selected=false and (status='new' or (status='skipped' and error=$3)) and contact_id is null and lead_id is null and conversation_id is null and suppression_salt is null returning id";
+
+export async function descartarDesmarcadas(pool: pg.Pool, org: string, campaignId: string) {
+  return withProspectingLock(pool, org, async (db) => {
+    const c = (
+      await db.query<{ status: string }>(
+        "select status from prospecting_campaigns where organization_id=$1 and id=$2",
+        [org, campaignId],
+      )
+    ).rows[0];
+    if (!c) throw new ProspectingError("Campanha não encontrada.", 404);
+    if (c.status !== "draft" && c.status !== "paused")
+      throw new ProspectingError("Pause a campanha antes de excluir as desmarcadas.", 409);
+    const { rows } = await db.query<{ id: string }>(DESCARTAR_DESMARCADAS_SQL, [
+      org,
+      campaignId,
+      RAZAO_NAO_SELECIONADA,
+    ]);
+    return { discarded: rows.length };
   });
 }

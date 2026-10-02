@@ -49,6 +49,18 @@ export const prospectingInputSchema = z.discriminatedUnion("action", [
       selected: z.boolean(),
     })
     .strict(),
+  // Marcar e desmarcar DEPOIS de iniciada, com a campanha pausada. Ação própria e não uma
+  // ampliação do `select`: aquele só vale em rascunho, sobre `status='new'`, e as duas fases
+  // mexem em estados diferentes (aqui, `queued` e o "não abordado" que o operador escolheu).
+  z
+    .object({
+      action: z.literal("select_in_queue"),
+      id: z.string().uuid(),
+      candidate_ids: z.array(z.string().uuid()).min(1).max(5000),
+      selected: z.boolean(),
+    })
+    .strict(),
+  z.object({ action: z.literal("discard_unselected"), id: z.string().uuid() }).strict(),
 ]);
 export type CampaignConfig = z.infer<typeof campaignConfigSchema>;
 export type SearchInput = z.infer<typeof searchSchema>;

@@ -13960,6 +13960,14 @@ export const DICIONARIO: Traducoes = {
   "Todas ao iniciar": { es: "Todas al iniciar" },
   "Contato, negócio e conversa de toda a fila são criados na hora de iniciar.": { es: "Contacto, negocio y conversación de toda la cola se crean al iniciar." },
   "Ao iniciar, as empresas com telefone entram na fila. Cada uma entra no funil só quando for abordada. Contatos já existentes são preservados. A fila faz uma primeira abordagem; respostas seguem no Inbox. Uma mensagem já em transmissão pode concluir após a pausa.": { es: "Al iniciar, las empresas con teléfono entran a la cola. Cada una entra al embudo solo cuando se la contacta. Los contactos que ya existen se conservan. La cola hace un primer contacto y las respuestas llegan al Inbox. Un mensaje que ya está en transmisión puede completarse tras la pausa." },
+  "Com a campanha pausada, marque ou desmarque as empresas que ainda estão na fila. Quem já foi abordado não muda.": { es: "Con la campaña en pausa, marca o desmarca las empresas que aún están en la cola. A quien ya se contactó no se le cambia nada." },
+  "Mostrar desmarcadas": { es: "Mostrar desmarcadas" },
+  "Esconder desmarcadas": { es: "Ocultar desmarcadas" },
+  "Excluir desmarcadas": { es: "Eliminar desmarcadas" },
+  "Confirmar exclusão": { es: "Confirmar eliminación" },
+  "Excluir tira essas empresas da lista. Numa busca futura, elas podem aparecer de novo como novas.": { es: "Eliminar quita estas empresas de la lista. En una búsqueda futura pueden aparecer de nuevo como nuevas." },
+  "Empresas desmarcadas excluídas.": { es: "Empresas desmarcadas eliminadas." },
+  "Esta campanha já criou o contato e o negócio dessas empresas ao iniciar. Desmarcar só impede o envio: elas continuam no funil.": { es: "Esta campaña ya creó el contacto y el negocio de estas empresas al iniciar. Desmarcar solo impide el envío: siguen en el embudo." },
 };
 
 /**
