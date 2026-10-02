@@ -12,7 +12,12 @@ as evidências comerciais recolhidas pelo servidor **no mesmo turno**:
   organização e produtos ativos. Preserva código, nome, preço e descrição completos.
 - Trechos devolvidos por `search_knowledge` ou `crm_search_knowledge`, somente
   quando `knowledge_source_id` pertence aos materiais habilitados na versão do
-  agente. O índice legado sem fonte identificável não autoriza condição por este caminho.
+  agente **e** o tipo da fonte, canonizado por `canonizarTipoDeFonte`, é `faq`,
+  `documento` ou `catalogo`. "Conversas anteriores" (`conversas` e os legados
+  `conversation`/`conversations`) nunca prova oferta: ali está o que o cliente
+  escreveu. Tipo desconhecido também fica de fora (lista de permissão), e uma
+  falha ao ler os tipos deixa o turno sem evidência de conhecimento. O índice
+  legado sem fonte identificável não autoriza condição por este caminho.
 
 A evidência nunca vem dos argumentos de `send_message`, do histórico, do prompt
 do agente, de notas do cliente ou de `crm_get_org_memory`. Seleção da consulta
@@ -68,6 +73,8 @@ de tentativas recusadas. Custo continua registrado em `llm_calls`, propósito
 
 ## Relação com a contribuição #1981
 
-A lista manual versionada de condições proposta no #1981 é independente. Esta
-contribuição resolve o caminho de evidências que já estão no catálogo/acervo,
-sem implementar ou exigir aquela lista e sem fechar a issue #1954 por si só.
+A lista manual versionada de condições proposta no #1981 (@webtecnica) abriu
+este caminho. O mantenedor escolheu seguir com as evidências consultadas, sem
+lista cadastrada, e o #1981 foi fechado com crédito. Esta contribuição resolve o
+caminho de evidências que já estão no catálogo/acervo; ofertas que existem só
+nas instruções do agente continuam fora dele.
