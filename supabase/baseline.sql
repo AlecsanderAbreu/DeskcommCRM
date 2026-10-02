@@ -44353,23 +44353,32 @@ notify pgrst, 'reload schema';
 -- vezes, e TODO turno caía no fallback do roteador. Na OpenRouter o modelo é
 -- `anthropic/claude-haiku-4.5`, com PONTO (catálogo público, 464 ids).
 --
--- O default passa a não trazer `classifier_model`: o roteador nasce em
--- "Automático" e o seam resolve pelo painel de provedores, senão pelo padrão da
--- organização. A cura só remove a chave quando ela vale EXATAMENTE o id semeado E
--- a linha não aponta o Anthropic — o id semeado e o id escolhido são o mesmo
--- nome, e é o provedor que distingue a linha que quebrou de quem escolheu de
--- propósito (lá o alias resolve, 0104). Idempotente nas duas partes; não cria
--- função, mas entra antes da varredura como todo apêndice.
+-- O default perde só `classifier_model` (`sticky` e `min_confidence` ficam): o
+-- roteador nasce em "Automático" e o seam resolve pelo painel de provedores,
+-- senão pelo padrão da organização. A cura só alcança a linha com a forma exata
+-- do seed E que quebrava: `classifier_model = 'claude-haiku-4-5'` (o único id
+-- semeado — `anthropic/claude-haiku-4-5` é escolha válida da Requesty, 0410),
+-- `classifier_provider` ausente (a tela grava os dois juntos) e organização fora
+-- do Anthropic (regra de `llmSettingsSchema`: provedor ausente, não-texto ou
+-- vazio vale 'anthropic'; lá o alias resolve, 0104, e o Haiku fica). Texto da
+-- cura idêntico ao da migration; o invariante executa ESTE bloco. Idempotente;
+-- não cria função, mas entra antes da varredura como todo apêndice.
 
 alter table public.ai_routers
   alter column config set default jsonb_build_object(
     'sticky', true,
     'min_confidence', 0.6);
 
-update public.ai_routers
-set config = config - 'classifier_model'
-where config->>'classifier_model' in ('claude-haiku-4-5', 'anthropic/claude-haiku-4-5')
-  and coalesce(config->>'classifier_provider', '') is distinct from 'anthropic';
+update public.ai_routers r
+set config = r.config - 'classifier_model'
+from public.organizations o
+where o.id = r.organization_id
+  and r.config->>'classifier_model' = 'claude-haiku-4-5'
+  and coalesce(r.config->>'classifier_provider', '') = ''
+  and coalesce(
+        case when jsonb_typeof(o.settings->'llm'->'provider') = 'string'
+             then nullif(o.settings->'llm'->>'provider', '') end,
+        'anthropic') <> 'anthropic';
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
