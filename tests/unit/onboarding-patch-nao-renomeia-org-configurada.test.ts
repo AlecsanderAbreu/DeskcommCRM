@@ -200,6 +200,7 @@ describe("patchOnboardingState: organização já configurada não é regravada"
       ORG,
       { welcome: { accepted_at: "2026-02-02T00:00:00.000Z", timezone: "America/Sao_Paulo", display_name: "Clínica Nova" } },
       { display_name: "Clínica Nova", timezone: "America/Sao_Paulo" },
+      { soNoWizard: true },
     ).then(
       () => null,
       (e: unknown) => e,
@@ -221,6 +222,7 @@ describe("patchOnboardingState: organização já configurada não é regravada"
       ORG,
       { welcome: { accepted_at: "2026-02-02T00:00:00.000Z", timezone: "America/Sao_Paulo", display_name: "Clínica Nova" } },
       { display_name: "Clínica Nova", timezone: "America/Sao_Paulo" },
+      { soNoWizard: true },
     );
 
     expect(escritas).toHaveLength(1);
@@ -233,6 +235,19 @@ describe("patchOnboardingState: organização já configurada não é regravada"
       },
     });
     expect(linha.onboarded_at).toBeNull();
+  });
+
+  it("sem soNoWizard (os outros passos) a org configurada segue gravando, como antes do #2113", async () => {
+    // A guarda é das boas-vindas. Os passos de IA, convites e quadro chamam
+    // `patchOnboardingState` DEPOIS de o efeito já ter acontecido (agente
+    // publicado, e-mail enviado); recusar aqui deixaria esse efeito sem
+    // estado, auditoria nem evento.
+    montarBanco({ onboardedAt: "2026-01-01T00:00:00.000Z" });
+
+    await patchOnboardingState(ORG, { teste: { skipped: true } });
+
+    expect(escritas).toHaveLength(1);
+    expect(linha.onboarding_state).toMatchObject({ teste: { skipped: true } });
   });
 
   it("aba antiga enviando as boas-vindas depois do fim: acceptWelcome recusa e nada é gravado", async () => {
