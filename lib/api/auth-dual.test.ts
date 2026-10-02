@@ -166,7 +166,7 @@ describe("resolveAuthDual", () => {
 describe("os caminhos de envio passam pelo proxy", () => {
   // Sem estas entradas o proxy responde 401 antes do handler, e a dualidade
   // acima fica inalcançável por token mesmo estando implementada.
-  it("liberas as tres rotas de envio", () => {
+  it("libera as tres rotas de envio", () => {
     expect(isPublicPath("/api/v1/messages")).toBe(true);
     expect(isPublicPath("/api/v1/conversations/open-with-contact")).toBe(true);
     // Mídia: sem ela o cartão de fidelidade não sai depois do corte.
@@ -194,8 +194,9 @@ describe("os caminhos de envio passam pelo proxy", () => {
     expect(isPublicPath("/api/v1/ai/agents/assignable")).toBe(false);
     expect(isPublicPath("/api/v1/ai/agents/11111111-1111-4111-8111-111111111111")).toBe(false);
     expect(isPublicPath("/api/v1/ai/agents/abc/versions")).toBe(false);
-    // prospecting: só a rota de produção, não o cron irmão.
-    expect(isPublicPath("/api/v1/prospecting/agentes")).toBe(false);
+    // prospecting: só a raiz; os irmãos de /agents (chat, prepare, session) seguem só-sessão.
+    expect(isPublicPath("/api/v1/prospecting/agents")).toBe(false);
+    expect(isPublicPath("/api/v1/prospecting/agents/chat")).toBe(false);
     // agenda/tipos: o irmão /reativar segue só-sessão.
     expect(isPublicPath("/api/v1/agenda/tipos/reativar")).toBe(false);
   });
