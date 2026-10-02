@@ -125,31 +125,46 @@ describe("ai_routers.config — o default efetivo não semeia id de classificado
   });
 });
 
-describe("migration 0523", () => {
+describe("migration 0523 — a cura estreita", () => {
   const sql = () => readFileSync(ARQUIVOS_DO_DEFAULT[1]!, "utf8");
+  /** O UPDATE de um arquivo, com espaços normalizados — para comparar os dois. */
+  const cura = (texto: string) =>
+    (texto.match(/update public\.ai_routers r[\s\S]*?;/)?.[0] ?? "").replace(/\s+/g, " ");
 
-  it("cura só o id semeado, e some com a chave em vez de reescrever o config", () => {
+  it("some com a chave em vez de reescrever o config", () => {
     // `config - 'classifier_model'` preserva sticky/min_confidence byte a byte;
     // reescrever com jsonb_build_object perderia o que a pessoa configurou.
-    expect(sql()).toMatch(/set config = config - 'classifier_model'/);
-    // Os dois ids: o pelado, que é o default semeado, e o prefixado, que é o que
-    // `lib/ai/gateway.ts` chama de canônico.
-    expect(sql()).toMatch(/'claude-haiku-4-5',\s*'anthropic\/claude-haiku-4-5'/);
+    expect(cura(sql())).toContain("set config = r.config - 'classifier_model'");
   });
 
-  it("a cura não apaga a escolha de quem aponta o Anthropic", () => {
-    // O id semeado e o id escolhido são o MESMO NOME — o que distingue a linha
-    // que quebrava de quem escolheu de propósito é `classifier_provider`. Sem
-    // esta guarda, a cura apagaria o roteador de quem roda Anthropic nativo,
-    // onde o alias resolve (0104). Medido: este teste já pegou essa versão.
-    expect(sql()).toMatch(
-      /coalesce\(config->>'classifier_provider', ''\) is distinct from 'anthropic'/,
+  it("só alcança o id que a 0085 semeou, sem provedor gravado, fora do Anthropic", () => {
+    const c = cura(sql());
+    expect(c).toContain("r.config->>'classifier_model' = 'claude-haiku-4-5'");
+    expect(c).toContain("coalesce(r.config->>'classifier_provider', '') = ''");
+    // A regra de `llmSettingsSchema`: provedor ausente, não-texto ou vazio vale
+    // 'anthropic' — e lá o seed funciona (0104).
+    expect(c).toContain("jsonb_typeof(o.settings->'llm'->'provider') = 'string'");
+    expect(c).toContain("'anthropic') <> 'anthropic'");
+  });
+
+  it("não alcança o Haiku da Requesty, que nunca foi seed", () => {
+    // `anthropic/claude-haiku-4-5` é modelo válido do catálogo da Requesty
+    // (0410), oferecido pela tela com `classifier_provider = 'requesty'`.
+    expect(cura(sql())).not.toContain("anthropic/claude-haiku-4-5");
+  });
+
+  it("migration e apêndice do baseline têm a MESMA cura", () => {
+    // O invariante executa a do apêndice; esta régua amarra a da migration a ela.
+    const doBaseline = readFileSync(ARQUIVOS_DO_DEFAULT[0]!, "utf8");
+    const bloco = doBaseline.slice(
+      doBaseline.indexOf('-- ---- classificador do roteador nasce "Automático" (migration 0523) ----'),
     );
+    expect(cura(bloco)).not.toBe("");
+    expect(cura(bloco)).toBe(cura(sql()));
   });
 
-  it("é idempotente: um único `set default`, e o where só pega o id semeado", () => {
+  it("é idempotente: um único `set default`", () => {
     expect(sql().match(/alter column config set default/g) ?? []).toHaveLength(1);
-    expect(sql()).toMatch(/where config->>'classifier_model' in \('claude-haiku-4-5'/);
   });
 });
 
@@ -170,11 +185,9 @@ describe("loadActiveRouter — o contrato que o default tem de cumprir", () => {
   });
 
   it("modelo escolhido de propósito continua valendo", async () => {
-    // A cura da migration é cirúrgica e o leitor é o mesmo: quem escolheu um id
-    // que existe no provedor da organização continua com ele. Nem aqui o leitor
-    // pode "limpar tudo que é Claude" — no Anthropic nativo o alias
-    // `claude-haiku-4-5` resolve (migration 0104), e um filtro cego quebraria o
-    // roteador de quem configurou Anthropic de propósito.
+    // A cura da migration é estreita e o leitor é o mesmo: quem escolheu um
+    // modelo continua com ele. Nem aqui o leitor pode "limpar tudo que é
+    // Claude" — no Anthropic nativo o alias `claude-haiku-4-5` resolve (0104).
     const router = await loadActiveRouter(
       poolCom([
         [{ id: "r1", name: "X", config: { classifier_model: "anthropic/claude-sonnet-5", classifier_provider: "anthropic" }, fallback_agent_id: null }],
