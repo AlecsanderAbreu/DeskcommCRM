@@ -3,22 +3,22 @@
  *
  * ═══ O defeito que este arquivo fecha ═══
  *
- * Quando o titular pede os próprios dados, o export entrega a mídia (o áudio,
- * a imagem) mas o corpo lida pela IA não é um dado a) das mensagens — só
- * `body`. O `media-derive-worker` (migration 0497) guarda o que a IA
- * TRANSCREVEU/extraiu de cada mídia em `messages.media_derived_text` — e a
- * anonimização o APAGA quando o titular pede eliminação (#1989). No Art. 18 II
- * vale a mesma régua do resto do coletor: o que se apaga a pedido dele é o que
- * se entrega a pedido dele. O export lia de `messages` sem `media_derived_text`,
- * então quem pede acesso recebe o áudio mas não o texto que a organização
- * efetivamente leu dele — um direito de acesso pela metade.
+ * O export (`data.json` + `report.pdf`) nunca leva o binário da mídia: a
+ * mensagem diz só que TEM mídia (`has_media`). O `media-derive-worker`
+ * (migration 0497) guarda o que a IA TRANSCREVEU/extraiu de cada mídia em
+ * `messages.media_derived_text` — e a anonimização o APAGA quando o titular
+ * pede eliminação (#1989). No Art. 18 II vale a mesma régua do resto do
+ * coletor: o que se apaga a pedido dele é o que se entrega a pedido dele. O
+ * export lia de `messages` sem `media_derived_text`, então quem pedia acesso
+ * não recebia o texto que a organização efetivamente leu do áudio/imagem dele.
  *
- * ═══ O que este teste NÃO prova ═══
+ * ═══ Onde mora o resto da prova ═══
  *
- * O render do PDF (`lib/lgpd/pdf-renderer.tsx`) é cobberto por testes próprios;
- * aqui o foco é o PAYLOAD — que é literalmente o `data.json` gerado pelo worker
- * (`JSON.stringify(data, null, 2)`). Provar a coluna no payload é provar o
- * arquivo entregue ao titular.
+ * Aqui o foco é o PAYLOAD — que é literalmente o `data.json` gerado pelo
+ * worker (`JSON.stringify(data, null, 2)`), nos dois caminhos que leem
+ * `messages`: as do titular e as de grupo que ele escreveu. A linha do PDF é
+ * provada em `lgpd-pdf-transcricao.test.ts`; a máscara da prévia da
+ * solicitação, em `lgpd-preview-mascara-transcricao.test.ts`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -175,6 +175,33 @@ describe("LGPD: export do titular traz a transcrição da mídia (#1990)", () =>
         id: "msg-audio",
         has_media: true,
         media_derived_text: null,
+      }),
+    ]);
+  });
+
+  it("entrega media_derived_text nas mensagens de grupo que o titular escreveu", async () => {
+    rows.contacts![0] = { ...rows.contacts![0], wa_lid: "lid-titular" };
+    rows.messages!.push({
+      id: "msg-grupo",
+      organization_id: ORG,
+      contact_id: "contact-do-grupo",
+      conversation_id: "conv-grupo",
+      direction: "inbound",
+      type: "audio",
+      status: "delivered",
+      body: null,
+      media_url: "https://storage/grupo.mp3",
+      media_derived_text: "transcrição do áudio no grupo",
+      "metadata->group_sender->>lid": "lid-titular",
+      sent_at: "2026-09-15T12:00:00Z",
+      created_at: "2026-09-15T12:00:00Z",
+    });
+    const payload = await collectExportData(request);
+    expect(payload.group_messages_authored).toEqual([
+      expect.objectContaining({
+        id: "msg-grupo",
+        has_media: true,
+        media_derived_text: "transcrição do áudio no grupo",
       }),
     ]);
   });
