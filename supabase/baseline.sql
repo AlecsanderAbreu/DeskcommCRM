@@ -45132,7 +45132,7 @@ do $f$ begin perform public.fn_reaplicar_modulos_instalados(); end $f$;
 -- tabela já com RLS e isolamento.
 do $f$ begin perform public.fn_proteger_tabelas_de_organizacao(); end $f$;
 
--- ---- fix(2000): platform admin `support_readonly` não escreve (migration 0502) ----
+-- ---- fix(2000): platform admin `support_readonly` não escreve (migration 0508) ----
 -- `fn_is_platform_admin()` ignora o scope, então uma policy de ESCRITA montada com
 -- ela deixava um platform admin `support_readonly` alterar organizations/settings
 -- pelo PostgREST. O corpo já nasce com `fn_is_platform_admin_full()` (que exige

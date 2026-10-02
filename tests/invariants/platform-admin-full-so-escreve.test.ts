@@ -1,5 +1,5 @@
 /**
- * 0502 — platform admin `support_readonly` não escreve pelo PostgREST (#2000).
+ * 0508 — platform admin `support_readonly` não escreve pelo PostgREST (#2000).
  *
  * A policy `orgs_write_platform_admin` usava `fn_is_platform_admin()`, que ignora
  * o scope do JWT (~:325-333). Um platform admin com `scope = 'support_readonly'`
@@ -34,19 +34,19 @@ beforeAll(() => {
   sql(`
     delete from public.organizations where id = '${ORG}';
     insert into public.organizations (id, slug, legal_name, display_name)
-      values ('${ORG}', 'org-0502', 'Org 0502', 'Org 0502');
+      values ('${ORG}', 'org-0508', 'Org 0508', 'Org 0508');
     insert into auth.users (id, email) values
-      ('${FULL}', 'full-0502@invariant.test'),
-      ('${READONLY}', 'readonly-0502@invariant.test')
+      ('${FULL}', 'full-0508@invariant.test'),
+      ('${READONLY}', 'readonly-0508@invariant.test')
     on conflict (id) do nothing;
     delete from public.platform_admins where user_id in ('${FULL}', '${READONLY}');
     insert into public.platform_admins (user_id, granted_by, scope, mfa_required, reason) values
-      ('${FULL}', '${FULL}', 'full', false, 'invariante 0502'),
-      ('${READONLY}', '${FULL}', 'support_readonly', false, 'invariante 0502');
+      ('${FULL}', '${FULL}', 'full', false, 'invariante 0508'),
+      ('${READONLY}', '${FULL}', 'support_readonly', false, 'invariante 0508');
   `);
 });
 
-describe("0502 — support_readonly não escreve em organizations pelo PostgREST", () => {
+describe("0508 — support_readonly não escreve em organizations pelo PostgREST", () => {
   it("support_readonly altera 0 linhas de display_name", () => {
     expect(
       writeCountAs(

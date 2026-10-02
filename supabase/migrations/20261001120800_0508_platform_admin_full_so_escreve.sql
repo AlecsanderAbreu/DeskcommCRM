@@ -1,4 +1,4 @@
--- Migration 0502 — fix(rls): platform admin `support_readonly` não escreve (#2000)
+-- Migration 0508 — fix(rls): platform admin `support_readonly` não escreve (#2000)
 --
 -- Contexto: `orgs_write_platform_admin` (baseline, dump) usava `fn_is_platform_admin()`,
 -- que ignora o scope do JWT. Um platform admin com `scope = 'support_readonly'`
@@ -10,7 +10,7 @@
 -- segue lendo — só não escreve. Para as tabelas cuja única policy era `FOR ALL`,
 -- o par é subdividido em `_read` (FOR SELECT, sem `_full`) + `_write` (`_full`).
 --
--- Idempotente; este arquivo é o mesmo corpo que o apêndice do baseline.sql (0502).
+-- Idempotente; este arquivo é o mesmo corpo que o apêndice do baseline.sql (0508).
 
 create or replace function public.fn_is_platform_admin_full()
 returns boolean
@@ -34,46 +34,58 @@ create policy orgs_write_platform_admin on public.organizations
 
 -- ---- api_tokens: única policy FOR ALL virou par ----
 drop policy if exists api_tokens_admin_only on public.api_tokens;
+drop policy if exists api_tokens_tenant_read on public.api_tokens;
 create policy api_tokens_tenant_read on public.api_tokens
   for select using (public.fn_role_at_least(organization_id, 'admin') or public.fn_is_platform_admin());
+drop policy if exists api_tokens_admin_write on public.api_tokens;
 create policy api_tokens_admin_write on public.api_tokens
   for all using (public.fn_role_at_least(organization_id, 'admin') or public.fn_is_platform_admin_full())
   with check (public.fn_role_at_least(organization_id, 'admin') or public.fn_is_platform_admin_full());
 
 -- ---- nuvemshop_products: única policy FOR ALL virou par ----
 drop policy if exists nuvemshop_products_tenant on public.nuvemshop_products;
+drop policy if exists nuvemshop_products_read on public.nuvemshop_products;
 create policy nuvemshop_products_read on public.nuvemshop_products
   for select using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin());
+drop policy if exists nuvemshop_products_tenant_write on public.nuvemshop_products;
 create policy nuvemshop_products_tenant_write on public.nuvemshop_products
   for all using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full())
   with check (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
 
 -- ---- incidents: única policy FOR ALL virou par ----
 drop policy if exists platform_admin_only_incidents on public.incidents;
+drop policy if exists incidents_tenant_read on public.incidents;
 create policy incidents_tenant_read on public.incidents
   for select using (public.fn_is_platform_admin());
+drop policy if exists incidents_admin_write on public.incidents;
 create policy incidents_admin_write on public.incidents
   for all using (public.fn_is_platform_admin_full())
   with check (public.fn_is_platform_admin_full());
 
 -- ---- ai_invocations / contacts / channel_session_warmup: tenant_isolation virou par ----
 drop policy if exists tenant_isolation_ai_invocations_all on public.ai_invocations;
+drop policy if exists tenant_isolation_ai_invocations_read on public.ai_invocations;
 create policy tenant_isolation_ai_invocations_read on public.ai_invocations
   for select using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin());
+drop policy if exists tenant_isolation_ai_invocations_write on public.ai_invocations;
 create policy tenant_isolation_ai_invocations_write on public.ai_invocations
   for all using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full())
   with check (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
 
 drop policy if exists tenant_isolation_contacts_all on public.contacts;
+drop policy if exists tenant_isolation_contacts_read on public.contacts;
 create policy tenant_isolation_contacts_read on public.contacts
   for select using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin());
+drop policy if exists tenant_isolation_contacts_write on public.contacts;
 create policy tenant_isolation_contacts_write on public.contacts
   for all using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full())
   with check (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
 
 drop policy if exists warmup_tenant_isolation_all on public.channel_session_warmup;
+drop policy if exists warmup_tenant_isolation_read on public.channel_session_warmup;
 create policy warmup_tenant_isolation_read on public.channel_session_warmup
   for select using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin());
+drop policy if exists warmup_tenant_isolation_write on public.channel_session_warmup;
 create policy warmup_tenant_isolation_write on public.channel_session_warmup
   for all using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full())
   with check (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
