@@ -13,6 +13,7 @@ import { ok, fail } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import { createClient } from "@/lib/supabase/server";
 import { traduzir } from "@/lib/i18n/dicionario";
+import { diasAtePrazo, diasDeAtraso } from "@/lib/lgpd/sla";
 
 export const dynamic = "force-dynamic";
 
@@ -30,17 +31,28 @@ const querySchema = z.object({
 
 type SlaBucket = "overdue" | "critical" | "warning" | "ok";
 
+/**
+ * O balde de SLA da linha — em DIAS CIVIS, não em milissegundos.
+ *
+ * `due_at` guarda a meia-noite UTC do dia útil contado e o prazo vai até o FIM
+ * desse dia (contrato em `lib/lgpd/sla.ts`). Comparar instantes punha o balde
+ * `overdue` aceso 27 horas antes do prazo numa instalação brasileira: às 21h do
+ * dia anterior ao prazo, a meia-noite UTC já tinha passado, e a linha dizia
+ * "Vencido" para um prazo que só terminava no dia seguinte.
+ *
+ * `critical` é a mesma régua a menos de dois dias: `diasAtePrazo` vale 0 no dia
+ * do prazo e 1 no dia anterior — os dois são "menos de dois dias".
+ */
 function computeSlaBucket(dueAt: string | null, receivedAt: string): SlaBucket {
   if (!dueAt) return "ok";
-  const now = Date.now();
-  const due = new Date(dueAt).getTime();
-  const received = new Date(receivedAt).getTime();
-  const msUntilDue = due - now;
+  const now = new Date();
+  if (diasDeAtraso(dueAt, now) > 0) return "overdue";
+  const restantes = diasAtePrazo(dueAt, now);
+  if (restantes <= 1) return "critical";
 
-  if (msUntilDue < 0) return "overdue";
-  if (msUntilDue < 2 * 24 * 60 * 60 * 1000) return "critical";
-  const totalWindow = due - received;
-  if (totalWindow > 0 && msUntilDue < totalWindow * 0.5) return "warning";
+  const totalWindow = new Date(dueAt).getTime() - new Date(receivedAt).getTime();
+  const ateFimDaJanela = new Date(dueAt).getTime() - now.getTime();
+  if (totalWindow > 0 && ateFimDaJanela < totalWindow * 0.5) return "warning";
   return "ok";
 }
 
