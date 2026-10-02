@@ -3,6 +3,12 @@ import { redirect } from "next/navigation";
 
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
+import {
+  filtroDaBuscaDoCatalogo,
+  intervaloDaPagina,
+  paginaDaUrl,
+  PRODUTOS_POR_PAGINA,
+} from "@/lib/catalogo/busca-da-tela";
 import { BUCKET_DAS_FOTOS, fotoPertenceAoProduto } from "@/lib/catalogo/fotos";
 import { traduzir } from "@/lib/i18n/dicionario";
 import { COLUNAS_DO_PRODUTO, type Produto } from "@/lib/schemas/produtos";
@@ -31,7 +37,11 @@ export const metadata: Metadata = { title: "Produtos" };
  * atende precisa dela. Cadastrar e alterar preço é `manager`, e a rota cobra de
  * novo — a tela esconder o botão é cortesia, não autorização.
  */
-export default async function ProdutosPage() {
+export default async function ProdutosPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const user = await requireAuth();
   const t = (texto: string) => traduzir(texto, user.idioma);
   const activeOrg = await resolveActiveOrg(user);
@@ -39,15 +49,27 @@ export default async function ProdutosPage() {
 
   const podeEditar = (user.is_platform_admin && !user.support) || ROLE_RANK[activeOrg.role] >= ROLE_RANK.manager;
 
+  // Busca e página moram na URL: o servidor traz só a página pedida, de TODO o
+  // catálogo. Antes eram os 500 primeiros, filtrados no navegador — o resto não
+  // aparecia nem pela busca (ver `lib/catalogo/busca-da-tela.ts`).
+  const parametros = await searchParams;
+  const busca = (parametros.busca ?? "").trim();
+  const pagina = paginaDaUrl(parametros.pagina);
+  const filtro = filtroDaBuscaDoCatalogo(busca);
+
   const supabase = await createClient();
-  const { data } = await supabase
+  let consulta = supabase
     .from("catalog_products")
-    .select(COLUNAS_DO_PRODUTO)
-    .eq("organization_id", activeOrg.orgId)
+    .select(COLUNAS_DO_PRODUTO, { count: "exact" })
+    .eq("organization_id", activeOrg.orgId);
+  if (filtro) consulta = consulta.or(filtro);
+  const { data, count } = await consulta
     .order("ativo", { ascending: false })
     .order("nome")
-    .limit(500);
+    .order("id")
+    .range(...intervaloDaPagina(pagina));
   const produtos = (data ?? []) as unknown as Produto[];
+  const total = count ?? produtos.length;
 
   // O bucket é privado: a tela recebe URL assinada de 1 h, montada aqui. Só
   // caminho que é DO produto (ver `fotoPertenceAoProduto`) — a assinatura é
@@ -68,6 +90,10 @@ export default async function ProdutosPage() {
   return (
     <ProdutosClient
       inicial={produtos}
+      total={total}
+      pagina={pagina}
+      porPagina={PRODUTOS_POR_PAGINA}
+      buscaInicial={busca}
       urlsDasFotos={urlsDasFotos}
       podeEditar={podeEditar}
       textos={{
