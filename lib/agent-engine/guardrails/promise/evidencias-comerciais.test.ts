@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { criarEvidenciasComerciaisDoTurno } from "./evidencias-comerciais";
+import {
+  carregarFontesQueProvamOferta,
+  criarEvidenciasComerciaisDoTurno,
+  fontesQueProvamOferta,
+} from "./evidencias-comerciais";
 
 const produto = {
   codigo: "PLANO-ANUAL",
@@ -94,5 +98,43 @@ describe("evidências comerciais do turno", () => {
     expect(e.ler().length).toBeLessThanOrEqual(20);
     expect(JSON.stringify(e.ler()).length).toBeLessThanOrEqual(16_000);
     expect(e.ler().every((item) => item.conteudo.includes("Não inclui matrícula."))).toBe(true);
+  });
+});
+
+describe("qual material do agente pode provar uma oferta", () => {
+  it("aceita perguntas e respostas, documento e catálogo, inclusive com nome legado", () => {
+    const aceitos = ["faq", "documento", "policy", "catalogo", "catalog", "nuvemshop_catalog"];
+    expect(
+      fontesQueProvamOferta(aceitos.map((tipo) => ({ id: tipo, source_type: tipo }))),
+    ).toEqual(aceitos);
+  });
+
+  it("recusa Conversas anteriores, seus nomes legados e tipo desconhecido", () => {
+    // Ali está o que o CLIENTE escreveu: um cliente não autoriza oferta.
+    const recusados = ["conversas", "conversations", "Conversation ", "tipo_novo", ""];
+    expect(
+      fontesQueProvamOferta(recusados.map((tipo) => ({ id: tipo, source_type: tipo }))),
+    ).toEqual([]);
+  });
+
+  it("consulta só a organização do turno e não consulta nada sem material", async () => {
+    const chamadas: unknown[][] = [];
+    const db = {
+      query: async (_sql: string, valores?: unknown[]) => {
+        chamadas.push(valores ?? []);
+        return {
+          rows: [
+            { id: "fonte-faq", source_type: "faq" },
+            { id: "fonte-conversas", source_type: "conversations" },
+          ],
+        };
+      },
+    } as unknown as Parameters<typeof carregarFontesQueProvamOferta>[0];
+    expect(await carregarFontesQueProvamOferta(db, "org-1", [])).toEqual([]);
+    expect(chamadas).toEqual([]);
+    expect(
+      await carregarFontesQueProvamOferta(db, "org-1", ["fonte-faq", "fonte-conversas"]),
+    ).toEqual(["fonte-faq"]);
+    expect(chamadas).toEqual([["org-1", ["fonte-faq", "fonte-conversas"]]]);
   });
 });

@@ -184,7 +184,10 @@ import { instrucaoDeBolhas, sendInBubbles, splitForSend } from './split-message'
 import type { DisclosureMode } from '../guardrails/disclosure/template';
 import { decidePromise } from '../guardrails/promise/engine';
 import { loadPromiseTable } from '../guardrails/promise/table';
-import { criarEvidenciasComerciaisDoTurno } from '../guardrails/promise/evidencias-comerciais';
+import {
+  carregarFontesQueProvamOferta,
+  criarEvidenciasComerciaisDoTurno,
+} from '../guardrails/promise/evidencias-comerciais';
 import { classifyPromise } from '../guardrails/promise/semantic';
 import { expectativaDeAtendimento } from '@/lib/escalacao/disponibilidade';
 import {
@@ -2579,7 +2582,19 @@ async function executarTurnoDoAgente(
   // correlacionar tentativa de promessa fora de tabela com o sinal de jailbreak — a
   // detecção NÃO depende do gate estar na cadeia default (a ordem final é da F4-08).
   const promiseTable = (await loadPromiseTable(pool, tenantId))?.table ?? null;
-  const evidenciasComerciais = criarEvidenciasComerciaisDoTurno(agentConfig?.knowledgeSourceIds ?? []);
+  // Falha fechada: sem saber o tipo da fonte, nenhum trecho de conhecimento prova
+  // oferta, e a conferência de promessa age como agia antes das evidências.
+  const fontesQueProvamOferta = await carregarFontesQueProvamOferta(
+    pool,
+    tenantId,
+    agentConfig?.knowledgeSourceIds ?? [],
+  ).catch((err: unknown) => {
+    runLog.warn('tipos das fontes de conhecimento indisponíveis — nenhum trecho prova oferta', {
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 160),
+    });
+    return [];
+  });
+  const evidenciasComerciais = criarEvidenciasComerciaisDoTurno(fontesQueProvamOferta);
   // Gate 5 da cadeia (F4-02/F4-08): closure do classificador semântico com tenant/lead/job da
   // ROW do job fechados dentro (regra dura nº 1) — resolvido pelo seam agnóstico. undefined =
   // camada off (gate no-op). CUSTO: uma chamada de modelo POR ENVIO quando ligada.

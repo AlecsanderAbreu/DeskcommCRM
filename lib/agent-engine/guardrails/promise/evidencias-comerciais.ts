@@ -10,6 +10,41 @@ export interface EvidenciaComercial {
   conteudo: string;
 }
 
+import { canonizarTipoDeFonte, type TipoDeFonteId } from "@/lib/ai/rag/tipos-de-fonte";
+import type { Queryable } from "../../queue/queue";
+
+/**
+ * Lista de PERMISSÃO, não de bloqueio: "Conversas anteriores" guarda o que o
+ * CLIENTE escreveu, e um cliente não autoriza oferta. Tipo legado é canonizado
+ * antes (`conversations` vira `conversas`), e tipo desconhecido fica de fora.
+ */
+const TIPOS_QUE_PROVAM_OFERTA: ReadonlySet<TipoDeFonteId> = new Set(["faq", "documento", "catalogo"]);
+
+export function fontesQueProvamOferta(
+  fontes: readonly { id: string; source_type: string }[],
+): string[] {
+  return fontes
+    .filter((f) => {
+      const tipo = canonizarTipoDeFonte(f.source_type);
+      return tipo !== null && TIPOS_QUE_PROVAM_OFERTA.has(tipo);
+    })
+    .map((f) => f.id);
+}
+
+/** Fontes do agente que podem provar oferta. Org da linha do job, nunca do modelo. */
+export async function carregarFontesQueProvamOferta(
+  db: Queryable,
+  tenantId: string,
+  fontesDoAgente: readonly string[],
+): Promise<string[]> {
+  if (fontesDoAgente.length === 0) return [];
+  const { rows } = await db.query<{ id: string; source_type: string }>(
+    "select id::text as id, source_type from ai_knowledge_sources where organization_id = $1 and id = any($2::uuid[])",
+    [tenantId, fontesDoAgente],
+  );
+  return fontesQueProvamOferta(rows);
+}
+
 const MAX_EVIDENCIAS = 20;
 const MAX_CARACTERES = 16_000;
 const MAX_POR_EVIDENCIA = 4_000;
