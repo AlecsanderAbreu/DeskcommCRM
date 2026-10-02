@@ -999,7 +999,7 @@ export const AUDIT_ACTIONS = [
   "company_people.updated",
   "contacts.person_linked",
   "imports.companies_people",
-  // A chave de Mapas da organização (0503, Agente de IA › Provedores): gravada ou
+  // A chave de Mapas da organização (0504, Agente de IA › Provedores): gravada ou
   // trocada, e removida. O metadata diz O QUE mudou — nunca a chave.
   "ai.maps_credential_saved",
   "ai.maps_credential_removed",
