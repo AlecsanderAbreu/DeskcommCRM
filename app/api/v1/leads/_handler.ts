@@ -749,9 +749,12 @@ export async function updateLeadHandler(
     //
     // O valor anterior NÃO é guardado em lugar nenhum — nem aqui, nem no
     // `api_audit_log`, que registra `lead.updated` com só `{ fields }` (os
-    // NOMES dos campos, nunca o antes-e-depois). Guardar o valor seria
-    // duplicar PII fora do alcance da proteção; por decisão (#1755), o
-    // histórico de valores não existe. Quem precisa dele não tem onde buscar.
+    // NOMES dos campos, nunca o antes-e-depois). Pôr lá o valor do título ou
+    // de `custom_fields` também seria PII fora do alcance da proteção: o audit
+    // é append-only e a anonimização da LGPD (lib/lgpd/cascata.ts) não o
+    // alcança. Guardar o antes-e-depois só de campos tipados sem PII é
+    // pergunta aberta na #1755, sem decisão. Hoje, quem precisa do valor
+    // anterior não tem onde buscar.
     //
     // NÃO confunda com a atividade de autorização vencida (wave 4), que mostra
     // antes-e-depois DE PROPÓSITO: lá o texto é a proposta do PRÓPRIO AGENTE,

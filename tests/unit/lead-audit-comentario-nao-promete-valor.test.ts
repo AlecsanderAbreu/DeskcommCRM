@@ -17,8 +17,10 @@ import { describe, expect, it } from "vitest";
  * que pensasse em pôr o antes-e-depois na timeline era desviada para um lugar
  * vazio.
  *
- * Saída escolhida (a): o comentário agora diz que o valor anterior NÃO é
- * guardado, por decisão de PII. Este arquivo é o gate dessa decisão.
+ * O comentário agora diz o que o código faz hoje: o valor anterior NÃO é
+ * guardado. Se o projeto passar a guardar o antes-e-depois de campos tipados
+ * (saída (b) da #1755, ainda sem decisão), este arquivo fica vermelho de
+ * propósito, e o comentário muda junto.
  *
  * ─── Por que ler o fonte em vez de testar a rota com handler dublado ──────
  * O que regride aqui é um TEXTO — a justificativa escrita ao lado do `reason`.
