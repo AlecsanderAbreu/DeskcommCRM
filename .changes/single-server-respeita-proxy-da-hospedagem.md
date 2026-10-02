@@ -1,8 +1,8 @@
 ---
-impacto: capacidade_nova
+impacto: nada_mudou
 secao: corrigido
-titulo: A instalação em modo single-server passa a respeitar um Traefik ou Nginx Proxy Manager que já ocupa as portas 80/443
+titulo: O instalador single-server deixa de apagar o REVERSE_PROXY escolhido no ambiente
 ---
-Quem já tem um proxy reverso próprio na VPS (Traefik do painel da hospedagem, Nginx Proxy Manager) não conseguia instalar o modo single-server por cima dele: o instalador gravava `REVERSE_PROXY=caddy` no `.env`, apagando a escolha feita no ambiente, e o kit montava os comandos de `docker compose` sem o overlay do proxy — o Caddy da instalação tentava abrir as portas 80/443 que já estavam tomadas e a instalação parava no meio. Agora basta exportar `REVERSE_PROXY=traefik` (ou `npm`) antes de rodar o `install-single-server.sh`: o valor chega ao `.env` gravado e todo `docker compose` do modo single-server inclui o arquivo de overlay do proxy, na frente do Caddy. Sem a variável no ambiente nada muda — o padrão continua sendo o Caddy do kit, exatamente como hoje. O que ainda falta (a regra do Supabase no overlay do Traefik) segue aberto na #2099.
+O `install-single-server.sh` gravava `REVERSE_PROXY=caddy` fixo no `.env`, e os comandos de `docker compose` do modo single-server nunca incluíam o arquivo do Traefik ou do Nginx Proxy Manager. Agora o valor exportado chega ao `.env` e o arquivo do proxy entra junto. Sem a variável, nada muda: o padrão continua sendo o Caddy do kit. **A instalação single-server atrás de um proxy próprio ainda não conclui**: com Traefik, a fase 2 para com 404 por falta da rota do Supabase (medido na #2099); o Nginx Proxy Manager não foi testado. Isso segue aberto na #2099.
 
-Crédito: #2150 (@webtecnica).
+Crédito: #2150 (@webtecnica), construído sobre o diagnóstico de @brunno-soaress na #2099.
