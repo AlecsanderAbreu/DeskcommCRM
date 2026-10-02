@@ -71,10 +71,19 @@ compilado na imagem e o SQL do módulo é escrito à mão dentro do repositório
 ### Os três fatos que fecham o espaço de soluções
 
 1. **O processo do app carrega a role DONA do Postgres.** Nos três modos que o instalador monta
-   sozinho, a `SUPABASE_DB_URL` que o app e o worker recebem é a role `postgres`: `rolbypassrls`,
-   `rolcreaterole`, dona do schema `public` e das funções, com `net.http_post` e com poder de
-   desligar triggers. O processo também tem as chaves de cifra e a service key. **Qualquer código de
-   terceiro dentro desse processo herda tudo isso** — e nenhuma permissão de linguagem o contém.
+   sozinho, a `SUPABASE_DB_URL` que o app e o worker recebem é a role `postgres`. Medido no catálogo
+   da imagem `supabase/postgres` (15 e 17): `rolbypassrls`, `rolcreaterole`, dona do schema `public`
+   e das funções, com `net.http_post` e com poder de desligar triggers. Para o Supabase **na nuvem**,
+   que é o padrão, isto é INFERIDO da mesma imagem e da mesma configuração de `supautils`, e vale
+   medir antes de apoiar qualquer decisão só nisso — a conclusão abaixo não depende de os privilégios
+   serem idênticos lá. O processo também tem as chaves de cifra e a service key. **Qualquer código de
+   terceiro dentro desse processo herda o que o processo tem** — e nenhuma permissão de linguagem o
+   contém. Confira a origem da credencial sem acreditar nesta linha:
+
+   ```bash
+   grep -n "SUPABASE_DB_URL=" hostgator-setup-kit/supabase-provision.sh
+   grep -n "SUPABASE_DB_ADMIN_URL" docker-compose.prod.yml   # a admin é esvaziada: cerca a mais, não a que sustenta
+   ```
 2. **A imagem é única e nada constrói na VPS** (ADR-0001). O Next 16 App Router compila rotas e
    Server Components em tempo de build. Não existe drop-in de pasta como no Perfex, que é PHP
    interpretado.
