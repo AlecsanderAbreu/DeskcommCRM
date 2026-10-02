@@ -303,7 +303,12 @@ export async function processarConversao(
   }
 
   if (valorPodeVirDaConversa) await lerOValorNaConversa();
-  const modoDeValor = credencial.credencial.google?.modoDeValorDaVenda ?? "obrigatorio";
+  // O modo de valor é do Google (0436). A Meta exige valor na compra sempre —
+  // agora que a decisão dela também passa por aqui, a plataforma é explícita.
+  const modoDeValor =
+    plataforma === "google_ads"
+      ? (credencial.credencial.google?.modoDeValorDaVenda ?? "obrigatorio")
+      : "obrigatorio";
   if (semValor && modoDeValor === "obrigatorio") {
     await registra("skipped", "sem_valor");
     return ok("skipped", "sem_valor");
