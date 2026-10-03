@@ -13827,6 +13827,20 @@ export const DICIONARIO: Traducoes = {
   "Comandos pelo celular ligados — já valem no próximo atendimento.":
     { es: "Comandos desde el celular activados — ya valen en la próxima atención." },
   "Comandos pelo celular desligados.": { es: "Comandos desde el celular desactivados." },
+  // ─── #2209 — Limiar de sentimento na tela do agente ───
+  "Limiar de sentimento": { es: "Umbral de sentimiento" },
+  "Nota mínima do clima, de 0 a 1": { es: "Nota mínima del clima, de 0 a 1" },
+  "Digite um valor entre 0 e 1.": { es: "Escribe un valor entre 0 y 1." },
+  "Abaixo desta nota o clima é considerado fechado e a conversa passa para uma pessoa. Quem só descreve o problema que o trouxe até aqui não irritou ninguém, então esse relato não deve custar a passagem para o humano.":
+    {
+      es: "Por debajo de esta nota el clima se considera cerrado y la conversación pasa a una persona. Quien solo describe el problema que lo trajo hasta aquí no irritó a nadie, así que ese relato no debería costar la transferencia a la persona.",
+    },
+  "Em nichos onde todo contato chega como queixa — advocacia, saúde, assistência técnica —, relatar o problema não é irritação. O que aciona a passagem é hostilidade com o atendimento, ameaça ou pedido agressivo de falar com uma pessoa.":
+    {
+      es: "En nichos donde todo contacto llega como queja — abogacía, salud, asistencia técnica —, relatar el problema no es irritación. Lo que activa la transferencia es hostilidad hacia la atención, amenaza o pedido agresivo de hablar con una persona.",
+    },
+  "Limiar de sentimento salvo — vale a partir do próximo clima classificado.":
+    { es: "Umbral de sentimiento guardado — vale a partir del próximo clima clasificado." },
   // ─── #1540 — lembrete interno (cercas de espanhol) ───
   "sem mensagem ao cliente": { es: "sin mensaje al cliente" },
   "Título da tarefa": { es: "Título de la tarea" },
