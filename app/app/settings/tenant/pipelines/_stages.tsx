@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -489,6 +489,23 @@ export function StagesSection({
                 </Button>
               </div>
 
+              {/* #1532: a janela de "esfriando" é configuração da etapa, não
+                  coluna do quadro — ela mora aqui, na segunda linha, com
+                  rótulo próprio. Ganhar uma coluna no cabeçalho exigiria
+                  medir `LARGURA` em dois lugares e apertar uma linha que já
+                  carrega nome, chance, ordem, papel e arquivar. */}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                <span className="font-medium">
+                  {t("Janela de esfriando (vazio = 24 h de padrão)")}
+                </span>
+                <JanelaDaEtapa
+                  key={`janela-${etapa.id}-${etapa.expected_duration_hours ?? "padrao"}`}
+                  etapa={etapa}
+                  desabilitado={ocupado}
+                  aoConfirmar={(valor) => aplicar(etapa.id, { expected_duration_hours: valor })}
+                />
+              </div>
+
               {/* Uma coluna que apareceu no quadro sem o dono ter criado precisa
                   dizer de onde veio — senão o assistente muda o funil e a única
                   pista fica no log que nenhuma tela lê. */}
@@ -749,6 +766,124 @@ export function StagesSection({
  * `key` na linha de cima remonta o campo quando o valor GRAVADO muda, então uma
  * edição de outra aba não fica escondida atrás de um rascunho velho.
  */
+/**
+ * A janela de "esfriando" da etapa, editada no lugar em DIAS e HORAS (#1532).
+ *
+ * A coluna é `crm_stages.expected_duration_hours` em HORAS, mas ninguém pensa
+ * "72 horas" — pensa "3 dias". A conversão acontece AQUI, na ponta: o PATCH
+ * manda horas inteiras, e a régua (1 a 8760) é a mesma da rota.
+ *
+ * Mesmo contrato do nome e da chance: salva ao CONFIRMAR, nunca a cada tecla.
+ * VAZIO nos dois campos = sem janela configurada, e limpar é um valor
+ * legítimo — a etapa volta ao padrão de 24 h/72 h do radar
+ * (`resolveStageWindow`), que é o estado de quem nunca mexeu nisso.
+ *
+ * O blur NÃO salva quando o foco só está passando para o outro campo do
+ * PAR: sem isto, digitar "2" dias e Tab para as horas gravaria 48 h por um
+ * instante — dois PATCHes e um valor que ninguém digitou.
+ */
+function JanelaDaEtapa({
+  etapa,
+  desabilitado,
+  aoConfirmar,
+}: {
+  etapa: EtapaDoFunil;
+  desabilitado: boolean;
+  aoConfirmar: (valor: number | null) => void;
+}) {
+  const t = useT();
+  const gravada = etapa.expected_duration_hours ?? null;
+  const rascunhoDe = (horas: number | null, pedaco: "dias" | "horas") => {
+    if (horas == null) return "";
+    return pedaco === "dias" ? String(Math.floor(horas / 24)) : String(horas % 24);
+  };
+  const [dias, setDias] = useState(rascunhoDe(gravada, "dias"));
+  const [hora, setHora] = useState(rascunhoDe(gravada, "horas"));
+  const diasRef = useRef<HTMLInputElement>(null);
+  const horaRef = useRef<HTMLInputElement>(null);
+
+  function restaurar() {
+    setDias(rascunhoDe(gravada, "dias"));
+    setHora(rascunhoDe(gravada, "horas"));
+  }
+
+  function confirmar() {
+    const brutoDias = dias.trim();
+    const brutoHoras = hora.trim();
+    // Vazio NOS DOIS = limpar = voltar ao padrão de 24 h. Um dos dois
+    // preenchido vale como o outro sendo zero ("2 dias" não é "2 dias + nada").
+    if (brutoDias === "" && brutoHoras === "") {
+      if (gravada !== null) aoConfirmar(null);
+      return;
+    }
+    const d = brutoDias === "" ? 0 : Number(brutoDias);
+    const h = brutoHoras === "" ? 0 : Number(brutoHoras);
+    const total = d * 24 + h;
+    if (!Number.isInteger(d) || !Number.isInteger(h) || d < 0 || h < 0 || total < 1 || total > 8760) {
+      restaurar();
+      toast.error(t("A janela de esfriando vai de 1 hora a 8760 horas (365 dias)."));
+      return;
+    }
+    if (total === gravada) return;
+    aoConfirmar(total);
+  }
+
+  /** Só confirma quando o foco SAI do par — ver o docstring acima. */
+  function aoTeclar(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") event.currentTarget.blur();
+    if (event.key === "Escape") {
+      restaurar();
+      event.currentTarget.blur();
+    }
+  }
+
+  const rotulo = t("Janela de esfriando");
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Input
+        ref={diasRef}
+        type="number"
+        min={0}
+        step={1}
+        inputMode="numeric"
+        value={dias}
+        disabled={desabilitado}
+        placeholder="0"
+        aria-label={`${rotulo} — ${t("dias")} — «${etapa.name}»`}
+        data-testid={`janela-dias-${etapa.id}`}
+        onChange={(e) => setDias(e.target.value)}
+        onBlur={(e) => {
+          if (e.relatedTarget === horaRef.current) return;
+          confirmar();
+        }}
+        onKeyDown={aoTeclar}
+        className="w-[76px]"
+      />
+      <span aria-hidden>{t("dias")}</span>
+      <Input
+        ref={horaRef}
+        type="number"
+        min={0}
+        step={1}
+        inputMode="numeric"
+        value={hora}
+        disabled={desabilitado}
+        placeholder="0"
+        aria-label={`${rotulo} — ${t("horas")} — «${etapa.name}»`}
+        data-testid={`janela-horas-${etapa.id}`}
+        onChange={(e) => setHora(e.target.value)}
+        onBlur={(e) => {
+          if (e.relatedTarget === diasRef.current) return;
+          confirmar();
+        }}
+        onKeyDown={aoTeclar}
+        className="w-[64px]"
+      />
+      <span aria-hidden>{t("horas")}</span>
+    </span>
+  );
+}
+
 function ProbabilidadeDaEtapa({
   etapa,
   desabilitado,
