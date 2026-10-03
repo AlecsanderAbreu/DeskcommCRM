@@ -8,6 +8,7 @@ const estado = vi.hoisted(() => ({
   settings: {} as Record<string, unknown>,
   updates: [] as unknown[],
   audits: [] as Array<Record<string, unknown>>,
+  emDivida: false,
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -19,6 +20,7 @@ vi.mock("@/lib/auth/server", () => ({
   resolveActiveOrg: async () => ({ orgId: "o1", role: estado.role }),
   sessionAal: async () => "aal2",
   isMfaEnrolled: async () => true,
+  mfaEmDivida: async () => estado.emDivida,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
@@ -36,6 +38,7 @@ beforeEach(() => {
   estado.settings = {};
   estado.updates = [];
   estado.audits = [];
+  estado.emDivida = false;
 });
 
 describe("definirExigenciaDeMfa (#2163)", () => {
@@ -44,6 +47,14 @@ describe("definirExigenciaDeMfa (#2163)", () => {
     const r = await definirExigenciaDeMfa({ minRole: "agent", graceDays: 0 });
     expect(r.ok).toBe(false);
     expect(estado.updates).toHaveLength(0);
+  });
+
+  it("admin com fator NÃO provado nesta sessão é recusado também no nível mínimo e na carência", async () => {
+    estado.emDivida = true;
+    const r = await definirExigenciaDeMfa({ minRole: "agent", graceDays: 7 });
+    expect(r.ok).toBe(false);
+    expect(estado.updates).toHaveLength(0);
+    expect(estado.audits).toHaveLength(0);
   });
 
   it("papel fora da lista e carência fora de 0..30 são recusados", async () => {

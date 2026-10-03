@@ -1233,6 +1233,9 @@ export const DICIONARIO: Traducoes = {
   Inbox: { es: "Inbox" },
   Agenda: { es: "Agenda" },
   Radar: { es: "Radar" },
+  // A porta do tema de extensão (#1095). `theme.apply` não abre tela — pinta o
+  // produto; o label entra aqui para não degradar em silêncio no espanhol.
+  "Seu tema na tela": { es: "Tu tema en pantalla" },
   "Respostas rápidas": { es: "Respuestas rápidas" },
   Contatos: { es: "Contactos" },
   // A CHAVE É O TEXTO PT-BR, então renomear um rótulo no registro de navegação
@@ -3735,6 +3738,42 @@ export const DICIONARIO: Traducoes = {
   "O botão 'Preencher com a conversa' não sugere nada, e quem revisa preenche cada campo lendo a conversa manualmente.": {
     es: "El botón 'Completar con la conversación' no sugiere nada, y quien revisa completa cada campo leyendo la conversación manualmente.",
   },
+  "Escolha um evento da lista para cada etapa ligada.": {
+    es: "Elija un evento de la lista para cada etapa activada.",
+  },
+  "Etapas recomendadas ligadas. Confira e salve.": {
+    es: "Etapas recomendadas activadas. Revise y guarde.",
+  },
+  "Crie um funil com etapas para escolher o que cada etapa informa à Meta.": {
+    es: "Cree un embudo con etapas para elegir qué informa cada etapa a Meta.",
+  },
+  "O que cada etapa do funil informa à Meta": {
+    es: "Qué informa cada etapa del embudo a Meta",
+  },
+  "Além da venda, a Meta pode saber de quem recebeu orçamento ou agendou. Cada etapa ligada envia o seu evento uma vez por negócio, quando ele entra ali, e o anúncio aprende antes de a venda fechar.": {
+    es: "Además de la venta, Meta puede saber quién recibió un presupuesto o agendó. Cada etapa activada envía su evento una vez por negocio, cuando entra en ella, y el anuncio aprende antes de que se cierre la venta.",
+  },
+  "não envia evento": {
+    es: "no envía evento",
+  },
+  "Enviar evento à Meta nesta etapa": {
+    es: "Enviar evento a Meta en esta etapa",
+  },
+  "Evento enviado à Meta": {
+    es: "Evento enviado a Meta",
+  },
+  "Lead enviado": {
+    es: "Lead enviado",
+  },
+  "Início de compra (orçamento)": {
+    es: "Inicio de compra (presupuesto)",
+  },
+  "Viu o conteúdo": {
+    es: "Vio el contenido",
+  },
+  "Os eventos só saem quando o negócio muda de etapa — pela equipe, pela IA ou por automação — e só para quem veio de anúncio da Meta. Saem sem valor: o valor vai na compra. Movimentos anteriores a ligar a regra não são enviados.": {
+    es: "Los eventos solo salen cuando el negocio cambia de etapa — por el equipo, por la IA o por automatización — y solo para quien vino de un anuncio de Meta. Salen sin valor: el valor va en la compra. Los movimientos anteriores a activar la regla no se envían.",
+  },
   "Ler o valor da venda na conversa": {
     es: "Leer el valor de la venta en la conversación",
   },
@@ -5404,6 +5443,10 @@ export const DICIONARIO: Traducoes = {
   "Mover um lead para outro funil está desligado nesta organização.": {
     es: "Mover un lead a otro embudo está desactivado en esta organización.",
   },
+  "Outra regra deste mesmo evento já levou o lead para outro funil. Vale a primeira regra; esta não transfere de novo.":
+    {
+      es: "Otra regla de este mismo evento ya llevó el lead a otro embudo. Vale la primera regla; esta no lo transfiere de nuevo.",
+    },
   "O funil escolhido não está ativo, então a inscrição não foi feita. Ative o funil ou escolha outro na automação.":
     {
       es: "El embudo elegido no está activo, así que la inscripción no se hizo. Activa el embudo o elige otro en la automatización.",
@@ -13902,6 +13945,15 @@ export const DICIONARIO: Traducoes = {
   "Dê um rótulo ao campo.": { es: "Ponle una etiqueta al campo." },
   'Em "Ações após o envio", adicione "Webhook" e cole o endereço acima em "URL do Webhook".': { es: 'En "Acciones después del envío", agrega "Webhook" y pega la dirección de arriba en "URL del Webhook".' },
   'Adicione a ação "Call Webhook" ao formulário e cole o endereço acima.': { es: 'Agrega la acción "Call Webhook" al formulario y pega la dirección de arriba.' },
+
+  // ─── Janela de "esfriando" da etapa editável (issue #1532) ───
+  "Janela de esfriando (vazio = 24 h de padrão)": {
+    es: "Ventana de enfriamiento (vacío = 24 h predeterminada)",
+  },
+  "Janela de esfriando": { es: "Ventana de enfriamiento" },
+  "A janela de esfriando vai de 1 hora a 8760 horas (365 dias).": {
+    es: "La ventana de enfriamiento va de 1 hora a 8760 horas (365 días).",
+  },
 };
 
 /**
