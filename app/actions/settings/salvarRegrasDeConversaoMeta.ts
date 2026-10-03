@@ -15,7 +15,7 @@ import { z } from "zod";
 
 import { audit } from "@/lib/audit";
 import { loadAuthUser, mfaEmDivida, resolveActiveOrg } from "@/lib/auth/server";
-import { ROLE_RANK, escreveComoPlatformAdmin } from "@/lib/auth/types";
+import { podeAdministrarEmpresa } from "@/lib/auth/pode-administrar-empresa";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { eventoDaEtapaMeta, VALORES_DE_EVENTO_DA_META } from "@/lib/conversoes/regras-meta";
 
@@ -62,10 +62,7 @@ export async function salvarRegrasDeConversaoMeta(
   if (supportWriteError(authUser.support)) return { ok: false, error: "forbidden_role" };
   const activeOrg = await resolveActiveOrg(authUser);
   if (!activeOrg) return { ok: false, error: "forbidden_tenant" };
-  if (
-    !(escreveComoPlatformAdmin(authUser) && !authUser.support) &&
-    ROLE_RANK[activeOrg.role] < ROLE_RANK.admin
-  ) {
+  if (!podeAdministrarEmpresa(authUser, activeOrg)) {
     return { ok: false, error: "forbidden_role" };
   }
   if (await mfaEmDivida()) return { ok: false, error: "mfa_required" };
