@@ -26,6 +26,7 @@ import { audit } from "@/lib/audit";
 import { loadAuthUser, mfaEmDivida, resolveActiveOrg } from "@/lib/auth/server";
 import { podeAdministrarEmpresa } from "@/lib/auth/pode-administrar-empresa";
 import { supportWriteError } from "@/lib/impersonate/support";
+import { FORMA_DO_ID_META } from "@/lib/plataformas-de-anuncio/meta/identidade";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ResultadoIdentidadeDaConversao =
@@ -42,11 +43,15 @@ export type ResultadoIdentidadeDaConversao =
     };
 
 /**
- * Id da Meta: só dígitos (`^\d{0,64}$`), vazio permitido. Rejeitar torto aqui
- * é o mesmo filtro de `identidadeDaMeta` do lado da leitura — as duas pontas
- * conferem a mesma forma, e nenhuma delas deixa valor estranho chegar ao fio.
+ * Id da Meta: `FORMA_DO_ID_META` (de 5 a 64 dígitos), ou vazio para apagar.
+ * É a MESMA constante que `identidadeDaMeta` usa na leitura — as duas pontas
+ * conferem a mesma forma por construção, e nenhuma delas deixa valor estranho
+ * chegar ao fio nem aceita aqui o que a leitura descartaria.
  */
-const idMeta = z.string().trim().regex(/^\d{0,64}$/, "só dígitos, até 64");
+const idMeta = z
+  .string()
+  .trim()
+  .refine((v) => v === "" || FORMA_DO_ID_META.test(v), "só dígitos, de 5 a 64");
 
 const entradaSchema = z.object({
   page_id: idMeta,

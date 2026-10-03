@@ -44,13 +44,20 @@ export const SEM_IDENTIDADE: IdentidadeDaConversaoMeta = {
 
 /**
  * Id da Meta: só dígitos, com folga para os dois formatos (Página e WABA).
+ * Exportada porque a gravação (`definirIdentidadeDaConversao`) confere a MESMA
+ * forma: com duas regex, a tela aceitava "1234", dizia "Identidade salva." e a
+ * leitura descartava o valor em silêncio.
+ */
+export const FORMA_DO_ID_META = /^\d{5,64}$/;
+
+/**
  * O que não casar volta `null` — valor torto não vai para o fio, porque uma
  * recusa da Meta por id malformado seria indistinguível da recusa por id faltando.
  */
 function idValido(valor: unknown): string | null {
   if (typeof valor !== "string") return null;
   const limpo = valor.trim();
-  return /^\d{5,64}$/.test(limpo) ? limpo : null;
+  return FORMA_DO_ID_META.test(limpo) ? limpo : null;
 }
 
 /**
