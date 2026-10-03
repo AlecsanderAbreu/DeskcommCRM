@@ -254,11 +254,13 @@ function numerosDaSemana(linhas: readonly LinhaDaSemana[]) {
 
 /**
  * A nota chamaria uma pessoa? O corte é `DEFAULT_SENTIMENT_THRESHOLD`
- * (`lib/ai/prompts/sentiment.ts:34`), o mesmo que `workers/ai-sentiment-worker.ts`
- * compara (`score < threshold`) para emitir `ai.sentiment_alert`.
- * ponytail: o limiar por agente (`config.sentiment_threshold`) não entra — não
- * tem tela que o grave hoje. Se ganhar, o worker passa a gravar o limiar usado
- * em `messages.metadata` e a conta lê de lá.
+ * (exportado de `lib/ai/prompts/sentiment.ts`), o padrão que
+ * `workers/ai-sentiment-worker.ts` compara (`score < threshold`) para emitir
+ * `ai.sentiment_alert` quando o agente não configurou o seu.
+ * ponytail: o limiar por agente (`config.sentiment_threshold`, com tela desde o
+ * #2216) não entra aqui — um agente em 0,1 tem a concordância medida contra 0,3.
+ * O conserto é o worker gravar o limiar usado em `messages.metadata` e esta
+ * conta ler de lá (issue #2219).
  */
 const abaixo = (n: number) => n < DEFAULT_SENTIMENT_THRESHOLD;
 
