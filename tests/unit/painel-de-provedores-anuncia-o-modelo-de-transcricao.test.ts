@@ -64,6 +64,11 @@ function comTranscricaoNoEnv(t: { model: string; apiKey?: string; baseUrl?: stri
   vi.stubEnv("TRANSCRIPTION_MODEL", t.model);
   vi.stubEnv("TRANSCRIPTION_API_KEY", t.apiKey ?? "");
   vi.stubEnv("TRANSCRIPTION_BASE_URL", t.baseUrl ?? "");
+  // A escada só entra no degrau OpenAI se EXISTIR chave OpenAI — e é essa a
+  // pergunta que a tela, como o worker, precisa responder (#2190). Sem esta
+  // chave os casos abaixo cairiam no degrau do modelo de conversa (a
+  // organização mockada não tem padrão nenhum) e anunciariam "—".
+  vi.stubEnv("OPENAI_API_KEY", "chave-openai-de-controle");
 }
 
 describe("GET /api/v1/ai/providers — modelo de transcrição em vigor", () => {

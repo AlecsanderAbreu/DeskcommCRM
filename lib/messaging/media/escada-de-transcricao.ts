@@ -31,12 +31,31 @@
  *     áudio. `transcreveAudio` é o registro de capacidades (`capabilities.ts`).
  *  4. **Nada** — resposta legítima, com o motivo. É o que o item 2 da issue
  *     pede: hoje "ninguém tentou" e "tentou e não deu" são o mesmo nulo.
+ *
+ * ── Quem ANUNCIA esta escada (#2190) ────────────────────────────────────────
+ *
+ * A tela de Provedores precisa dizer o MESMO que aqui se decide — e não
+ * dizia: o registro fixava `provider: "openai"` / `modelId: "whisper-1"` no
+ * ponto, então a organização da #2190 (Gemini, sem conta OpenAI, transcrevendo
+ * pelo próprio modelo de conversa) via `whisper-1` na tela, ao lado de um texto
+ * dizendo que "exige uma chave desse serviço". Dois caminhos anunciados para um
+ * mesmo áudio.
+ *
+ * Por isso cada degrau devolve, junto do transcriber, o `anuncio` — provider e
+ * modelo daquele degrau. A rota do painel roda esta escada e entrega a decisão
+ * ao resolvedor (`lib/ai/pontos/resolver.ts`), que é quem fala com o operador:
+ * UM lugar decide, os dois lados leem o mesmo lugar, e a régua em
+ * `tests/unit/a-tela-e-o-motor-concordam-sobre-imagem.test.ts` compara os dois.
+ *
+ * Os knobs de transcrição são lidos do `process.env` NA HORA, e não do retrato
+ * que `lib/env` faz no import: é a MESMA leitura no worker e na rota, e é a
+ * única que `vi.stubEnv` alcança em teste — um retrato diria `whisper-1` para
+ * sempre, com o valor de quando o módulo entrou.
  */
 import { generateText } from "ai";
 
 import { transcreveAudio } from "@/lib/agent-engine/edge/llm/capabilities";
 import { createDefaultRegistry } from "@/lib/agent-engine/edge/llm/providers";
-import { env } from "@/lib/env";
 
 import type { TranscriptionProvider } from "@/lib/messaging/media/transcription";
 import {
@@ -50,6 +69,21 @@ export type OrigemDaTranscricao =
   | "modelo_da_organizacao"
   | "padrao_openai_compativel"
   | "nada";
+
+/** O que o degrau escolhido RODA — e o que a tela pode anunciar. */
+export interface AnuncioDaTranscricao {
+  /**
+   * Provedor/protocolo do degrau. `"openai"` nos degraus 1 e 2 é PROTOCOLO
+   * (`/v1/audio/transcriptions`), não a empresa: o degrau 1 aceita outro
+   * serviço compatível via `TRANSCRIPTION_BASE_URL`.
+   */
+  provider: string;
+  /**
+   * `null` SÓ no degrau `nada`: não há o que anunciar, e a tela diz "—" em vez
+   * de prometer um caminho que ninguém vai usar.
+   */
+  modelId: string | null;
+}
 
 /** O modelo de CONVERSA da organização, já resolvido pelo worker. */
 export interface ConversaDaOrganizacao {
@@ -68,6 +102,13 @@ export interface DecisaoDeTranscricao {
    * o operador vê `failed` e não sabe o que fazer a seguir.
    */
   motivo: string;
+  /** O anúncio fiel do degrau escolhido — a tela repassa ao resolvedor. */
+  anuncio: AnuncioDaTranscricao;
+}
+
+/** Um knob do `.env`, lido na hora em vez do retrato do import. */
+function doAmbiente(nome: string): string {
+  return (process.env[nome] ?? "").trim();
 }
 
 /**
@@ -90,7 +131,8 @@ function promptDeTranscricao(languages: readonly string[]): string {
 export function transcricaoPeloModelo(modelo: {
   provider: string;
   modelId: string;
-  apiKey: string; baseUrl?: string | null;
+  apiKey: string;
+  baseUrl?: string | null;
   languages?: readonly string[];
 }): TranscriptionProvider {
   const registry = createDefaultRegistry();
@@ -128,21 +170,30 @@ export async function decidirTranscricao(entrada: {
   idiomas?: readonly string[];
   chaveOpenai?: () => Promise<string | null>;
 }): Promise<DecisaoDeTranscricao> {
-  const idiomas = entrada.idiomas ?? idiomasDaTranscricao(env.TRANSCRIPTION_LANGUAGES);
+  const idiomas = entrada.idiomas ?? idiomasDaTranscricao(doAmbiente("TRANSCRIPTION_LANGUAGES"));
 
   // 1 · Serviço de transcrição da instalação — escolha explícita.
-  const servico = env.TRANSCRIPTION_API_KEY;
+  const servico = doAmbiente("TRANSCRIPTION_API_KEY");
   if (servico) {
+    // Com a chave do serviço na mão, `modeloDeTranscricaoEmVigor` devolve
+    // exatamente o modelo que o transcriber abaixo vai mandar: o de
+    // `TRANSCRIPTION_MODEL`, ou `whisper-1` quando vazio.
+    const modelo = modeloDeTranscricaoEmVigor({
+      model: doAmbiente("TRANSCRIPTION_MODEL"),
+      apiKey: servico,
+      baseUrl: doAmbiente("TRANSCRIPTION_BASE_URL"),
+    });
     return {
       origem: "servico_da_instalacao",
       transcriber: apiTranscriptionProvider({
         apiKey: servico,
-        baseUrl: env.TRANSCRIPTION_BASE_URL || undefined,
-        model: env.TRANSCRIPTION_MODEL || undefined,
+        baseUrl: doAmbiente("TRANSCRIPTION_BASE_URL") || undefined,
+        model: doAmbiente("TRANSCRIPTION_MODEL") || undefined,
         languages: idiomas,
       }),
       motivo:
         "o serviço de transcrição configurado nesta instalação (TRANSCRIPTION_API_KEY) é o que ouve os áudios",
+      anuncio: { provider: "openai", modelId: modelo },
     };
   }
 
@@ -150,18 +201,20 @@ export async function decidirTranscricao(entrada: {
   //     organização para ninguém trocar de fornecedor numa atualização.
   const chaveOpenai = entrada.chaveOpenai ? await entrada.chaveOpenai() : null;
   if (chaveOpenai) {
+    const modelo = modeloDeTranscricaoEmVigor({
+      model: doAmbiente("TRANSCRIPTION_MODEL"),
+      apiKey: doAmbiente("TRANSCRIPTION_API_KEY"),
+      baseUrl: doAmbiente("TRANSCRIPTION_BASE_URL"),
+    });
     return {
       origem: "padrao_openai_compativel",
       transcriber: apiTranscriptionProvider({
         apiKey: chaveOpenai,
-        model: modeloDeTranscricaoEmVigor({
-          model: env.TRANSCRIPTION_MODEL,
-        apiKey: env.TRANSCRIPTION_API_KEY,
-          baseUrl: env.TRANSCRIPTION_BASE_URL,
-        }),
+        model: modelo,
         languages: idiomas,
       }),
       motivo: "a chave OpenAI desta organização ou instalação usa o padrão de transcrição de sempre",
+      anuncio: { provider: "openai", modelId: modelo },
     };
   }
 
@@ -182,6 +235,9 @@ export async function decidirTranscricao(entrada: {
         languages: idiomas,
       }),
       motivo: `o modelo de conversa ${conversa.modelId} declara a capacidade audio e transcreve com a própria chave`,
+      // É ESTE anúncio — e não `whisper-1` — que a tela precisa mostrar quando
+      // a organização não tem chave OpenAI (#2190).
+      anuncio: { provider: conversa.provider, modelId: conversa.modelId },
     };
   }
 
@@ -191,5 +247,13 @@ export async function decidirTranscricao(entrada: {
     : conversa.modelId && !transcreveAudio(conversa.provider, conversa.modelId)
       ? `o modelo de conversa ${conversa.modelId} não declara a capacidade audio, e não há chave OpenAI para o serviço de transcrição`
       : "não há chave OpenAI nem modelo de conversa com capacidade audio nesta organização";
-  return { origem: "nada", transcriber: null, motivo };
+  return {
+    origem: "nada",
+    transcriber: null,
+    motivo,
+    // Sem quem transcreva não há provedor nem modelo a anunciar. O `provider`
+    // de quem NÃO vai ser chamado é vazio de propósito: preencher com o padrão
+    // da organização recriaria, na tela, a mentira que esta issue veio matar.
+    anuncio: { provider: conversa?.provider ?? "", modelId: null },
+  };
 }
