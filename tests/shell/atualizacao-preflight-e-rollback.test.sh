@@ -103,6 +103,8 @@ queda_da_versao_nova() {
 case "${1:-}" in
   info|ps|image|inspect|images|run|network|start|rm|volume|logs) exit 0 ;;
   buildx)
+    # `docker buildx version`: o plugin existe, salvo no caso 7.
+    if [ "${2:-}" = version ]; then [ -f "$DUB/sem-buildx" ] && exit 1; exit 0; fi
     # `docker buildx imagetools inspect` é a SONDA do registro: só responde
     # enquanto `$DUB/registro` existir — e, com ele de pé, só para as imagens
     # cuja publicação TERMINOU (`$DUB/voz-pronta` é o interruptor do caso 4).
@@ -239,7 +241,7 @@ preparar_vps() {
   printf '0.8.0\n' > "$DUB/imagens-locais"
   : > "$DUB/registro"                          # o registro está alcançável
   : > "$DUB/voz-pronta"                        # e as QUATRO imagens publicadas
-  rm -f "$DUB/worker-exited" "$DUB/worker-some" "$DUB/trava"
+  rm -f "$DUB/worker-exited" "$DUB/worker-some" "$DUB/trava" "$DUB/sem-buildx"
 }
 
 # rodar_update <raiz> <saída> [VAR=valor ...] → status em RC
@@ -386,6 +388,21 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════════════
+echo "── caso 3b — a saída de escape vale com o registro FORA desde o início"
+# A recusa do portão ensina `DESKCOMM_BUILD_LOCAL=1 … --force`. Com o registro
+# ainda fora, o preflight não pode recusar justamente esse pedido.
+preparar_vps
+rm -f "$DUB/registro"
+R3B="$WORK/caso3b"; mkdir -p "$R3B"; montar_instalacao "$R3B"
+OUT3B="$WORK/saida3b.txt"
+rodar_update "$R3B" "$OUT3B" DESKCOMM_BUILD_LOCAL=1; RC3B="$RC"
+if [ "$RC3B" -eq 0 ] && grep -q -- '-f docker-compose.build.yml build' "$DOCKER_LOG"; then
+  ok "com DESKCOMM_BUILD_LOCAL=1 o preflight não recusa: construiu e concluiu (RC 0)"
+else
+  nao "saída de escape aceita" "RC 0 com build local" "RC $RC3B; $(grep -m1 'Motivo' "$OUT3B")"
+fi
+
+# ════════════════════════════════════════════════════════════════════════════
 echo "── caso 5 — critério 6: app saudável com outro serviço fora do ar VOLTA a versão"
 # O app responde, mas o worker da versão nova caiu (`exited`) ou nem apareceu
 # no `ps`. A atualização não pode fechar como sucesso: tem de sair com falha e
@@ -478,6 +495,18 @@ else
 fi
 rm -f "$DUB/trava"
 PATH="$PATH_ANTES"
+
+# ════════════════════════════════════════════════════════════════════════════
+echo "── caso 7 — sem o plugin buildx, o motivo diz buildx, não DNS"
+preparar_vps
+: > "$DUB/sem-buildx"
+motivo7="$(preflight_atualizacao 0.9.0)"; rc7=$?
+if [ "$rc7" -ne 0 ] && printf '%s' "$motivo7" | grep -q 'buildx' \
+   && ! printf '%s' "$motivo7" | grep -q 'DNS'; then
+  ok "recusa nomeando o plugin buildx ausente"
+else
+  nao "motivo do buildx ausente" "rc≠0 citando buildx e não DNS" "rc $rc7: $motivo7"
+fi
 
 printf '\n'
 if [ "$falhas" -eq 0 ]; then echo "TUDO VERDE"; exit 0; fi

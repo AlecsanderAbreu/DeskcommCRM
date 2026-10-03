@@ -204,10 +204,14 @@ step "Conferindo se dá para atualizar (preflight)"
 if ! MOTIVO_PREFLIGHT="$(preflight_atualizacao "$TARGET_TAG")"; then
   refuse "Atualização NÃO começou — nada foi parado, nada foi baixado, e a versão atual segue no ar.
   Motivo: $MOTIVO_PREFLIGHT
-  Confira a rede e o DNS desta VPS e rode de novo:
+  Resolva o motivo acima e rode de novo:
     bash hostgator-setup-kit/update.sh"
 fi
-c_grn "✓ preflight — as quatro imagens da $TARGET_TAG estão prontas no registro."
+if build_local_pedido; then
+  c_grn "✓ preflight — o Docker respondeu; construção local pedida (DESKCOMM_BUILD_LOCAL), sem depender do registro."
+else
+  c_grn "✓ preflight — as quatro imagens da $TARGET_TAG estão prontas no registro."
+fi
 
 # ── 2. Backup de segurança ANTES de tocar no banco ───────────────────────────
 if [ -z "$SKIP_BACKUP" ]; then

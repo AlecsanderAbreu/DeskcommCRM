@@ -884,6 +884,17 @@ preflight_atualizacao() {  # preflight_atualizacao <versão alvo>
     printf '%s' "o Docker não respondeu em 30s (daemon parado ou travado — veja 'systemctl status docker' e 'journalctl -u docker -n 100')."
     return 1
   fi
+  # Quem pediu construção local de propósito não depende do registro: é a
+  # saída de escape que o próprio portão do build ensina, e recusá-la aqui a
+  # anularia justamente com o registro fora.
+  build_local_pedido && return 0
+  # Sem o plugin buildx a sonda abaixo falha nas quatro imagens, e o motivo
+  # sairia como "registro fora (DNS/rede)" — diagnóstico errado, e o dono iria
+  # mexer na rede de uma VPS cuja rede está boa.
+  if ! com_prazo 20 docker buildx version >/dev/null 2>&1; then
+    printf '%s' "o plugin buildx do Docker não está instalado nesta VPS, e é com ele que confiro se a versão $versao está publicada. Instale o pacote docker-buildx-plugin. Nada foi parado nem baixado."
+    return 1
+  fi
   veredito="$(veredito_das_imagens_da_release "$versao")"
   case "$veredito" in
     prontas) return 0 ;;
@@ -903,9 +914,14 @@ preflight_atualizacao() {  # preflight_atualizacao <versão alvo>
 # `next-build` e a instalação em 502 (#1955, critério 2).
 #
 # → 0 = pode construir aqui.
+build_local_pedido() {  # → 0 quando quem opera pediu construção local de propósito
+  case "${DESKCOMM_BUILD_LOCAL:-}" in 1|sim|s|yes) return 0 ;; esac
+  return 1
+}
+
 build_local_permitido() {  # build_local_permitido <versão alvo>
+  build_local_pedido && return 0
   case "${DESKCOMM_BUILD_LOCAL:-}" in
-    1|sim|s|yes) return 0 ;;   # quem opera pediu de propósito
     0|nao|não|no) return 1 ;;  # quem opera proibiu de propósito
   esac
   [ "$(veredito_das_imagens_da_release "${1:-}")" != "indisponivel" ]
