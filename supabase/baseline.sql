@@ -46529,3 +46529,11 @@ update public.crm_leads l
    and a.source_module = 'canal.ingest'
    and c.channel <> 'whatsapp'
    and l.source = 'whatsapp';
+
+-- ---- tipo do envio no trace (migration 0535) ----
+-- O trace passa a dizer se a tentativa vetada era RESPOSTA ou DISPARO (#2112).
+-- NULL-ável de propósito: linha anterior à 0535 é legado e continua lida como
+-- resposta (o que o código de antes assumia). Sem CHECK — o único escritor é
+-- `tipoDeEnvio()` em lib/agent-engine/guardrails/before-send.ts. Idempotente.
+alter table public.before_send_traces
+  add column if not exists tipo_envio text;

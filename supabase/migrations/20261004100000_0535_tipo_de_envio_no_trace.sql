@@ -1,0 +1,29 @@
+-- manifest: **O `before_send_traces` grava se a tentativa era RESPOSTA ou DISPARO (#2112, seguimento do #2031/#1985).** A cadeia já sabia o tipo (`RunBeforeSendArgs.resposta`, 0495) e o `persistTrace` jogava fora: o INSERT gravava só o veto, então TODO veto era lido como resposta. Dois efeitos: a rota de retenção (`app/api/v1/conversations/[id]/retention/route.ts`) avaliava só a janela `resposta_*` para um disparo de follow-up/campanha e dizia "fora da janela"/"resolvida" com o par de horas errado, e o histórico não tinha por onde distinguir um disparo segurado às 3h de uma resposta. Coluna `tipo_envio text` NULL-ável, SEM CHECK e SEM backfill: `null` é linha anterior a esta migration e continua sendo tratada como `resposta` (o comportamento de antes, zero mudança para dado legado) — a única escrita é `tipoDeEnvio()` em `lib/agent-engine/guardrails/before-send.ts`, que só admite os dois literais. Aditiva e idempotente (`add column if not exists`); apêndice no fim do `baseline.sql`. Gate: `lib/agent-engine/agent/aviso-de-escalacao.test.ts` (a escalação dentro de um follow-up sai como `resposta: false`) e `tests/unit/janela-de-resposta-nos-tres-caminhos.test.ts` (a rota continua julgando cada tipo pela janela certa).
+-- 0535: o trace do before_send guarda o TIPO do envio vetado (#2112).
+--
+-- O DEFEITO: `persistTrace` (`lib/agent-engine/guardrails/before-send.ts`)
+-- escrevia `vetoed_gate`/`vetoed_code` e descartava `args.resposta` — o único
+-- sinal de se a tentativa era uma RESPOSTA a quem escreveu ou um DISPARO de
+-- follow-up. Sem a coluna, todo consumidor assumia resposta:
+--
+--   - a rota de retenção (`[id]/retention/route.ts`) avaliava TODO veto contra a
+--     janela `resposta_*` (#1984). Um disparo retido às 3h aparecia ou como
+--     "resolvido" (janela de resposta aberta) ou como "segurado pela proteção"
+--     citando o par de horas de uma resposta que ninguém escreveu;
+--   - o histórico não respondia "seguramos um DISPARO" — era só um código de veto.
+--
+-- O QUE ESTA COLUNA NÃO MEXE: nenhum gate muda de comportamento por causa dela.
+-- Ela REGISTRA uma decisão que a cadeia já tomou (`RunBeforeSendArgs.resposta`,
+-- default `false` = disparo, 0495); quem decide a janela continua sendo o gate.
+--
+-- POR QUE NULL-ÁVEL E SEM BACKFLILL: as linhas antigas não sabem o que eram —
+-- inventar `disparo` nelas mudaria o aviso de retenção de conversa antiga sem
+-- ninguém ter medido, e `resposta` é exatamente o que o código de antes assumia.
+-- `null` lido como `resposta` mantém cada linha legada com o sentido de sempre.
+--
+-- SEM CHECK de propósito: a coluna tem UM escritor (`tipoDeEnvio()`, que só
+-- devolve `resposta`/`disparo`) e a leitura normaliza (`tipoDoTrace`), então o
+-- vocabulário não vive em dois lugares para divergir — a mesma régua de
+-- `crm_lead_activities.type`, escrita em `lib/leads/activity-vocabulary.ts`.
+alter table public.before_send_traces
+  add column if not exists tipo_envio text;
