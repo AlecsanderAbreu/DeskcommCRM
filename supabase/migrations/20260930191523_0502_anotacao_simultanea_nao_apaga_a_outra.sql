@@ -1,3 +1,4 @@
+-- manifest: **Campos diferentes gravados ao mesmo tempo no mesmo negócio não se apagam mais (corrida no servidor; a ficha que reenvia o valor velho segue à parte).** `updateLeadHandler` mesclava `custom_fields` no aplicativo (`{ ...prev, ...novo }`, com `prev` de uma leitura anterior): duas escritas simultâneas com chaves diferentes perdiam uma, sem erro e sem log. Vale para o `PATCH /api/v1/leads/[id]` e para a ferramenta MCP `crm_update_lead`; a rota `move` já estava protegida pelo `expected_updated_at`. A mescla passa para `fn_lead_anotar_campos`, que faz `custom_fields || $1` numa única instrução `UPDATE`: em READ COMMITTED quem chega depois espera o commit e recalcula sobre a linha vigente. `security definer`, `EXECUTE` só para `service_role`. Idempotente, sem dado a corrigir.
 -- 0502 — duas anotações ao mesmo tempo não apagam uma à outra.
 --
 -- ─── O defeito, medido na main de 2026-09-30 ────────────────────────────────
