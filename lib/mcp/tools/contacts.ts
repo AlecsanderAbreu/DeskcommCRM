@@ -65,8 +65,10 @@ export const crmSearchContacts: McpToolDefinition<typeof searchInputShape> = {
     //
     // `ctx.contatoDoTurno` é contexto de CONFIANÇA: nasce no runtime e é
     // injetado em `lib/ai/runtime/tools.ts` — o modelo não escreve esse campo.
-    // Sem ele (Operador, rota HTTP, MCP externo, agente sem conversa), a busca
-    // segue alcançando a base da organização, exatamente como antes.
+    // Sem ele (rota HTTP, MCP externo, agente sem conversa), a busca segue
+    // alcançando a base da organização, exatamente como antes. O Operador TEM
+    // contato do turno (`operator-turn.ts` passa `job.contact_id`) e também
+    // fica escopado — o lado seguro, porque ele não fala com o lead.
     //
     // A paginação morre junto: `cursor`/`has_more` descrevem a varredura da
     // ORGANIZAÇÃO, e a próxima página voltaria a ser varredura.
@@ -116,8 +118,9 @@ export const crmGetContact: McpToolDefinition<typeof getInputShape> = {
     // devolve ao modelo, para ele ler por que foi recusado e seguir a conversa
     // sem gastar turno numa exceção. `ctx.contatoDoTurno` é contexto de
     // CONFIANÇA (injetado pelo runtime, nunca escrito pelo modelo); sem ele —
-    // Operador, rota HTTP, MCP externo, agente sem conversa — a ficha de
-    // qualquer contato da organização segue abrindo como antes.
+    // rota HTTP, MCP externo, agente sem conversa — a ficha de qualquer
+    // contato da organização segue abrindo como antes. O Operador recebe o
+    // contato do turno e também é recusado aqui.
     if (ctx.contatoDoTurno && input.contact_id !== ctx.contatoDoTurno) {
       return {
         permitido: false,

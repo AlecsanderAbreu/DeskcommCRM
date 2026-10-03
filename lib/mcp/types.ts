@@ -28,8 +28,10 @@ export interface McpContext {
    * o único ponto que tem `input.contatoDoTurno`, para valer para todo chamador
    * de `pickToolsFromMcp`.
    *
-   * Ausente nos ingressos de fora do turno (rota HTTP, MCP externo, Operador) —
-   * e a ausência é o que mantém o comportamento deles intacto. Uso hoje: o
+   * Ausente nos ingressos de fora do turno (rota HTTP, MCP externo) — e a
+   * ausência é o que mantém o comportamento deles intacto. O Operador NÃO está
+   * entre eles: `operator-turn.ts` monta o turno com `contactId: job.contact_id`,
+   * então ele também recebe o contato da conversa e também fica escopado. Uso hoje: o
    * escopo de LEITURA de contato de `lib/mcp/tools/contacts.ts` (#2158) — a
    * conversa é com alguém, e a ficha/busca de outro cliente não sai do turno.
    */

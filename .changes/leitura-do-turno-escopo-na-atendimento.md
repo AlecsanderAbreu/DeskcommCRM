@@ -15,8 +15,10 @@ O contato da conversa agora chega ao handler como contexto de confiança (`ctx.c
 injetado pelo runtime — o modelo não escreve esse campo). Com ele, a busca passa a devolver
 só o contato desta conversa (e a paginação da varredura da organização some junto), e a ficha
 de quem não é o desta conversa é recusada com o motivo em texto, na mesma forma que a escrita
-já devolvia. Sem contato de turno — Operador, rota HTTP, MCP externo — nada muda, e a
-proteção de escrita continua de pé.
+já devolvia. O Operador, cujo turno também recebe o contato da conversa, passa a ver só
+esse contato nas duas ferramentas — o lado seguro, porque ele não fala com o lead. Sem
+contato de turno — rota HTTP, MCP externo — nada muda, e a proteção de escrita continua
+de pé.
 
 Refs #2158
 

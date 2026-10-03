@@ -238,9 +238,11 @@ function wrapMcpTool(
         //
         // Só ESCRITA: `crm_list_followups`, `crm_list_appointments` e irmãs têm
         // `lead_id` e são leituras; trocar ali faria o modelo perguntar por um
-        // negócio e receber outro. Só com contato do turno: o Operador, a rota
-        // HTTP e as automações seguem com o `lead_id` de quem chamou. Antes do
-        // escopo, para o escopo julgar o negócio que de fato vai ser escrito.
+        // negócio e receber outro. Só com contato do turno — que o turno de
+        // atendimento E o do Operador recebem (`operator-turn.ts` passa
+        // `contactId: job.contact_id`): a rota HTTP e as automações seguem com o
+        // `lead_id` de quem chamou. Antes do escopo, para o escopo julgar o
+        // negócio que de fato vai ser escrito.
         //
         // A LEITURA não traduz — ela ESCOPA, e o faz no handler, com o
         // `ctx.contatoDoTurno` que passamos na chamada abaixo (#2158): trocar o

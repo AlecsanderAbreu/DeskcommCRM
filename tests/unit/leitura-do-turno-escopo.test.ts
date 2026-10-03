@@ -22,8 +22,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * `toolIds` achatados por versão (`ai_agent_versions.tool_ids` é snapshot — nada
  * o re-deriva), e `crm_search_contacts` serve OS DOIS pacotes (`atender` e
  * `vender`), então "qual pacote está em uso" não é distinguível ali. Quem não
- * tem contato do turno — Operador, rota HTTP, MCP externo, agente sem conversa —
- * segue exatamente como antes, e os controles no fim provam isso.
+ * tem contato do turno — rota HTTP, MCP externo, agente sem conversa — segue
+ * exatamente como antes, e os controles no fim provam isso. O Operador NÃO está
+ * nesse grupo: o turno dele também recebe `contactId` (`operator-turn.ts`).
  */
 
 vi.mock("@/app/api/v1/contacts/_handler", async (original) => ({
@@ -186,8 +187,8 @@ describe("na conversa, a leitura de contato só alcança o contato do turno", ()
   });
 });
 
-// Controle 1: sem contato do turno — Operador, rota HTTP, MCP externo, agente
-// sem conversa — o comportamento é o de HOJE, byte a byte.
+// Controle 1: sem contato do turno — rota HTTP, MCP externo, agente sem
+// conversa — o comportamento é o de HOJE, byte a byte.
 describe("sem contato do turno, nada muda", () => {
   it("a busca segue alcançando a base da organização, com paginação", async () => {
     const r = await executar(["crm_search_contacts"], { query: "Maria" });
