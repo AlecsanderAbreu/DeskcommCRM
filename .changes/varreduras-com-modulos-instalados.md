@@ -9,4 +9,4 @@ Um teste novo agora provisiona todos os módulos do catálogo no banco antes de 
 
 Nada muda para quem opera: é uma proteção contra um erro futuro de módulo novo, não a correção de um vazamento existente.
 
-Contribuição de @webtecnica.
+Contribuição de @webtecnica (#2201).
