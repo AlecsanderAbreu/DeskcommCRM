@@ -103,6 +103,36 @@ export async function derivacaoPendenteDoGatilho(
   }
 }
 
+/**
+ * O corpo que `corpoDaMensagem` (get-lead-context.ts) dá a uma mídia sem
+ * legenda e sem derivado: só o marcador `[tipo]`. Qualquer outra coisa é
+ * palavra do cliente — texto digitado, legenda ou transcrição pronta.
+ */
+const SO_MARCADOR_DE_MIDIA = /^\[[a-z_]+\]$/;
+
+/**
+ * #2210 — o MOTIVO do handoff pode ter sido outro que não a falta de texto?
+ *
+ * A marca existe para o handoff cuja causa é a mídia ilegível. A ferramenta
+ * `request_human_handoff` é a mesma para todos os motivos do modelo — o pedido
+ * explícito do lead incluído —, então o estado da derivação do GATILHO não
+ * basta: com "quero falar com um atendente" e um áudio no mesmo lote, o
+ * gatilho é o áudio pendente e o motivo é o pedido.
+ *
+ * A regra: só marca quando NADA do que o cliente disse e ainda não foi
+ * respondido (`pendentesDoCliente` do turno) era legível — tudo é marcador de
+ * mídia. Aí o modelo não tinha palavra do cliente sobre a qual decidir, e a
+ * falta de texto é a causa. Lista ausente ou vazia = não sei = sem marca.
+ *
+ * Limite declarado: um turno só de mídia ilegível em que o modelo passa a
+ * conversa por algo do HISTÓRICO sai marcado. A devolução reenfileira o turno,
+ * agora com o texto, e o modelo decide de novo.
+ */
+export function turnoSemPalavraDoCliente(pendentes: readonly string[] | undefined): boolean {
+  if (!pendentes || pendentes.length === 0) return false;
+  return pendentes.every((texto) => SO_MARCADOR_DE_MIDIA.test(texto.trim()));
+}
+
 /** `undefined`/`null`/objeto malformado → nenhuma marca (nunca devolve nada por acidente). */
 export function lerMarcaDeHandoffTecnico(metadata: unknown): MarcaDeHandoffTecnico | null {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;

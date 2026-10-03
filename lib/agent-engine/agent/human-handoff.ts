@@ -28,7 +28,11 @@ import { z } from 'zod';
 import type pg from 'pg';
 
 import { expectativaDeAtendimento } from '@/lib/escalacao/disponibilidade';
-import { CHAVE_DO_HANDOFF_TECNICO, derivacaoPendenteDoGatilho } from '@/lib/escalacao/handoff-tecnico';
+import {
+  CHAVE_DO_HANDOFF_TECNICO,
+  derivacaoPendenteDoGatilho,
+  turnoSemPalavraDoCliente,
+} from '@/lib/escalacao/handoff-tecnico';
 import {
   montarBriefingDaPassagem,
   type BriefingDaPassagem,
@@ -180,8 +184,12 @@ export async function performHumanHandoff(
      * gravada em `conversations.metadata.handoff_tecnico` autoriza a devolução
      * automática quando `media_derived_status` virar `ready`.
      *
-     * Ausente (pedido explícito, opt-out, "Assumir eu", sentimento) = sem marca:
-     * a decisão foi de gente, e o handoff continua `infinity`.
+     * Só `applyRequestHumanHandoff` o preenche, e só quando nada do que o
+     * cliente disse no turno era legível (`turnoSemPalavraDoCliente`). Os
+     * outros chamadores — pedido explícito detectado, opt-out, "Assumir eu",
+     * orçamento — nunca o passam, e a ferramenta do modelo não o passa quando
+     * havia palavra do cliente (um pedido explícito em texto, por exemplo):
+     * sem marca, o handoff continua `infinity`.
      */
     derivacaoPendente?: { messageId: string };
     log: Logger;
@@ -524,15 +532,15 @@ export async function applyRequestHumanHandoff(
     motivo: { codigo: 'requested_human', texto: porQue },
   });
 
-  // #2210: só quando a mensagem que disparou o turno ainda NÃO tinha texto é que
-  // o handoff carrega a marca — aí ele é falha de infraestrutura, não decisão de
-  // gente. `reason` e a marca saem do MESMO `opts.porQue`, e é esse par que a
-  // reação compara depois para saber se o handoff atual ainda é o marcado.
-  const derivacaoPendente = await derivacaoPendenteDoGatilho(
-    db,
-    ids.tenantId,
-    opts.gatilho?.inboundMessageId,
-  );
+  // #2210: o handoff só carrega a marca quando a causa é a falta de texto —
+  // a mensagem que disparou o turno ainda sem derivação E nada legível do
+  // cliente no turno. Com palavra do cliente (um pedido explícito em texto no
+  // mesmo lote do áudio, por exemplo) o motivo pode ser ela, e não há marca.
+  // `reason` e a marca saem do MESMO `opts.porQue`, e é esse par que a reação
+  // compara depois para saber se o handoff atual ainda é o marcado.
+  const derivacaoPendente = turnoSemPalavraDoCliente(opts.contextoDoTurno?.pendentesDoCliente)
+    ? await derivacaoPendenteDoGatilho(db, ids.tenantId, opts.gatilho?.inboundMessageId)
+    : null;
 
   await performHumanHandoff(db, ids, {
     reason: porQue ?? 'requested_human',
