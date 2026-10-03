@@ -172,7 +172,7 @@ describe("MessageBubble — ocultação local de recebida", () => {
     const { rerender } = render(<MessageBubble message={recebida} onOcultar={onOcultar} onRestaurar={onRestaurar} />);
     await user.click(screen.getByRole("button", { name: "Opções da mensagem" }));
     await user.click(await screen.findByRole("menuitem", { name: "Ocultar no CRM" }));
-    expect(screen.getByText(/continua no WhatsApp do cliente/)).toBeInTheDocument();
+    expect(screen.getByText(/continua na conversa do cliente/)).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Ocultar no CRM" }).at(-1)!);
     await waitFor(() => expect(onOcultar).toHaveBeenCalledOnce());
     rerender(<MessageBubble message={{ ...recebida, metadata: { crm_hidden_at: "2026-09-24T12:00:00Z" } }}

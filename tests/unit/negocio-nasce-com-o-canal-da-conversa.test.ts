@@ -95,7 +95,8 @@ vi.mock("@/lib/channels/pos-entrada", () => ({
 vi.mock("@/lib/channels/marcar-conversa", () => ({
   marcarConversaComMensagem: vi.fn(async () => {}),
 }));
-vi.mock("@/lib/leads/atribuicao-de-anuncio", () => ({
+vi.mock("@/lib/leads/atribuicao-de-anuncio", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/leads/atribuicao-de-anuncio")>()),
   estamparAtribuicaoDoContato: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/plataformas-de-anuncio/google/atribuicao", () => ({
