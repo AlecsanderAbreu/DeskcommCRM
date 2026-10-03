@@ -28,6 +28,7 @@ import { z } from 'zod';
 import type pg from 'pg';
 
 import { expectativaDeAtendimento } from '@/lib/escalacao/disponibilidade';
+import { CHAVE_DO_HANDOFF_TECNICO, derivacaoPendenteDoGatilho } from '@/lib/escalacao/handoff-tecnico';
 import {
   montarBriefingDaPassagem,
   type BriefingDaPassagem,
@@ -173,6 +174,16 @@ export async function performHumanHandoff(
      * aberto na informação.
      */
     avisoAoLead?: DesfechoDoAviso;
+    /**
+     * A mensagem cuja derivação ainda estava ABERTA quando o handoff disparou
+     * (#2210). Presente = o handoff nasceu de falha de infraestrutura, e a marca
+     * gravada em `conversations.metadata.handoff_tecnico` autoriza a devolução
+     * automática quando `media_derived_status` virar `ready`.
+     *
+     * Ausente (pedido explícito, opt-out, "Assumir eu", sentimento) = sem marca:
+     * a decisão foi de gente, e o handoff continua `infinity`.
+     */
+    derivacaoPendente?: { messageId: string };
     log: Logger;
   },
 ): Promise<void> {
@@ -188,6 +199,21 @@ export async function performHumanHandoff(
   // está (nunca rouba do humano nem reabre encerrada). Fase 3: junto, zera a aderência
   // ao agente do router — se o bot for reativado, o router decide de novo (não reassume
   // o mesmo agente por inércia).
+  // #2210: a marca só existe quando o handoff nasceu com a derivação ABERTA.
+  // Escrevemos e apagamos na MESMA cláusula (`- $5 || $6`): um handoff sem
+  // marca remove qualquer marca anterior — um handoff novo por outro motivo
+  // invalida o antigo, e é o `motivo_gravado` que amarra um ao outro.
+  const marcaDaDerivacao = opts.derivacaoPendente
+    ? JSON.stringify({
+        [CHAVE_DO_HANDOFF_TECNICO]: {
+          causa: "derivacao_ausente",
+          message_id: opts.derivacaoPendente.messageId,
+          motivo_gravado: opts.reason,
+          marcado_em: new Date().toISOString(),
+        },
+      })
+    : "{}";
+
   await guardServiceEffect();
   await db.query(
     `update conversations
@@ -195,11 +221,12 @@ export async function performHumanHandoff(
             bot_silenced_until = $3,
             last_handoff_at = now(),
             last_handoff_reason = $4,
+            metadata = (coalesce(metadata, '{}'::jsonb) - $5::text) || $6::jsonb,
             active_ai_agent_id = null,
             active_intent = null,
             active_agent_set_at = null
       where organization_id = $1 and id = $2`,
-    [ids.tenantId, ids.conversationId, SILENCE_INFINITY, opts.reason],
+    [ids.tenantId, ids.conversationId, SILENCE_INFINITY, opts.reason, CHAVE_DO_HANDOFF_TECNICO, marcaDaDerivacao],
   );
 
   // (c) Cancela os crons PENDENTES do lead (follow-ups agendados — F3-01/02). Idempotente,
@@ -453,6 +480,13 @@ export async function applyRequestHumanHandoff(
       pendentesDoCliente?: readonly string[];
       declaracaoDoTurno?: DeclaracaoDoTurno | null;
     };
+    /**
+     * A mensagem que TRIGGOU o turno (#2210). Com ela o handoff pergunta ao
+     * banco se a derivação da mídia ainda estava em aberto — e, se estiver,
+     * grava a marca que permite devolver o atendimento sozinho quando o texto
+     * chegar. Sem gatilho não há marca (chamador sem turno), que é o caso seguro.
+     */
+    gatilho?: { inboundMessageId?: string };
     log: Logger;
   },
   rawInput: unknown,
@@ -487,11 +521,22 @@ export async function applyRequestHumanHandoff(
     motivo: { codigo: 'requested_human', texto: porQue },
   });
 
+  // #2210: só quando a mensagem que disparou o turno ainda NÃO tinha texto é que
+  // o handoff carrega a marca — aí ele é falha de infraestrutura, não decisão de
+  // gente. `reason` e a marca saem do MESMO `opts.porQue`, e é esse par que a
+  // reação compara depois para saber se o handoff atual ainda é o marcado.
+  const derivacaoPendente = await derivacaoPendenteDoGatilho(
+    db,
+    ids.tenantId,
+    opts.gatilho?.inboundMessageId,
+  );
+
   await performHumanHandoff(db, ids, {
     reason: porQue ?? 'requested_human',
     conversationSummary: briefing.body,
     passagem: { origem: 'ferramenta_do_modelo', motivoCodigo: 'requested_human', briefing },
     ...(opts.avisoAoLead !== undefined ? { avisoAoLead: opts.avisoAoLead } : {}),
+    ...(derivacaoPendente !== null ? { derivacaoPendente } : {}),
     log: opts.log,
   });
 
