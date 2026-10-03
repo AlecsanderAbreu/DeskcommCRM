@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+/**
+ * Os dois números do RITMO da campanha, com os mesmos limites no início e no
+ * ajuste. Moram aqui, uma vez, porque o ajuste de uma campanha pausada
+ * (`adjust_pace`) não pode aceitar um valor que a criação recusaria — nem o
+ * contrário. Sem `.default()`: no ajuste, valor omitido é erro, não "volta para
+ * 10 sem avisar".
+ */
+const LIMITE_DIARIO = z.number().int().min(1).max(50);
+const INTERVALO_MINUTOS = z.number().int().min(5).max(1440);
+
 export const campaignConfigSchema = z
   .object({
     agent_id: z.string().uuid(),
@@ -9,8 +19,8 @@ export const campaignConfigSchema = z
     qualified_stage_id: z.string().uuid(),
     instruction: z.string().trim().min(10).max(2000),
     qualification: z.string().trim().min(10).max(2000),
-    daily_limit: z.number().int().min(1).max(50).default(10),
-    interval_minutes: z.number().int().min(5).max(1440).default(15),
+    daily_limit: LIMITE_DIARIO.default(10),
+    interval_minutes: INTERVALO_MINUTOS.default(15),
     legal_basis_ref: z.string().trim().min(3).max(500),
     // QUANDO a empresa entra no CRM. `on_start`: contato, negócio e conversa de TODA a fila
     // nascem ao iniciar (o comportamento de sempre). `on_send`: cada empresa nasce só na
@@ -41,6 +51,16 @@ export const prospectingInputSchema = z.discriminatedUnion("action", [
     .strict(),
   z.object({ action: z.literal("pause"), id: z.string().uuid() }).strict(),
   z.object({ action: z.literal("resume"), id: z.string().uuid() }).strict(),
+  // O ÚNICO pedaço da configuração que se edita depois de iniciada. Estrito: conexão,
+  // agente, funil, base legal e instrução não passam por aqui, e um campo a mais é 422.
+  z
+    .object({
+      action: z.literal("adjust_pace"),
+      id: z.string().uuid(),
+      daily_limit: LIMITE_DIARIO,
+      interval_minutes: INTERVALO_MINUTOS,
+    })
+    .strict(),
   z
     .object({
       action: z.literal("select"),
@@ -63,6 +83,7 @@ export const prospectingInputSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("discard_unselected"), id: z.string().uuid() }).strict(),
 ]);
 export type CampaignConfig = z.infer<typeof campaignConfigSchema>;
+export type CampaignPace = Pick<CampaignConfig, "daily_limit" | "interval_minutes">;
 export type SearchInput = z.infer<typeof searchSchema>;
 /** Motivo gravado quando o operador desmarca uma empresa na preparação da campanha. */
 export const RAZAO_NAO_SELECIONADA = "Não selecionada pelo operador.";

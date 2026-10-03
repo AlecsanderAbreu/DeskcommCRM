@@ -13931,6 +13931,10 @@ export const DICIONARIO: Traducoes = {
   "Não dá para ver daqui": { es: "No se puede ver desde aquí" },
   "Ajustar": { es: "Ajustar" },
   "Tudo o que se liga e desliga, se está ligado e onde se ajusta.": { es: "Todo lo que se activa y desactiva, si está activado y dónde se ajusta." },
+  "Editar ritmo": { es: "Editar ritmo" },
+  "Ritmo atualizado. A campanha continua pausada.": { es: "Ritmo actualizado. La campaña sigue en pausa." },
+  "Só dá para ajustar com a campanha pausada. Ao retomar, o próximo envio já usa o ritmo novo. Limite de 1 a 50 por dia e intervalo de 5 a 1440 minutos.": { es: "Solo se puede ajustar con la campaña en pausa. Al reanudar, el próximo envío ya usa el ritmo nuevo. Límite de 1 a 50 por día e intervalo de 5 a 1440 minutos." },
+  "Este texto se soma ao prompt do agente nas conversas desta campanha. Se você mudar o prompt do agente, confira se os dois ainda dizem a mesma coisa.": { es: "Este texto se suma al prompt del agente en las conversaciones de esta campaña. Si cambias el prompt del agente, verifica que los dos sigan diciendo lo mismo." },
   // ─── Cadastrar um campo do formulário a partir da captação ───
   "Cadastrar como campo do lead": { es: "Registrar como campo del lead" },
   "Texto longo": { es: "Texto largo" },

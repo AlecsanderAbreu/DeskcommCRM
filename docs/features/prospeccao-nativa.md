@@ -67,6 +67,8 @@ A ativação separa as empresas (as desmarcadas, as sem telefone e as que já s�
 
 Há uma campanha ativa por organização, até 50 tentativas em 24 horas no conjunto das campanhas, e intervalo mínimo de cinco minutos. Falhas e envios incertos consomem o limite. A janela do número, modo de teste, versão do agente, fechamento do atendimento, recusa, pausa e intervenção humana continuam ativos. Pausar interrompe novas abordagens; uma transmissão já iniciada pode concluir.
 
+**Ajustar o ritmo depois de iniciada.** Com a campanha **pausada**, o administrador troca o limite por dia (1 a 50) e o intervalo (5 a 1440 minutos) em **Editar ritmo**, ao lado de **Retomar fila**; a ação é `adjust_pace` em `POST /api/v1/prospecting` (issue #2095). O valor novo vale a partir do próximo envio. Só esses dois campos mudam: conexão, agente, funil, base legal e instrução da campanha seguem fixos depois de iniciada. A mudança entra em `api_audit_log` com o ritmo anterior e o novo.
+
 ## Operação e recuperação
 
 - Scheduler chama `/api/v1/cron/prospecting` a cada minuto, com segredo interno. Atualize a imagem do scheduler junto da aplicação. Em desenvolvimento, `pnpm dev:crons` inclui a mesma rota.

@@ -115,6 +115,12 @@ export function ProspectingClient() {
   // As desmarcadas ficam escondidas por padrão; este botão só decide se aparecem.
   const [mostrarDesmarcadas, setMostrarDesmarcadas] = useState(false);
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
+  // Edição do ritmo de uma campanha PAUSADA; vale para uma campanha por vez.
+  const [ritmo, setRitmo] = useState<{
+    campaignId: string;
+    daily_limit: number;
+    interval_minutes: number;
+  } | null>(null);
   const campaign = data?.campaigns.find((c) => c.id === selected) ?? data?.campaigns[0];
   // A stored config is frozen by activation; unsaved choices belong to one campaign.
   const config = campaign?.config ?? (campaign && campaignDrafts[campaign.id]) ?? emptyConfig;
@@ -183,6 +189,34 @@ export function ProspectingClient() {
   }
   const update = <K extends keyof CampaignConfig>(field: K, value: CampaignConfig[K]) =>
     setConfig((c) => ({ ...c, [field]: value }));
+  function alternarEdicaoDoRitmo(c: Campaign) {
+    if (!c.config) return;
+    const { daily_limit, interval_minutes } = c.config;
+    setRitmo((atual) =>
+      atual?.campaignId === c.id ? null : { campaignId: c.id, daily_limit, interval_minutes },
+    );
+  }
+  const ritmoValido =
+    !!ritmo &&
+    Number.isInteger(ritmo.daily_limit) &&
+    ritmo.daily_limit >= 1 &&
+    ritmo.daily_limit <= 50 &&
+    Number.isInteger(ritmo.interval_minutes) &&
+    ritmo.interval_minutes >= 5 &&
+    ritmo.interval_minutes <= 1440;
+  async function salvarRitmo() {
+    if (!ritmo || !ritmoValido) return;
+    const salvou = await perform(
+      {
+        action: "adjust_pace",
+        id: ritmo.campaignId,
+        daily_limit: ritmo.daily_limit,
+        interval_minutes: ritmo.interval_minutes,
+      },
+      t("Ritmo atualizado. A campanha continua pausada."),
+    );
+    if (salvou) setRitmo(null);
+  }
   const count = (states: string[]) => candidates.filter((c) => states.includes(c.progress)).length;
   const buscaConcluida = !!campaign && campaign.search_status === "succeeded";
   const noRascunho = buscaConcluida && campaign?.status === "draft";
@@ -491,36 +525,114 @@ export function ProspectingClient() {
                   </p>
                 )}
                 {campaign.config && (
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-                    <p className="text-sm text-muted-foreground">
-                      {t("Ritmo:")} {campaign.config.daily_limit}{" "}
-                      {t("abordagens em 24 horas, com pelo menos")}{" "}
-                      {campaign.config.interval_minutes} {t("minutos entre elas.")}
-                    </p>
-                    {campaign.status === "running" ? (
-                      <Button
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() =>
-                          perform(
-                            { action: "pause", id: campaign.id },
-                            t("Novas abordagens pausadas."),
-                          )
-                        }
+                  <>
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                      <p className="text-sm text-muted-foreground">
+                        {t("Ritmo:")} {campaign.config.daily_limit}{" "}
+                        {t("abordagens em 24 horas, com pelo menos")}{" "}
+                        {campaign.config.interval_minutes} {t("minutos entre elas.")}
+                      </p>
+                      {campaign.status === "running" ? (
+                        <Button
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() =>
+                            perform(
+                              { action: "pause", id: campaign.id },
+                              t("Novas abordagens pausadas."),
+                            )
+                          }
+                        >
+                          {t("Pausar abordagens")}
+                        </Button>
+                      ) : campaign.status === "paused" ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => alternarEdicaoDoRitmo(campaign)}
+                          >
+                            {t("Editar ritmo")}
+                          </Button>
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              perform(
+                                { action: "resume", id: campaign.id },
+                                t("Campanha retomada."),
+                              )
+                            }
+                          >
+                            {t("Retomar fila")}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                    {campaign.status === "paused" && ritmo?.campaignId === campaign.id && (
+                      <form
+                        className="mt-4 space-y-3 rounded-md border p-4"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          void salvarRitmo();
+                        }}
                       >
-                        {t("Pausar abordagens")}
-                      </Button>
-                    ) : campaign.status === "paused" ? (
-                      <Button
-                        disabled={busy}
-                        onClick={() =>
-                          perform({ action: "resume", id: campaign.id }, t("Campanha retomada."))
-                        }
-                      >
-                        {t("Retomar fila")}
-                      </Button>
-                    ) : null}
-                  </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="prospecting-pace-daily">
+                              {t("Máximo em 24 horas")}
+                            </Label>
+                            <Input
+                              id="prospecting-pace-daily"
+                              type="number"
+                              min={1}
+                              max={50}
+                              required
+                              value={ritmo.daily_limit}
+                              onChange={(e) =>
+                                setRitmo({ ...ritmo, daily_limit: Number(e.target.value) })
+                              }
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="prospecting-pace-spacing">
+                              {t("Intervalo mínimo (minutos)")}
+                            </Label>
+                            <Input
+                              id="prospecting-pace-spacing"
+                              type="number"
+                              min={5}
+                              max={1440}
+                              required
+                              value={ritmo.interval_minutes}
+                              onChange={(e) =>
+                                setRitmo({ ...ritmo, interval_minutes: Number(e.target.value) })
+                              }
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {t(
+                            "Só dá para ajustar com a campanha pausada. Ao retomar, o próximo envio já usa o ritmo novo. Limite de 1 a 50 por dia e intervalo de 5 a 1440 minutos.",
+                          )}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="submit" disabled={busy || !ritmoValido}>
+                            {t("Salvar ritmo")}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => setRitmo(null)}
+                          >
+                            {t("Cancelar")}
+                          </Button>
+                        </div>
+                      </form>
+                    )}
+                  </>
                 )}
               </Card>
               {campaign.status === "draft" &&
@@ -749,6 +861,11 @@ export function ProspectingClient() {
                                     "Descreva sua oferta e o objetivo da primeira conversa.",
                                   )}
                                 />
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {t(
+                                    "Este texto se soma ao prompt do agente nas conversas desta campanha. Se você mudar o prompt do agente, confira se os dois ainda dizem a mesma coisa.",
+                                  )}
+                                </p>
                               </div>
                               <div>
                                 <Label htmlFor="prospecting-qualification">
