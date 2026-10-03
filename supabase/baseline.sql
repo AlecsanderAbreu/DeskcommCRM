@@ -46533,7 +46533,18 @@ update public.crm_leads l
 -- ---- tipo do envio no trace (migration 0535) ----
 -- O trace passa a dizer se a tentativa vetada era RESPOSTA ou DISPARO (#2112).
 -- NULL-ável de propósito: linha anterior à 0535 é legado e continua lida como
--- resposta (o que o código de antes assumia). Sem CHECK — o único escritor é
--- `tipoDeEnvio()` em lib/agent-engine/guardrails/before-send.ts. Idempotente.
+-- resposta (o que o código de antes assumia); `null` passa no CHECK. CHECK de
+-- vocabulário fechado (`resposta`/`disparo`), espelho de `TipoDeEnvio` em
+-- lib/agent-engine/guardrails/before-send.ts. Idempotente.
 alter table public.before_send_traces
   add column if not exists tipo_envio text;
+
+do $$ begin
+  if not exists (select 1 from pg_constraint
+                  where conname = 'before_send_traces_tipo_envio_check'
+                    and conrelid = 'public.before_send_traces'::regclass) then
+    alter table public.before_send_traces
+      add constraint before_send_traces_tipo_envio_check
+      check (tipo_envio in ('resposta', 'disparo'));
+  end if;
+end $$;
