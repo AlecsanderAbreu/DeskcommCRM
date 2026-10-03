@@ -1264,6 +1264,7 @@ export const DICIONARIO: Traducoes = {
 
   // ─── Inbox: filtros e lista ───
   "Nenhuma conversa com esses filtros": { es: "No hay conversaciones con esos filtros" },
+  "Só entram na inbox os grupos ligados em Conexões › Grupos, e cada um aparece aqui a partir da primeira mensagem recebida depois de ligar (o histórico anterior não entra).": { es: "Solo entran en la bandeja los grupos activados en Conexiones › Grupos, y cada uno aparece aquí a partir del primer mensaje recibido después de activarlo (el historial anterior no entra)." },
   "Ativos:": { es: "Activos:" },
   "Busca": { es: "Búsqueda" },
   "Etiqueta": { es: "Etiqueta" },
