@@ -3250,3 +3250,26 @@ Spec: `tests/e2e/pausa-de-reentrada.spec.ts`.
 | J39.4 | Quem encerrou uma inscrição há menos que a pausa / quem nunca passou / conversa com pessoa no comando / sem pausa (só o cooldown) | pula / entra / pula (salvo `handoff_policy='allow'`) / entra de novo no limiar | **PASS (invariante)** — `tests/invariants/followup-silence-sweep.test.ts` |
 | J39.5 | Teto do silêncio: 5 com mínimo 10 é recusado; 60 é gravado e o botão mostra «10–60 min»; na varredura, quem está calado há 20 min entra e há 3 h fica de fora | tela + invariante | **PASS pela tela** — Evidência: `evidence/triagem-16set-l12/silencio-01-teto-de-60.png`; invariante no mesmo arquivo de J39.4 |
 | J39.6 | Pausa de 24 h contada do último envio (a opção só aparece com pausa > 0) | o banco guarda `reentry_pause_basis: "ultimo_envio"`; o botão diz «no máximo 1× a cada 24 h»; desligar tira a chave; na varredura, quem encerrou há 25 h e escreveu há 20 min entra (pela base padrão, fica na pausa) | **PASS pela tela** — Evidência: `evidence/triagem-16set-l12/pausa-03-base-do-ultimo-envio.png`; invariante no mesmo arquivo de J39.4 |
+
+## J40 — O pino de localização chega com a rua e a cidade aproximadas `[P1]` (2026-09-28)
+
+Contexto: medido numa loja, 10 de 10 pinos do mês chegaram só com coordenadas —
+o agente lia um link e perguntava a cidade de novo. Com a chave da Geocoding API
+(Agente de IA › Provedores, cartão «Mapas (Google)»; tabela
+`map_provider_credentials`, migration 0504; regra em `lib/mapas/`), o pino ganha
+o endereço aproximado no corpo (o que o agente lê) e no cartão do pino da
+conversa. Os nomes vêm no idioma da organização (`organizations.locale`, pelo
+registro de idiomas).
+
+Spec: `tests/e2e/mapas-em-provedores.spec.ts`.
+
+| # | Caso | Expectativa | Resultado |
+|---|------|-------------|-----------|
+| J40.1 | Admin cola a chave e grava | o banco guarda a chave CIFRADA e os 4 últimos; a tela mostra «Chave gravada ···XXXX», limpa o campo, e a chave não aparece no HTML | **PASS pela tela** — Evidência: `evidence/triagem-16set-l12/mapas-01-chave-colada.png` |
+| J40.2 | «Testar» com chave recusada pelo Google | a tela explica a recusa (API não habilitada × chave recusada são mensagens diferentes), nunca «Funcionou» | **PASS pela tela** — Evidência: `evidence/triagem-16set-l12/mapas-02-teste-explica-a-recusa.png` |
+| J40.3 | Remover a chave | a linha sai do banco e o cartão volta a «Sem chave» | **PASS pela tela** |
+| J40.4 | Pino recebido com chave / sem chave / Google fora | corpo com «… (aprox.)» / corpo idêntico ao de antes e nenhuma chamada ao Google / corpo de antes | **PASS (unit)** — `tests/unit/mapas-pino-com-endereco.test.ts` |
+| J40.5 | A tabela não é servida pelo PostgREST | `anon`/`authenticated` sem privilégio, `permission denied`, RLS ligada sem policy | **PASS (invariante)** — `tests/invariants/credencial-de-mapas-e-server-side.test.ts` |
+| J40.6 | O que o Google diz × o endereço anotado em 8 pedidos confirmados (28/09/2026, numa instalação real) | município 8/8, região 8/8, localidade 7/8 (na zona rural virou o povoado), rua 3/5, bairro 1/8, número interpolado → a cidade é o MUNICÍPIO; bairro e número não saem | **MEDIDO em produção** (fora deste repositório); regra em `tests/unit/mapas-pino-com-endereco.test.ts` |
+| J40.7 | O pino com endereço aproximado, aberto na conversa pela equipe | o cartão do pino mostra «Rua, Cidade, Estado (aprox.)», com o texto inteiro no `title` (o cartão corta com …) e o toque abre as COORDENADAS no mapa | **PASS pela tela** — Evidência: `evidence/triagem-16set-l12/mapas-03-pino-na-conversa.png` |
+| J40.8 | A API do canal intermediado não responde a tempo na ingestão do pino (medido 29/09/2026: timeout duas vezes seguidas) | a mensagem entra com o marcador e pede nova busca (`message.location_retry_requested`); 1 min depois, e a cada 2 min até 15, busca de novo e grava tipo `location` + link (+ endereço aproximado com chave); nunca rebaixa um pino que já tem coordenadas; desiste sem virar incidente | **PASS (unit)** — `tests/unit/pino-reintento.test.ts`, `tests/unit/channel-ingest-zernio.test.ts` |
