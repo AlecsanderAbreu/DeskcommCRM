@@ -1113,30 +1113,44 @@ export function createSupabaseAdminClient(admin: SupabaseClient): AdminClient {
      * as automações (`create_or_move_lead`) e a tool MCP `crm_move_lead_stage`.
      * Ele é quem valida etapa existente, organização certa, troca de funil
      * (`pipeline_immutable_use_clone`) e reabertura de negócio encerrado; aqui
-     * só resolvemos QUAL negócio (o mais recente do contato, como
-     * `criarTarefaInterna`) e deixamos a recusa subir (o `applyResult` registra
-     * em `followup_move_lead_failed` sem reverter o avanço).
+     * só resolvemos QUAL negócio e deixamos a recusa subir (o `applyResult`
+     * registra em `followup_move_lead_failed` sem reverter o avanço).
+     *
+     * O negócio é o mais recente do contato NO FUNIL DA ETAPA DE DESTINO. O
+     * mais recente de qualquer funil, quando o contato tem negócio em dois,
+     * escolhia às vezes o do outro funil — e a troca de funil é recusada, então
+     * o card nunca andava e o fluxo seguia como se tivesse andado.
      *
      * O ator é o próprio enrollment: a variante não-pessoa do `Actor` é
      * `webhook_source`, e nenhum actor de sistema existe — o id é
      * `followup:<enrollment>`, então a timeline e o audit mostram de onde veio.
      */
     async moverLeadNoFunil(item) {
+      const { data: etapa, error: etapaErr } = await admin
+        .from("crm_stages")
+        .select("pipeline_id")
+        .eq("organization_id", item.organization_id)
+        .eq("id", item.config.stage_id)
+        .maybeSingle();
+      if (etapaErr) throw new Error(etapaErr.message);
+      if (!etapa) throw new Error("etapa_destino_inexistente");
+
       const { data: lead, error } = await admin
         .from("crm_leads")
         .select("id")
         .eq("organization_id", item.organization_id)
         .eq("contact_id", item.contact_id)
+        .eq("pipeline_id", etapa.pipeline_id)
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!lead) {
-        // Contato sem negócio não tem card para mover — não é defeito do fluxo.
+        // Contato sem negócio neste funil não tem card para mover — não é defeito do fluxo.
         logger.warn("followup_move_lead_skipped", {
           organization_id: item.organization_id,
           enrollment_id: item.enrollment_id,
-          motivo: "sem_negocio",
+          motivo: "sem_negocio_no_funil",
         });
         return;
       }
