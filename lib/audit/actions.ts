@@ -1001,6 +1001,10 @@ export const AUDIT_ACTIONS = [
   "company_people.updated",
   "contacts.person_linked",
   "imports.companies_people",
+  // A chave de Mapas da organização (0504, Agente de IA › Provedores): gravada ou
+  // trocada, e removida. O metadata diz O QUE mudou — nunca a chave.
+  "ai.maps_credential_saved",
+  "ai.maps_credential_removed",
 
   // A assinatura do emissor (#2066, PR #2079): quem ligou ou desligou o nome de
   // quem fala nas mensagens ao cliente, e com que nome a IA passou a assinar.

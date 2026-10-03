@@ -24,6 +24,7 @@ import {
 } from "@/lib/event-log/dispatcher";
 import { drainEventLog } from "@/lib/event-log/drain";
 import { ensureHandlersRegistered } from "@/lib/event-log/register-handlers";
+import { pinoReintentoHandler } from "@/lib/channels/zernio/pino-reintento.handler";
 import { automationRulesHandler } from "@/lib/automation/engine.handler";
 import { campanhaRespostaHandler } from "@/lib/campanhas/resposta.handler";
 import { conversaoDeVendaHandler } from "@/lib/conversoes/envio.handler";
@@ -77,6 +78,7 @@ const PULA: EventHandler[] = [
   conversaoDeVendaHandler,
   conversaoDeQualificacaoHandler,
   conversaoDeEtapaMetaHandler,
+  pinoReintentoHandler,
 ];
 
 const PREFIXO_DE_TESTE = "teste-org-parada";

@@ -166,7 +166,12 @@ fi
 app_env="$ROOT_DIR/.env"
 set_env_var "$app_env" DOMAIN "$domain"
 set_env_var "$app_env" ACME_EMAIL "admin@${domain}"
-set_env_var "$app_env" REVERSE_PROXY caddy
+# #2099: quem ja tem um proxy reverso proprio nas portas 80/443 (a topologia
+# que o unico_traefik() do kit documenta) exporta REVERSE_PROXY=traefik antes de
+# chamar este instalador. Gravar "caddy" fixo sobrescrevia a escolha e o Caddy
+# subia batendo de frente com o proxy da hospedagem. O default continua caddy:
+# sem a variavel no ambiente, nada muda para quem ja instala hoje.
+set_env_var "$app_env" REVERSE_PROXY "${REVERSE_PROXY:-caddy}"
 set_env_var "$app_env" SINGLE_SERVER 1
 set_env_var "$app_env" SINGLE_SERVER_NETWORK "$SINGLE_SERVER_NETWORK"
 set_env_var "$app_env" PSQL_DOCKER_NETWORK "$SINGLE_SERVER_NETWORK"

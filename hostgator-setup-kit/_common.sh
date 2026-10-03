@@ -246,7 +246,17 @@ unset _deskcomm_chamador
 # o override subiria o Caddy e ele iria bater de frente com o proxy da hospedagem.
 dc() {
   if [ "${SINGLE_SERVER:-0}" = "1" ]; then
-    docker compose -f "$COMPOSE" -f docker-compose.single-server.yml "$@"
+    # #2099: o single-server também respeita o proxy da hospedagem. Os dois
+    # ramos eram `if SINGLE_SERVER` → return ANTES do seletor, então o
+    # docker-compose.traefik.yml (ou npm) nunca entrava aqui: o Caddy do
+    # single-server subia e perdia o bind das 80/443 para o Traefik/NPM que já
+    # estava lá. Junta os dois: o overlay do proxy vem DEPOIS do overlay do
+    # single-server, e o padrão (sem a variável) continua só o single-server.
+    case "${REVERSE_PROXY:-caddy}" in
+    traefik) docker compose -f "$COMPOSE" -f docker-compose.single-server.yml -f "$COMPOSE_TRAEFIK" "$@" ;;
+    npm)     docker compose -f "$COMPOSE" -f docker-compose.single-server.yml -f "$COMPOSE_NPM" "$@" ;;
+    *)       docker compose -f "$COMPOSE" -f docker-compose.single-server.yml "$@" ;;
+    esac
     return
   fi
   case "${REVERSE_PROXY:-caddy}" in
@@ -261,7 +271,14 @@ dc() {
 # próprio dono derrubaria o site seguindo a instrução do kit.
 dc_files() {
   if [ "${SINGLE_SERVER:-0}" = "1" ]; then
-    printf -- '-f %s -f %s' "$COMPOSE" docker-compose.single-server.yml
+    # #2099: mesma junção de dc() — a lista de -f tem de bater com o que dc()
+    # realmente roda, ou a mensagem ensinaria o dono a omitir o overlay do
+    # proxy e ele derrubaria o site seguindo a instrução do kit.
+    case "${REVERSE_PROXY:-caddy}" in
+    traefik) printf -- '-f %s -f %s -f %s' "$COMPOSE" docker-compose.single-server.yml "$COMPOSE_TRAEFIK" ;;
+    npm)     printf -- '-f %s -f %s -f %s' "$COMPOSE" docker-compose.single-server.yml "$COMPOSE_NPM" ;;
+    *)       printf -- '-f %s -f %s' "$COMPOSE" docker-compose.single-server.yml ;;
+    esac
     return
   fi
   case "${REVERSE_PROXY:-caddy}" in

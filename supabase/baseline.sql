@@ -45927,15 +45927,39 @@ create policy "conversation_notes_select" on public.conversation_notes
     )
   );
 
--- ⚠️ A política de ESCRITA precisa da MESMA condição: policies são OR e
--- `conversation_notes_write` é `for all`, que concede SELECT junto — sem isto
--- a policy nova de SELECT é anulada. O teste `F2: ... não lê a nota` pegou
--- exatamente isso (devolveu 1 em vez de 0) antes do conserto.
+-- ⚠️ A política de ESCRITA precisa da MESMA condição de visibilidade: policies
+-- são OR e `for all` concede SELECT junto — sem isto a policy nova de SELECT é
+-- anulada. O teste `F2: ... não lê a nota` pegou exatamente isso (devolveu 1 em
+-- vez de 0) antes do conserto (0478).
+--
+-- Desde a 0509 a escrita é por OPERAÇÃO (formato 0464/0489/0490, issue #1870):
+-- entre quem VÊ a conversa, editar e apagar são só do AUTOR (`created_by_user_id`)
+-- ou de manager+ da organização — a policy `for all` não distinguia o autor e
+-- qualquer agent podia mexer na nota de um colega pelo PostgREST. Molde da
+-- rota DELETE, que já era autor+/manager+ no app.
 drop policy if exists "conversation_notes_write" on public.conversation_notes;
-create policy "conversation_notes_write" on public.conversation_notes
-  for all using (
+drop policy if exists "conversation_notes_insert" on public.conversation_notes;
+create policy "conversation_notes_insert" on public.conversation_notes
+  for insert
+  with check (
     organization_id in (select public.fn_user_org_ids())
     and public.fn_role_at_least(organization_id, 'agent')
+    and created_by_user_id = auth.uid()
+    and exists (
+      select 1 from public.conversations c
+      where c.organization_id = conversation_notes.organization_id
+        and c.id = conversation_notes.conversation_id
+        and public.fn_can_view_conversation(c.organization_id, c.assigned_to_user_id)
+    )
+  );
+
+drop policy if exists "conversation_notes_update" on public.conversation_notes;
+create policy "conversation_notes_update" on public.conversation_notes
+  for update
+  using (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'agent')
+    and (created_by_user_id = auth.uid() or public.fn_role_at_least(organization_id, 'manager'))
     and exists (
       select 1 from public.conversations c
       where c.organization_id = conversation_notes.organization_id
@@ -45946,6 +45970,22 @@ create policy "conversation_notes_write" on public.conversation_notes
   with check (
     organization_id in (select public.fn_user_org_ids())
     and public.fn_role_at_least(organization_id, 'agent')
+    and (created_by_user_id = auth.uid() or public.fn_role_at_least(organization_id, 'manager'))
+    and exists (
+      select 1 from public.conversations c
+      where c.organization_id = conversation_notes.organization_id
+        and c.id = conversation_notes.conversation_id
+        and public.fn_can_view_conversation(c.organization_id, c.assigned_to_user_id)
+    )
+  );
+
+drop policy if exists "conversation_notes_delete" on public.conversation_notes;
+create policy "conversation_notes_delete" on public.conversation_notes
+  for delete
+  using (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'agent')
+    and (created_by_user_id = auth.uid() or public.fn_role_at_least(organization_id, 'manager'))
     and exists (
       select 1 from public.conversations c
       where c.organization_id = conversation_notes.organization_id
@@ -46295,6 +46335,40 @@ alter table public.ai_agent_versions
   add constraint ai_agent_versions_inbound_debounce_ms_check
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
 
+-- ---- a chave de mapas da organização (migration 0504) ----
+-- Pino do WhatsApp → rua/cidade/região aproximados (lib/mapas/). Server-side only.
+create table if not exists public.map_provider_credentials (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  provider text not null default 'google_maps',
+  api_key_encrypted bytea not null,
+  -- Para a tela reconhecer QUAL chave está gravada sem ver a chave.
+  api_key_last4 text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid,
+  constraint map_provider_credentials_provider_conhecido
+    check (provider in ('google_maps'))
+);
+
+-- Uma chave por provedor por organização: trocar é gravar de novo (upsert).
+create unique index if not exists map_provider_credentials_org_provider_uk
+  on public.map_provider_credentials (organization_id, provider);
+
+comment on table public.map_provider_credentials is
+  'Chave de mapas da organização (hoje: Google Geocoding API), usada para transformar o pino de localização do WhatsApp em rua/cidade/região aproximados. Opcional. Server-side only: RLS ligada sem policies e grants revogados de anon/authenticated. A chave nunca volta ao browser.';
+comment on column public.map_provider_credentials.api_key_encrypted is
+  'Cifrado por fn_encrypt_oauth (pgp_sym/aes256), a mesma cifra de channel_sessions e ad_platform_connections.';
+
+alter table public.map_provider_credentials enable row level security;
+revoke all on public.map_provider_credentials from anon, authenticated;
+grant select, insert, update, delete on public.map_provider_credentials to service_role;
+
+drop trigger if exists trg_map_provider_credentials_updated_at on public.map_provider_credentials;
+create trigger trg_map_provider_credentials_updated_at
+  before update on public.map_provider_credentials
+  for each row execute function public.fn_set_updated_at();
+
 -- ---- avisos do Security Advisor: search_path fixo e definer só do servidor (migration 0521) ----
 -- Cópia das instruções da migration 0521 (o porquê está no cabeçalho dela). Só ALTER/REVOKE:
 -- não cria função, então pode ficar depois da VARREDURA anon.
@@ -46362,3 +46436,9 @@ begin
   end loop;
 end
 $$;
+
+-- ---- seleção de empresas na prospecção, issue #1896 (migration 0506) ----
+-- O operador escolhe quais empresas da busca entram na fila. Padrão TUDO
+-- marcado: quem só atualiza continua com a mesma fila de antes.
+alter table public.prospecting_candidates
+  add column if not exists selected boolean not null default true;
