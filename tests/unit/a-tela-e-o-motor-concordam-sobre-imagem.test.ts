@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type * as ModuloDeEnv from "@/lib/env";
+
 import { modelCapabilities } from "@/lib/agent-engine/edge/llm/capabilities";
 import { decidirBinding } from "@/lib/ai/pontos/resolver";
 import { enxergaImagem, visaoEmVigor } from "@/lib/ai/pontos/capacidade-em-vigor";
@@ -99,7 +101,7 @@ describe("o que o motor NÃO conhece continua vindo do catálogo", () => {
 // guarda de destino do worker (#855/#964). Travá-los vazios aqui é o que faz o
 // teste medir o código, e não o `.env.local` da máquina onde roda.
 vi.mock("@/lib/env", async (importOriginal) => {
-  const real = await importOriginal<typeof import("@/lib/env")>();
+  const real = await importOriginal<typeof ModuloDeEnv>();
   return {
     env: {
       ...real.env,

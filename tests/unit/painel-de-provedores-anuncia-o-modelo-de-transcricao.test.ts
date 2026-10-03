@@ -9,6 +9,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type * as ModuloDeEnv from "@/lib/env";
+
 import { requireRole } from "@/lib/auth/require-role";
 
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
@@ -21,7 +23,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 // caminho. O módulo real segue inteiro; só o trio vem de um objeto do caso.
 const transcricaoDoEnv = vi.hoisted(() => ({ apiKey: "", baseUrl: "", model: "" }));
 vi.mock("@/lib/env", async (importOriginal) => {
-  const real = await importOriginal<typeof import("@/lib/env")>();
+  const real = await importOriginal<typeof ModuloDeEnv>();
   return {
     env: {
       ...real.env,
