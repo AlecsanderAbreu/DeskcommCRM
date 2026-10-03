@@ -97,7 +97,7 @@ describe("conversão por etapa (#1750)", () => {
     expect(relatorio.conversao.etapas).toEqual([]);
     expect(relatorio.vazio).not.toBeNull();
     expect(relatorio.vazio?.motivo).toContain("sem dado");
-    expect(relatorio.diasAteFechar.mediana).toBeNull();
+    expect(relatorio.dias_ate_fechar.mediana).toBeNull();
     expect(relatorio.origem.linhas).toEqual([]);
     expect(temNaN(relatorio)).toBe(false);
   });
@@ -177,7 +177,7 @@ describe("dias até fechar (#1750)", () => {
     expect(dias.mediana).toBe(3);
     expect(dias.p25).toBe(2.5);
     expect(dias.p75).toBe(3.5);
-    expect(dias.porFunil).toEqual([
+    expect(dias.por_funil).toEqual([
       { pipeline_id: "f1", funil: "Vendas", mediana: 3, p25: 2.5, p75: 3.5, amostra: 2 },
     ]);
     expect(dias.exclui).toContain("abertos e perdidos");
@@ -235,7 +235,7 @@ describe("ganho × perda por origem (#1750)", () => {
     const instagram = relatorio.origem.linhas.filter((l) => l.origem === "instagram");
     expect(instagram.map((l) => l.status)).toEqual(["won", "lost"]);
     expect(instagram[0]?.quantidade).toBe(3);
-    expect(instagram[0]?.porMoeda).toEqual([
+    expect(instagram[0]?.por_moeda).toEqual([
       { moeda: "BRL", quantidade: 1, valor_cents: 120_00 },
       { moeda: "USD", quantidade: 1, valor_cents: 90_00 },
       { moeda: "sem moeda", quantidade: 1, valor_cents: 40_00 },

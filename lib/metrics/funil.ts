@@ -114,7 +114,7 @@ export interface DiasAteFechar {
   /** Fechamentos com data de criação ilegível ou anterior ao fechamento. */
   ignorados: number;
   exclui: string;
-  porFunil: Array<{
+  por_funil: Array<{
     pipeline_id: string;
     funil: string;
     mediana: number | null;
@@ -134,7 +134,7 @@ export interface LinhaDeOrigem {
   origem: string;
   status: "won" | "lost" | "open";
   quantidade: number;
-  porMoeda: BaldePorMoeda[];
+  por_moeda: BaldePorMoeda[];
 }
 
 export interface RelatorioDeFunil {
@@ -147,7 +147,7 @@ export interface RelatorioDeFunil {
     amostra: number;
     notas: string[];
   };
-  diasAteFechar: DiasAteFechar;
+  dias_ate_fechar: DiasAteFechar;
   origem: {
     linhas: LinhaDeOrigem[];
     /** Régua 3: valor só por moeda. Este campo é a declaração dela. */
@@ -394,7 +394,7 @@ export function calcularDiasAteFechar(
     amostra: amostras.length,
     ignorados,
     exclui,
-    porFunil: [...porPipeline.entries()]
+    por_funil: [...porPipeline.entries()]
       .map(([pipeline_id, lista]) => {
         const ordenada = ordena(lista);
         return {
@@ -459,7 +459,7 @@ export function calcularOrigem(
         origem,
         status,
         quantidade: porStatus.get(status) ?? 0,
-        porMoeda,
+        por_moeda: porMoeda,
       });
     }
   }
@@ -489,7 +489,7 @@ export function montarRelatorioDeFunil(entrada: {
     janela,
     base: "Negócios criados OU encerrados na janela; passagens de etapa registradas na janela.",
     conversao,
-    diasAteFechar: calcularDiasAteFechar(leads, janela, funis),
+    dias_ate_fechar: calcularDiasAteFechar(leads, janela, funis),
     origem: { linhas: calcularOrigem(leads, janela), valor_por_moeda: true },
     vazio: semDado
       ? {

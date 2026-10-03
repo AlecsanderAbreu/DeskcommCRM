@@ -215,13 +215,13 @@ describe("GET /api/v1/metrics/funil", () => {
     expect(a?.taxa).toBe(0.75);
     expect(a?.amostra).toBe(4);
 
-    const dias = corpo.diasAteFechar as { medida: string; mediana: number | null; amostra: number };
+    const dias = corpo.dias_ate_fechar as { medida: string; mediana: number | null; amostra: number };
     expect(dias.medida).toBe("mediana");
     expect(dias.mediana).toBe(3);
     expect(dias.amostra).toBe(2);
 
     const origem = corpo.origem as {
-      linhas: Array<{ origem: string; status: string; quantidade: number; porMoeda: unknown[] }>;
+      linhas: Array<{ origem: string; status: string; quantidade: number; por_moeda: unknown[] }>;
       valor_por_moeda: boolean;
     };
     expect(origem.valor_por_moeda).toBe(true);
@@ -231,11 +231,11 @@ describe("GET /api/v1/metrics/funil", () => {
     ]);
     // Dedup: g1 veio das DUAS leituras e conta uma vez só.
     expect(origem.linhas.find((l) => l.status === "won")?.quantidade).toBe(2);
-    expect(origem.linhas.find((l) => l.status === "won")?.porMoeda).toEqual([
+    expect(origem.linhas.find((l) => l.status === "won")?.por_moeda).toEqual([
       { moeda: "BRL", quantidade: 2, valor_cents: 210_00 },
     ]);
 
-    const contra = corpo.contraMetrica as {
+    const contra = corpo.contra_metrica as {
       turnos: { p50: number | null } | null;
       opt_outs: { quantidade: number | null } | null;
       nota: string;
@@ -331,7 +331,7 @@ describe("GET /api/v1/metrics/funil", () => {
     const vazio = corpo.vazio as { motivo: string } | null;
     expect(vazio?.motivo).toContain("sem dado");
     expect((corpo.conversao as { etapas: unknown[] }).etapas).toEqual([]);
-    expect((corpo.diasAteFechar as { mediana: number | null }).mediana).toBeNull();
+    expect((corpo.dias_ate_fechar as { mediana: number | null }).mediana).toBeNull();
     expect((corpo.origem as { linhas: unknown[] }).linhas).toEqual([]);
     expect(temNaN(corpo)).toBe(false);
   });
@@ -356,7 +356,7 @@ describe("GET /api/v1/metrics/funil", () => {
     const res = await chamar();
     expect(res.status).toBe(200);
     const corpo = ((await res.json()) as { data: Record<string, unknown> }).data;
-    const contra = corpo.contraMetrica as { turnos: unknown; nota: string };
+    const contra = corpo.contra_metrica as { turnos: unknown; nota: string };
     expect(contra.turnos).toBeNull();
     expect(contra.nota).toContain("não medida");
     expect(temNaN(corpo)).toBe(false);

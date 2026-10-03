@@ -266,5 +266,5 @@ export async function GET(req: NextRequest): Promise<Response> {
     (criadosRes.data?.length ?? 0) >= LIMITE ||
     (encerradosRes.data?.length ?? 0) >= LIMITE;
 
-  return ok({ ...relatorio, contraMetrica, truncado }, { requestId });
+  return ok({ ...relatorio, contra_metrica: contraMetrica, truncado }, { requestId });
 }
