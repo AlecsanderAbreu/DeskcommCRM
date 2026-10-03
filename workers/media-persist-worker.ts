@@ -66,6 +66,12 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
   if (!msg?.media_url) return { consumer_key, status: "skipped", detail: "no media_url" };
   if (msg.media_storage_path) return { consumer_key, status: "skipped", detail: "already stored" };
 
+  // `derivacao` é o item 2 da #2171: todo desfecho TERMINAL da derivação
+  // grava `media_derived_status` junto do motivo, para a coluna nunca ficar
+  // nula quando ninguém mais vai tentar. Sem isso "ninguém tentou" e
+  // "tentou e não deu" eram o mesmo nulo — e o turno seguia com a mensagem
+  // vazia.
+  //
   // Devolve se a linha foi gravada. `metadata` aqui é a foto lida acima: se a
   // anonimização do contato roda entre essa leitura e esta escrita, a linha já
   // está redigida (body sentinela, metadata `{}`, mídia zerada) e regravá-la
@@ -75,10 +81,20 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
   const markStatus = async (
     media_status: "stored" | "failed",
     patch: Record<string, unknown> = {},
+    derivacao: { status: "failed" | "skipped"; motivo: string } | null = null,
   ): Promise<boolean> => {
+    const metadata = {
+      ...(msg.metadata ?? {}),
+      media_status,
+      ...(derivacao ? { media_derived_motivo: derivacao.motivo } : {}),
+    };
     const { data: gravadas, error: updErr } = await admin
       .from("messages")
-      .update({ metadata: { ...(msg.metadata ?? {}), media_status }, ...patch })
+      .update({
+        metadata,
+        ...(derivacao ? { media_derived_status: derivacao.status } : {}),
+        ...patch,
+      })
       .eq("id", msg.id)
       .eq("organization_id", msg.organization_id)
       .filter("body", "isdistinct", MENSAGEM_REDIGIDA)
@@ -114,6 +130,26 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
       // Canal que não sabe baixar não é erro: é o estado normal de um canal sem
       // mídia de entrada. Marcar `failed` faria a Central acusar um defeito que
       // não existe.
+      // `skipped` + motivo, não nulo: nada mais vai ser tentado para esta
+      // linha, e a coluna não pode dizer "ainda estou esperando".
+      // Escrita direta: `media_status` não muda aqui (os bytes nunca chegaram,
+      // não houve defeito — é o estado normal do canal), e quem muda é só a
+      // derivação, que não vai ser tentada de novo.
+      const { error: updCanal } = await admin
+        .from("messages")
+        .update({
+          media_derived_status: "skipped",
+          metadata: {
+            ...(msg.metadata ?? {}),
+            media_derived_motivo:
+              "o canal desta conversa não expõe download de mídia de entrada, então os bytes nunca vão chegar ao Storage",
+          },
+        })
+        .eq("id", msg.id)
+        .eq("organization_id", msg.organization_id)
+        // Mesma guarda LGPD do `markStatus`: esta metadata também é a foto lida.
+        .filter("body", "isdistinct", MENSAGEM_REDIGIDA);
+      if (updCanal) throw new Error(`message update failed: ${updCanal.message}`);
       return { consumer_key, status: "skipped", detail: "canal_sem_midia_de_entrada" };
     }
 
@@ -127,7 +163,10 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
     const detail = err instanceof Error ? err.message : String(err);
     if (isLastAttempt) {
       logger.error("[media-persist] download failed permanently", { message_id: msg.id, detail });
-      await markStatus("failed");
+      await markStatus("failed", {}, {
+        status: "failed",
+        motivo: `não consegui baixar a mídia em todas as tentativas: ${detail}`,
+      });
     }
     return { consumer_key, status: "error", detail };
   }
@@ -142,7 +181,10 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
         message_id: msg.id,
         detail: uploadErr.message,
       });
-      await markStatus("failed");
+      await markStatus("failed", {}, {
+        status: "failed",
+        motivo: `não consegui salvar a mídia no Storage em todas as tentativas: ${uploadErr.message}`,
+      });
     }
     return { consumer_key, status: "error", detail: uploadErr.message };
   }
@@ -190,6 +232,10 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
       conversation_id: msg.conversation_id,
       detail: convErr.message,
     });
+    await markStatus("stored", {}, {
+      status: "failed",
+      motivo: `não consegui verificar se a conversa é de grupo, então a derivação não foi pedida: ${convErr.message}`,
+    });
     return { consumer_key, status: "ok" };
   }
   const isGroup = Boolean((conv as { is_group?: boolean | null } | null)?.is_group);
@@ -205,7 +251,15 @@ export async function persistMessageMedia(row: EventRow): Promise<HandlerResult>
       p_metadata: { source: "media_persist" },
       p_organization_id: msg.organization_id,
     } as never);
-    if (emitErr) logger.warn("[media-persist] emit_event failed (non-blocking)", { message_id: msg.id, detail: emitErr.message });
+    if (emitErr) {
+      logger.warn("[media-persist] emit_event failed (non-blocking)", { message_id: msg.id, detail: emitErr.message });
+      // O evento NÃO saiu: ninguém vai pedir a derivação, e deixar a coluna
+      // nula aqui é o mesmo silêncio do resto da #2171.
+      await markStatus("stored", {}, {
+        status: "failed",
+        motivo: `não consegui pedir a derivação textual da mídia: ${emitErr.message}`,
+      });
+    }
   }
 
   return { consumer_key, status: "ok" };

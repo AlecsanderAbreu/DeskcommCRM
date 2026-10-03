@@ -36,6 +36,8 @@ let linhaAgora: Record<string, unknown>;
 let gravacoes: Record<string, unknown>[];
 let anonimizarDuranteODownload: boolean;
 let downloadFalha: boolean;
+/** Sem sessão o worker cai no ramo de canal sem mídia de entrada; a anonimização vem na leitura dela. */
+let semSessaoEAnonimizaNaLeitura: boolean;
 
 const uploadMock = vi.fn();
 const removeMock = vi.fn();
@@ -57,6 +59,11 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({
     from: (tabela: string) => ({
       select: () => {
+        if (tabela === "channel_sessions" && semSessaoEAnonimizaNaLeitura) {
+          anonimizar();
+          const vazio = { maybeSingle: async () => ({ data: null, error: null }) };
+          return { eq: () => ({ ...vazio, eq: () => vazio }) };
+        }
         const linha =
           tabela === "channel_sessions"
             ? { provider: "waha", waha_session_name: "default", meta_phone_number_id: null, zernio_account_id: null }
@@ -127,6 +134,7 @@ describe("persistMessageMedia — LGPD: não regrava mensagem anonimizada no mei
     gravacoes = [];
     anonimizarDuranteODownload = false;
     downloadFalha = false;
+    semSessaoEAnonimizaNaLeitura = false;
     uploadMock.mockReset().mockResolvedValue({ error: null });
     removeMock.mockReset().mockResolvedValue({ error: null });
     rpcMock.mockReset().mockResolvedValue({ error: null });
@@ -175,5 +183,15 @@ describe("persistMessageMedia — LGPD: não regrava mensagem anonimizada no mei
     expect(r.status).toBe("error");
     expect(gravacoes).toHaveLength(1);
     expect(linhaAgora.metadata).toMatchObject({ media_status: "failed" });
+  });
+
+  it("canal sem mídia de entrada, anonimizado no meio: o `skipped` não regrava a metadata", async () => {
+    semSessaoEAnonimizaNaLeitura = true;
+
+    const r = await persistMessageMedia(eventRow());
+
+    expect(r.detail).toBe("canal_sem_midia_de_entrada");
+    expect(gravacoes).toEqual([]);
+    expect(linhaAgora.metadata).toEqual({});
   });
 });
