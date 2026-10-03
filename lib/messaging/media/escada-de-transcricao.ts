@@ -268,9 +268,12 @@ export async function decidirTranscricao(entrada: {
     origem: "nada",
     transcriber: null,
     motivo,
-    // Sem quem transcreva não há provedor nem modelo a anunciar. O `provider`
-    // de quem NÃO vai ser chamado é vazio de propósito: preencher com o padrão
-    // da organização recriaria, na tela, a mentira que esta issue veio matar.
+    // Sem quem transcreva não há modelo a anunciar: `modelId: null` é o que a
+    // tela desenha como "—", ao lado do motivo. O `provider` repete o da
+    // conversa (vazio quando ela não veio) só como etiqueta: o cartão de um
+    // ponto fixo não o mostra nem o deixa editar, e ninguém chama esse
+    // provedor para transcrever — anunciar um MODELO aqui é que recriaria, na
+    // tela, a mentira que a #2190 veio matar.
     anuncio: { provider: conversa?.provider ?? "", modelId: null },
   };
 }
