@@ -21,9 +21,12 @@
  * Pré-requisito: `.e2e-creds.json` (o helper roda o seed se faltar). Sem WAHA,
  * Resend, Nuvemshop nem Redis.
  */
+import { createClient } from "@supabase/supabase-js";
+
 import { test, expect, type Page } from "./helpers/test";
 
 import { lerCreds } from "./helpers/login-admin";
+import { credenciaisSupabaseDeTeste } from "../../scripts/lib/env-de-teste";
 
 const creds = lerCreds();
 const ESPERA = 30_000;
@@ -32,6 +35,22 @@ const LOTE = Date.now().toString(36).toUpperCase();
 const ALVO = `ZZZ Alvo do catalogo grande ${LOTE}`;
 
 test.describe.configure({ mode: "serial", timeout: 180_000 });
+
+/**
+ * Os 530 produtos saem do banco no fim. A organização do seed é compartilhada
+ * pela PARTE inteira do e2e, e no Postgres 15 do job a leitura da tela custa
+ * ~2 ms por produto por causa das policies de `catalog_products` (avaliadas
+ * linha a linha): deixar o catálogo grande fez as specs seguintes que abrem
+ * `/app/products` estourarem o `statement_timeout` de 8 s do `authenticated`
+ * (run 37135035200: fotos-no-catalogo, moeda-da-organizacao,
+ * qa-titulos-das-telas). O prefixo `E2E-PAG-<lote>-` só existe nesta rodada.
+ */
+test.afterAll(async () => {
+  const { url, serviceRole } = credenciaisSupabaseDeTeste();
+  const db = createClient(url, serviceRole, { auth: { persistSession: false } });
+  const { error } = await db.from("catalog_products").delete().like("codigo", `E2E-PAG-${LOTE}-%`);
+  expect(error, "a limpeza dos produtos da spec falhou").toBeNull();
+});
 
 async function entrar(page: Page): Promise<void> {
   const email = creds.users.manager?.email;
