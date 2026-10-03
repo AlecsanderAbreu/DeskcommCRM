@@ -1,12 +1,13 @@
--- manifest: **Platform admin `support_readonly` deixa de escrever nas 36 policies restantes da #2115 — e a conta de escrita com a função pura fecha em 0.** Medição na `main@17c4b81b8`, depois do #2193: 36 policies de escrita com `fn_is_platform_admin()` puro, em 28 tabelas. **29 são troca direta** de policies de topo (cada tabela já tem `*_select` com a função pura, ou `fn_can_view_*`, que começa com `when fn_is_platform_admin() then true`); **6 são as policies internas de `fn_honorarios_provisionar`** (módulo honorários, ADR-0002) — a definição da função passa a criar as escritas com `_full` e mantém as duas SELECT com a pura; para quem já tem o módulo, quem reconstrói as policies é a reaplicação explícita (D6), que o fim do baseline roda em toda atualização; **1 é o único par**: `recurring_entries`, a única tabela das 47 sem `SELECT` própria — `_read` (pura) + `_write` (`_full`), preservando a assimetria do `_all` (using = membro ou plataforma; with check = plataforma ou membro+manager). Mesmo desenho da 0529: baseline editado no lugar (as 3 duplicatas de `attendant_availability` trocadas nas DUAS cópias) e invariante estendido — catálogo das 36, conta global de escrita em 0, comportamento do par e o módulo honorários instalado no próprio teste.
+-- manifest: **Platform admin `support_readonly` deixa de escrever nas 45 policies restantes da #2115 (36 das 47 listadas + 9 dinâmicas) — e a conta de escrita com a função pura fecha em 0.** Medição na `main@17c4b81b8`, depois do #2193: 36 policies de escrita com `fn_is_platform_admin()` puro, em 28 tabelas. **29 são troca direta** de policies de topo (cada tabela já tem `*_select` com a função pura, ou `fn_can_view_*`, que começa com `when fn_is_platform_admin() then true`); **6 são as policies internas de `fn_honorarios_provisionar`** (módulo honorários, ADR-0002) — a definição da função passa a criar as escritas com `_full` e mantém as duas SELECT com a pura; para quem já tem o módulo, quem reconstrói as policies é a reaplicação explícita (D6), que o fim do baseline roda em toda atualização; **1 é o único par**: `recurring_entries`, a única tabela das 47 sem `SELECT` própria — `_read` (pura) + `_write` (`_full`), preservando a assimetria do `_all` (using = membro ou plataforma; with check = plataforma ou membro+manager). Mesmo desenho da 0529: baseline editado no lugar (as 3 duplicatas de `attendant_availability` trocadas nas DUAS cópias) e invariante estendido — catálogo das 36, conta global de escrita em 0, comportamento do par e o módulo honorários instalado no próprio teste. **+9 dinâmicas** que a lista de 47 não via (a busca não enxerga `format()`) e a conta global achou: os dois blocos `do $$ foreach` de 0350 (`financial_accounts`, `payment_methods`, `account_plans`, with check manager) e 0351 (`sales`, `sale_items`, `commission_rules`, `commissions`, `financial_entries`, `loyalty_ledger`, with check agent) — `_all` vira o mesmo par `_read`/`_write` de `recurring_entries`.
 
 -- 0533: fatia 2 da #2115 — a prioridade 5 do issue (o resto da lista).
 --
 -- A #2115 mediu 47 policies de escrita com fn_is_platform_admin() no trecho que
 -- a 0508 não varreu (apêndices do baseline). A fatia 1 (0529, PR #2193) fechou
--- as 11 da prioridade 1 a 4; esta fecha as 36 restantes.
+-- as 11 da prioridade 1 a 4; esta fecha as 36 restantes da lista e mais 9 que a
+-- lista não via (dois blocos dinâmicos do baseline, `format()`): 45 ao todo.
 --
--- Três formas, todas no mesmo desenho:
+-- Quatro formas, todas no mesmo desenho:
 --   · 29 TROCAS DIRETAS em policies de topo — cada tabela já tem SELECT própria
 --     com a função pura (ou fn_can_view_*, que começa com
 --     `when fn_is_platform_admin() then true`);
@@ -15,13 +16,15 @@
 --     seguem com a função pura e as seis de escrita passam a `_full`. Para quem
 --     já tem o módulo, a policy nasce no provisionamento: quem a reconstrói é a
 --     reaplicação explícita (D6), que o fim do baseline roda em toda atualização;
---   · 1 PAR — recurring_entries era a única das 47 sem SELECT própria.
+--   · 1 PAR — recurring_entries era a única das 47 sem SELECT própria;
+--   · 9 PARES DINÂMICOS — os laços de 0350 e 0351 criavam `tenant_isolation_%I_all`
+--     com a pura; viram o mesmo par `_read`/`_write` (fim deste arquivo).
 --
 -- Idempotente: drop policy if exists antes de cada create; create or replace
 -- na função; a reaplicação é o mesmo comando do fim do baseline.
 --
 -- Medido em banco pelo invariante estendido
--- (tests/invariants/platform-admin-full-so-escreve.test.ts): catálogo das 36
+-- (tests/invariants/platform-admin-full-so-escreve.test.ts): catálogo das 45
 -- expressões vivas, conta global de escrita com a função pura em 0, comportamento
 -- do par de recurring_entries e o módulo honorários instalado dentro do teste.
 
@@ -586,3 +589,37 @@ grant execute on function public.fn_honorarios_provisionar() to service_role;
 -- EXPLÍCITA (D6): o fim do baseline roda `fn_reaplicar_modulos_instalados()` em toda
 -- atualização. Esta migration redefine a função; o caminho da cadeia não reaplica
 -- módulo sozinho, de propósito.
+
+-- ---- as 9 dos dois blocos dinâmicos (0350 e 0351): _all vira par ----
+-- Ficaram fora da lista de 47 da #2115 porque a busca que a montou não enxerga
+-- `format()`. A conta global do invariante as achou. Mesmo par de
+-- recurring_entries: _read com a função pura, _write com `_full`.
+do $$
+declare t text; papel text;
+begin
+  foreach t in array array['financial_accounts', 'payment_methods', 'account_plans',
+                           'sales', 'sale_items', 'commission_rules', 'commissions',
+                           'financial_entries', 'loyalty_ledger'] loop
+    -- Dinheiro de configuração (0350) é manager+; o que a comanda move (0351), agent+.
+    papel := case when t in ('financial_accounts', 'payment_methods', 'account_plans')
+                  then 'manager' else 'agent' end;
+    execute format('drop policy if exists tenant_isolation_%I_all on public.%I', t, t);
+    execute format('drop policy if exists tenant_isolation_%I_read on public.%I', t, t);
+    execute format($f$
+      create policy tenant_isolation_%I_read on public.%I
+        for select
+        using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin())
+    $f$, t, t);
+    execute format('drop policy if exists tenant_isolation_%I_write on public.%I', t, t);
+    execute format($f$
+      create policy tenant_isolation_%I_write on public.%I
+        for all
+        using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full())
+        with check (
+          public.fn_is_platform_admin_full()
+          or (organization_id in (select public.fn_user_org_ids())
+              and public.fn_role_at_least(organization_id, %L))
+        )
+    $f$, t, t, papel);
+  end loop;
+end $$;

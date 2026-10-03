@@ -296,8 +296,8 @@ describe("0529 — support_readonly não escreve na fatia 1 do #2115", () => {
  * medido em COMPORTAMENTO — leitura de pé, `support_readonly` com 0 linhas,
  * `full` escrevendo — e a última asserção é a conta GLOBAL: nenhuma policy de
  * escrita em `public` volta a citar a função pura, nem por definição nova, nem
- * pelo caminho dinâmico (as dinâmicas do baseline só usam `fn_user_org_ids` e
- * `fn_support_write_allowed`).
+ * pelo caminho dinâmico (os laços `format()` de 0350/0351 usavam a pura; ver
+ * `platform-admin-full-so-escreve-dinamicas.test.ts`).
  *
  * As 35 trocas diretas não ganham sonda tabela a tabela: o mecanismo é o mesmo
  * que a fatia 1 mede em cinco delas, e o catálogo é o que prova a expressão de

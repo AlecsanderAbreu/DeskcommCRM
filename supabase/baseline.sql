@@ -33488,13 +33488,22 @@ declare t text;
 begin
   foreach t in array array['financial_accounts', 'payment_methods', 'account_plans'] loop
     execute format('alter table public.%I enable row level security', t);
+    -- 0533: o _all virou par. Leitura com a função pura (support_readonly segue
+    -- lendo); escrita exige scope='full'.
     execute format('drop policy if exists tenant_isolation_%I_all on public.%I', t, t);
+    execute format('drop policy if exists tenant_isolation_%I_read on public.%I', t, t);
     execute format($f$
-      create policy tenant_isolation_%I_all on public.%I
-        for all
+      create policy tenant_isolation_%I_read on public.%I
+        for select
         using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin())
+    $f$, t, t);
+    execute format('drop policy if exists tenant_isolation_%I_write on public.%I', t, t);
+    execute format($f$
+      create policy tenant_isolation_%I_write on public.%I
+        for all
+        using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full())
         with check (
-          public.fn_is_platform_admin()
+          public.fn_is_platform_admin_full()
           or (organization_id in (select public.fn_user_org_ids())
               and public.fn_role_at_least(organization_id, 'manager'))
         )
@@ -34004,13 +34013,22 @@ begin
   foreach t in array array['sales', 'sale_items', 'commission_rules', 'commissions',
                            'financial_entries', 'loyalty_ledger'] loop
     execute format('alter table public.%I enable row level security', t);
+    -- 0533: o _all virou par. Leitura com a função pura (support_readonly segue
+    -- lendo); escrita exige scope='full'.
     execute format('drop policy if exists tenant_isolation_%I_all on public.%I', t, t);
+    execute format('drop policy if exists tenant_isolation_%I_read on public.%I', t, t);
     execute format($f$
-      create policy tenant_isolation_%I_all on public.%I
-        for all
+      create policy tenant_isolation_%I_read on public.%I
+        for select
         using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin())
+    $f$, t, t);
+    execute format('drop policy if exists tenant_isolation_%I_write on public.%I', t, t);
+    execute format($f$
+      create policy tenant_isolation_%I_write on public.%I
+        for all
+        using (organization_id in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full())
         with check (
-          public.fn_is_platform_admin()
+          public.fn_is_platform_admin_full()
           or (organization_id in (select public.fn_user_org_ids())
               and public.fn_role_at_least(organization_id, 'agent'))
         )
