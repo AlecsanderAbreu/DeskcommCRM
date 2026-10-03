@@ -161,6 +161,35 @@ export function diasAtePrazo(dueAt: string | Date | null | undefined, agora: Dat
 }
 
 const HORA_MS = 3_600_000;
+const DIA_MS = 86_400_000;
+
+/**
+ * O INSTANTE em que o dia guardado acaba — a meia-noite UTC do dia seguinte.
+ * `null` quando o valor não é uma data.
+ *
+ * ## Por que esta função existe
+ *
+ * Ela é a **âncora** de todo consumidor que mede distância até o prazo. Antes de
+ * existir, o `+ 86_400_000` estava escrito à mão em três lugares (aqui, no selo da
+ * plataforma e nas duas linhas do tempo) — e uma âncora escrita quatro vezes é
+ * uma âncora que alguém esquece de mudar em um deles.
+ *
+ * Medido (`TZ=America/Sao_Paulo`, `due_at = 2026-10-05T00:00:00.000Z`): o dia
+ * guardado acaba em `2026-10-06T00:00:00.000Z`, que é **21:00 de 05/10** no
+ * Brasil. É a herança do eixo UTC do motor (`computeDueAt`), não desta função —
+ * mudar isso é mudar o que a coluna guarda, e é decisão de produto.
+ *
+ * Devolver o INSTANTE (e não as horas) deixa o chamador escolher a unidade: a
+ * barra de progresso quer a razão, a contagem quer as horas, o selo quer comparar
+ * contra um teto.
+ */
+export function fimDoPrazo(dueAt: string | Date | null | undefined): Date | null {
+  const prazo = diaDoPrazo(dueAt);
+  if (prazo === null) return null;
+  const inicio = utcDeDiaCivil(prazo);
+  if (inicio === null) return null;
+  return new Date(inicio + DIA_MS);
+}
 
 /**
  * HORAS até o FIM do dia que `due_at` representa — `0` no último minuto do dia,
@@ -193,11 +222,9 @@ export function horasAteOFimDoPrazo(
   dueAt: string | Date | null | undefined,
   agora: Date,
 ): number | null {
-  const prazo = diaDoPrazo(dueAt);
-  if (prazo === null) return null;
-  const inicio = utcDeDiaCivil(prazo);
-  if (inicio === null) return null;
-  return (inicio + 86_400_000 - agora.getTime()) / HORA_MS;
+  const fim = fimDoPrazo(dueAt);
+  if (fim === null) return null;
+  return (fim.getTime() - agora.getTime()) / HORA_MS;
 }
 
 /**
