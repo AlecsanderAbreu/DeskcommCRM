@@ -124,8 +124,25 @@ function leituraEm(agora: Date): Leitura {
   };
 }
 
-function asTresBordas(): Leitura[] {
-  return Object.values(BORDAS).map(leituraEm);
+/**
+ * As três bordas, POR NOME e não em array.
+ *
+ * Nomeadas porque o `tsc` do repositório tem `noUncheckedIndexedAccess`: um
+ * array destructurado devolve `Leitura | undefined`, e as 26 asserções logo
+ * abaixo ficariam todas `possibly undefined`. O objeto devolve o tipo exato, e
+ * a ordem das chaves continua estável — é ela que o caso "dão o MESMO valor"
+ * compara por `JSON.stringify`.
+ */
+function asTresBordas(): {
+  vespera: Leitura;
+  diaDoPrazoAgora: Leitura;
+  diaSeguinte: Leitura;
+} {
+  return {
+    vespera: leituraEm(BORDAS.vespera),
+    diaDoPrazoAgora: leituraEm(BORDAS.diaDoPrazoAgora),
+    diaSeguinte: leituraEm(BORDAS.diaSeguinte),
+  };
 }
 
 describe("a leitura do prazo não muda com o fuso do processo", () => {
@@ -146,7 +163,7 @@ describe("a leitura do prazo não muda com o fuso do processo", () => {
   });
 
   it("e os valores são os concretos esperados (igual entre si não basta: errar igual nos três passaria)", () => {
-    const [vespera, diaDoPrazoAgora, diaSeguinte] = emFuso(
+    const { vespera, diaDoPrazoAgora, diaSeguinte } = emFuso(
       "America/Sao_Paulo",
       asTresBordas,
     );
