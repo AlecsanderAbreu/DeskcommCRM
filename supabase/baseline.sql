@@ -28027,9 +28027,10 @@ begin
   end if;
   v_config := coalesce(p_configuration,v_link.configuration,v_manifest->'configuration');
   if v_config is null or jsonb_typeof(v_config) <> 'object'
-    or not (v_config ?& array['density','show_description']) or v_config - array['density','show_description'] <> '{}'::jsonb
+    or not (v_config ?& array['density','show_description']) or v_config - array['density','show_description','theme'] <> '{}'::jsonb
     or v_config->>'density' is null or v_config->>'density' not in ('comfortable','compact')
-    or jsonb_typeof(v_config->'show_description') is distinct from 'boolean' then
+    or jsonb_typeof(v_config->'show_description') is distinct from 'boolean'
+    or (v_config ? 'theme' and (v_config->>'theme' is null or v_config->>'theme' not in ('sage','clay','mist','plum','olive'))) then
     raise exception using errcode='P0001',message='extension_invalid_input';
   end if;
   if p_enabled and not coalesce(v_link.enabled,false) and
@@ -32021,13 +32022,14 @@ create or replace function public.fn_extensions_permissoes_validas(p_permissions
 returns boolean language sql immutable set search_path = public, pg_temp as $$
   select p_permissions is not null
     and jsonb_typeof(p_permissions) = 'array'
-    and jsonb_array_length(p_permissions) between 1 and 6
+    and jsonb_array_length(p_permissions) between 1 and 7
     and not exists (
       select 1 from jsonb_array_elements(p_permissions) e
       where jsonb_typeof(e.value) <> 'string'
          or e.value #>> '{}' not in (
               'navigation.tasks', 'navigation.inbox', 'navigation.kanban',
-              'navigation.contacts', 'navigation.agenda', 'navigation.radar')
+              'navigation.contacts', 'navigation.agenda', 'navigation.radar',
+              'theme.apply')
     )
     and (select count(distinct e.value) from jsonb_array_elements(p_permissions) e)
         = jsonb_array_length(p_permissions);
@@ -46282,6 +46284,30 @@ begin
   end loop;
 end
 $$;
+
+-- 0520 (#1095, de @webtecnica): o gancho de TEMA. A permissão `theme.apply`
+-- entra no conjunto fechado (`fn_extensions_permissoes_validas`, bloco acima) e
+-- a configuração do vínculo passa a admitir UMA chave opcional `theme` = a
+-- paleta escolhida pela organização. Par drop/add da CHECK para o `update.sh`
+-- reaplicar sem 'already exists' — quem aplica SÓ o baseline é justamente quem
+-- mais precisa desta definição, porque ali a cadeia de migrations não roda.
+alter table public.organization_extensions
+  drop constraint if exists organization_extensions_configuration_check;
+
+alter table public.organization_extensions
+  add constraint organization_extensions_configuration_check
+  check (
+    jsonb_typeof(configuration) = 'object'
+    and configuration ?& array['density','show_description']
+    and configuration - array['density','show_description','theme'] = '{}'::jsonb
+    and configuration->>'density' is not null
+    and configuration->>'density' in ('comfortable','compact')
+    and jsonb_typeof(configuration->'show_description') = 'boolean'
+    and (
+      not (configuration ? 'theme')
+      or configuration->>'theme' in ('sage','clay','mist','plum','olive')
+    )
+  );
 
 -- ---- o audit log é só-inclusão para TODO papel que não seja o dono (migration 0525) ----
 --

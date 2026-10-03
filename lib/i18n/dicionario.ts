@@ -1233,6 +1233,9 @@ export const DICIONARIO: Traducoes = {
   Inbox: { es: "Inbox" },
   Agenda: { es: "Agenda" },
   Radar: { es: "Radar" },
+  // A porta do tema de extensão (#1095). `theme.apply` não abre tela — pinta o
+  // produto; o label entra aqui para não degradar em silêncio no espanhol.
+  "Seu tema na tela": { es: "Tu tema en pantalla" },
   "Respostas rápidas": { es: "Respuestas rápidas" },
   Contatos: { es: "Contactos" },
   // A CHAVE É O TEXTO PT-BR, então renomear um rótulo no registro de navegação
