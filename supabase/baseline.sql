@@ -44355,7 +44355,10 @@ notify pgrst, 'reload schema';
 -- `tests/unit/trigger-imutavel-cobre-todas-as-colunas-de-conteudo.test.ts`
 -- compara a ÚLTIMA definição que vale contra o conjunto de conteúdo.
 create or replace function fn_ai_agent_version_content_immutable() returns trigger
-language plpgsql as $fn$
+-- search_path fixo na PRÓPRIA definição: um create or replace sem a cláusula
+-- apaga o alter function ... set search_path da 0521 (invariante
+-- tests/invariants/avisos-do-security-advisor.test.ts).
+language plpgsql set search_path = '' as $fn$
 begin
   if old.status <> 'draft' and (
        new.system_prompt          is distinct from old.system_prompt
