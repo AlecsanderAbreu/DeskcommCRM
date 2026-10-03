@@ -11,7 +11,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { apiClient } from "@/lib/api/client";
 import { useT } from "@/hooks/i18n/useT";
-import { safePublicLink, type CampaignConfig, type Prospect } from "@/lib/prospecting/schema";
+import {
+  RAZAO_NAO_SELECIONADA,
+  safePublicLink,
+  type CampaignConfig,
+  type Prospect,
+} from "@/lib/prospecting/schema";
 import { ProspectingAgentBuilder, type CreatedProspectingAgent } from "./_create-agent";
 import type { ProspectingAgentSetupInput } from "@/lib/prospecting/agent-setup-schema";
 
@@ -32,6 +37,8 @@ type Candidate = {
   campaign_id: string;
   data: Prospect;
   selected?: boolean;
+  status?: string;
+  lead_id?: string | null;
   progress: string;
   message_status: string | null;
   error: string | null;
@@ -105,6 +112,9 @@ export function ProspectingClient() {
   const [campaignDrafts, setCampaignDrafts] = useState<Record<string, CampaignConfig>>({});
   const [manualCampaigns, setManualCampaigns] = useState<Record<string, boolean>>({});
   const [createdAgents, setCreatedAgents] = useState<{ id: string; name: string }[]>([]);
+  // As desmarcadas ficam escondidas por padrão; este botão só decide se aparecem.
+  const [mostrarDesmarcadas, setMostrarDesmarcadas] = useState(false);
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   // Edição do ritmo de uma campanha PAUSADA; vale para uma campanha por vez.
   const [ritmo, setRitmo] = useState<{
     campaignId: string;
@@ -208,16 +218,63 @@ export function ProspectingClient() {
     if (salvou) setRitmo(null);
   }
   const count = (states: string[]) => candidates.filter((c) => states.includes(c.progress)).length;
-  const canSelect =
-    !!campaign && campaign.status === "draft" && campaign.search_status === "succeeded";
-  const allSelected = canSelect && candidates.every((c) => c.selected !== false);
-  const noneSelected = canSelect && candidates.every((c) => c.selected === false);
+  const buscaConcluida = !!campaign && campaign.search_status === "succeeded";
+  const noRascunho = buscaConcluida && campaign?.status === "draft";
+  // Depois de iniciada, a fila só se mexe com a campanha PAUSADA: o envio não está no meio
+  // de uma abordagem. Quem já foi abordado, falhou ou está sendo preparado não muda.
+  const naFilaPausada = buscaConcluida && campaign?.status === "paused";
+  const canSelect = noRascunho || naFilaPausada;
+  const criaSoNoEnvio = campaign?.config?.funnel_entry === "on_send";
+  /** Linha que a caixa pode alterar agora. Espelha as regras do servidor (`selecionarNaFila`). */
+  const marcavel = (c: Candidate) => {
+    if (noRascunho) return true;
+    if (c.status === "queued") return true;
+    return (
+      c.status === "skipped" &&
+      c.selected === false &&
+      c.error === RAZAO_NAO_SELECIONADA &&
+      (criaSoNoEnvio || !!c.conversation_id)
+    );
+  };
+  const elegiveis = canSelect ? candidates.filter(marcavel) : [];
+  const allSelected = elegiveis.length > 0 && elegiveis.every((c) => c.selected !== false);
+  // Critério do #2048, medido sobre as linhas que a caixa pode alterar agora, não a fila inteira.
+  const noneSelected = elegiveis.every((c) => c.selected === false);
+  const desmarcadas = candidates.filter((c) => c.selected === false);
+  /**
+   * O que o botão "Excluir desmarcadas" realmente apaga. Espelha o `where` do servidor: sem
+   * negócio nem conversa (o que já virou registro do CRM não é daqui) e só o que o operador
+   * tirou. Numa campanha que criou o contato ao iniciar, toda desmarcada da fila já tem
+   * conversa — e o botão não aparece, em vez de dizer "excluído" sem ter excluído nada.
+   * (A linha-tomba de LGPD tem `error` nulo, então também fica de fora.)
+   */
+  const descartaveis = desmarcadas.filter(
+    (c) =>
+      !c.conversation_id &&
+      !c.lead_id &&
+      (c.status === "new" || (c.status === "skipped" && c.error === RAZAO_NAO_SELECIONADA)),
+  );
+  const visiveis =
+    canSelect && !mostrarDesmarcadas ? candidates.filter((c) => c.selected !== false) : candidates;
   async function setSelection(candidateIds: string[], selected: boolean) {
     if (!campaign) return;
     await perform(
-      { action: "select", id: campaign.id, candidate_ids: candidateIds, selected },
+      {
+        action: noRascunho ? "select" : "select_in_queue",
+        id: campaign.id,
+        candidate_ids: candidateIds,
+        selected,
+      },
       t("Seleção da fila atualizada."),
     );
+  }
+  async function excluirDesmarcadas() {
+    if (!campaign) return;
+    const excluiu = await perform(
+      { action: "discard_unselected", id: campaign.id },
+      t("Empresas desmarcadas excluídas."),
+    );
+    if (excluiu) setConfirmandoExclusao(false);
   }
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
@@ -402,6 +459,9 @@ export function ProspectingClient() {
                   onClick={() => {
                     setSelected(c.id);
                     setNotice(null);
+                    // A confirmação de exclusão vale para UMA campanha: ao trocar, ela some.
+                    setConfirmandoExclusao(false);
+                    setMostrarDesmarcadas(false);
                   }}
                   className={`w-full rounded-lg border p-3 text-left ${campaign?.id === c.id ? "border-primary bg-primary/5" : "bg-card"}`}
                 >
@@ -951,16 +1011,25 @@ export function ProspectingClient() {
                       {canSelect && (
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs text-muted-foreground">
-                            {t(
-                              "Somente as empresas marcadas entram na fila ao iniciar as abordagens.",
-                            )}
+                            {noRascunho
+                              ? t(
+                                  "Somente as empresas marcadas entram na fila ao iniciar as abordagens.",
+                                )
+                              : t(
+                                  "Com a campanha pausada, marque ou desmarque as empresas que ainda estão na fila. Quem já foi abordado não muda.",
+                                )}
                           </span>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={busy || allSelected}
-                            onClick={() => setSelection(candidates.map((c) => c.id), true)}
+                            disabled={busy || elegiveis.length === 0 || allSelected}
+                            onClick={() =>
+                              setSelection(
+                                elegiveis.map((c) => c.id),
+                                true,
+                              )
+                            }
                           >
                             {t("Marcar todas")}
                           </Button>
@@ -969,10 +1038,71 @@ export function ProspectingClient() {
                             variant="outline"
                             size="sm"
                             disabled={busy || noneSelected}
-                            onClick={() => setSelection(candidates.map((c) => c.id), false)}
+                            onClick={() =>
+                              setSelection(
+                                elegiveis.map((c) => c.id),
+                                false,
+                              )
+                            }
                           >
                             {t("Desmarcar todas")}
                           </Button>
+                          {desmarcadas.length > 0 && (
+                            <button
+                              type="button"
+                              className="text-xs underline"
+                              onClick={() => setMostrarDesmarcadas((v) => !v)}
+                            >
+                              {mostrarDesmarcadas
+                                ? t("Esconder desmarcadas")
+                                : `${t("Mostrar desmarcadas")} (${desmarcadas.length})`}
+                            </button>
+                          )}
+                          {descartaveis.length > 0 &&
+                            (confirmandoExclusao ? (
+                              <span className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {t(
+                                    "Excluir tira essas empresas da lista. Em outra busca, elas podem aparecer de novo como novas.",
+                                  )}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="sm"
+                                  disabled={busy}
+                                  onClick={() => void excluirDesmarcadas()}
+                                >
+                                  {t("Confirmar exclusão")}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={busy}
+                                  onClick={() => setConfirmandoExclusao(false)}
+                                >
+                                  {t("Cancelar")}
+                                </Button>
+                              </span>
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => setConfirmandoExclusao(true)}
+                              >
+                                {`${t("Excluir desmarcadas")} (${descartaveis.length})`}
+                              </Button>
+                            ))}
+                          {naFilaPausada && !criaSoNoEnvio && (
+                            <span className="basis-full text-xs text-muted-foreground">
+                              {t(
+                                "Esta campanha já criou o contato e o negócio dessas empresas ao iniciar. Desmarcar só impede o envio: elas continuam no funil.",
+                              )}
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -987,8 +1117,13 @@ export function ProspectingClient() {
                                 <input
                                   type="checkbox"
                                   checked={allSelected}
-                                  disabled={busy}
-                                  onChange={() => setSelection(candidates.map((c) => c.id), !allSelected)}
+                                  disabled={busy || elegiveis.length === 0}
+                                  onChange={() =>
+                                    setSelection(
+                                      elegiveis.map((c) => c.id),
+                                      !allSelected,
+                                    )
+                                  }
                                   aria-label={t("Alternar seleção de todas as empresas")}
                                 />
                                 <span>{t("Abordar")}</span>
@@ -1002,17 +1137,19 @@ export function ProspectingClient() {
                         </tr>
                       </thead>
                       <tbody>
-                        {candidates.map((c) => (
+                        {visiveis.map((c) => (
                           <tr key={c.id} className="border-b last:border-0">
                             {canSelect && (
                               <td className="p-4 align-top">
-                                <input
-                                  type="checkbox"
-                                  checked={c.selected !== false}
-                                  disabled={busy}
-                                  onChange={() => setSelection([c.id], c.selected === false)}
-                                  aria-label={t("Marcar empresa para abordagem")}
-                                />
+                                {marcavel(c) && (
+                                  <input
+                                    type="checkbox"
+                                    checked={c.selected !== false}
+                                    disabled={busy}
+                                    onChange={() => setSelection([c.id], c.selected === false)}
+                                    aria-label={t("Marcar empresa para abordagem")}
+                                  />
+                                )}
                               </td>
                             )}
                             <td className="p-4 align-top">

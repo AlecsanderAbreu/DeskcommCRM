@@ -15,6 +15,8 @@ import {
   adjustPace,
   configureCredential,
   createSearch,
+  descartarDesmarcadas,
+  selecionarNaFila,
   validateConfig,
   withProspectingLock,
   type Campaign,
@@ -170,6 +172,21 @@ export async function POST(req: NextRequest) {
         );
         return { selected: body.selected, candidates_id: rows.map((r) => r.id) };
       });
+    } else if (body.action === "select_in_queue") {
+      const fila = await selecionarNaFila(pool, org, body.id, body.candidate_ids, body.selected);
+      result = fila;
+      // Quantas empresas de fato mudaram (o servidor ignora as que não podiam mudar).
+      auditMetadata = {
+        operation: body.action,
+        selected: body.selected,
+        changed: fila.changed_ids.length,
+      };
+    } else if (body.action === "discard_unselected") {
+      const descarte = await descartarDesmarcadas(pool, org, body.id);
+      result = descarte;
+      // O histórico precisa dizer QUANTAS linhas saíram: apagar é o único gesto desta rota
+      // que não tem volta, e "alguém excluiu" sem número não deixa conferir nada depois.
+      auditMetadata = { operation: body.action, discarded: descarte.discarded };
     } else {
       result = await withProspectingLock(pool, org, async (db) => {
         const c = (
