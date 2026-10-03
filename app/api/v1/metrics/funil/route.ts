@@ -180,8 +180,8 @@ export async function GET(req: NextRequest): Promise<Response> {
 
   for (const [nome, res] of [
     ["crm_lead_activities", atividadesRes],
-    ["crm_leads (criados)", criadosRes],
-    ["crm_leads (encerrados)", encerradosRes],
+    ["crm_leads: criados", criadosRes],
+    ["crm_leads: encerrados", encerradosRes],
     ["crm_stages", etapasRes],
     ["crm_pipelines", funisRes],
   ] as const) {
