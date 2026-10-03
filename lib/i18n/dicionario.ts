@@ -1264,6 +1264,7 @@ export const DICIONARIO: Traducoes = {
 
   // ─── Inbox: filtros e lista ───
   "Nenhuma conversa com esses filtros": { es: "No hay conversaciones con esos filtros" },
+  "Só entram na inbox os grupos ligados em Conexões › Grupos, e cada um aparece aqui a partir da primeira mensagem recebida depois de ligar (o histórico anterior não entra).": { es: "Solo entran en la bandeja los grupos activados en Conexiones › Grupos, y cada uno aparece aquí a partir del primer mensaje recibido después de activarlo (el historial anterior no entra)." },
   "Ativos:": { es: "Activos:" },
   "Busca": { es: "Búsqueda" },
   "Etiqueta": { es: "Etiqueta" },
@@ -6866,7 +6867,7 @@ export const DICIONARIO: Traducoes = {
   "Restaurar no CRM": { es: "Restaurar en el CRM" },
   "Ocultar no CRM": { es: "Ocultar en el CRM" },
   "Ocultar esta mensagem no CRM?": { es: "¿Ocultar este mensaje en el CRM?" },
-  "A mensagem continua no WhatsApp do cliente e no registro da empresa. Um gestor pode restaurá-la aqui.": { es: "El mensaje permanece en el WhatsApp del cliente y en el registro de la empresa. Un administrador puede restaurarlo aquí." },
+  "A mensagem continua na conversa do cliente e no registro da empresa. Um gestor pode restaurá-la aqui.": { es: "El mensaje permanece en la conversación del cliente y en el registro de la empresa. Un administrador puede restaurarlo aquí." },
   "Esta mensagem não pode ser ocultada.": { es: "Este mensaje no se puede ocultar." },
   "Não foi possível atualizar a mensagem.": { es: "No se pudo actualizar el mensaje." },
   "Mensagem não encontrada.": { es: "Mensaje no encontrado." },
@@ -7759,7 +7760,12 @@ export const DICIONARIO: Traducoes = {
   "Tente ajustar os filtros ou a busca.": { es: "Intenta ajustar los filtros o la búsqueda." },
 
   // ─── Contacts: vocabulário da timeline (lib/leads/activity-vocabulary.ts) ───
-  "Entrou pelo WhatsApp": { es: "Entró por WhatsApp" },
+  "Entrou no funil": { es: "Entró al embudo" },
+  "primeira mensagem recebida no WhatsApp": { es: "primer mensaje recibido en WhatsApp" },
+  "primeira mensagem recebida no Instagram": { es: "primer mensaje recibido en Instagram" },
+  "primeira mensagem recebida no Facebook": { es: "primer mensaje recibido en Facebook" },
+  "primeira ligação recebida": { es: "primera llamada recibida" },
+  "cliente conhecido voltou a escrever": { es: "un cliente conocido volvió a escribir" },
   "Mudou de estágio": { es: "Cambió de etapa" },
   "Correção do que o assistente tinha feito": { es: "Corrección de lo que había hecho el asistente" },
   "Anotação": { es: "Anotación" },
@@ -10684,6 +10690,20 @@ export const DICIONARIO: Traducoes = {
   "Salvar conexão": { es: "Guardar conexión" },
   "Preencha o identificador e o token para poder salvar.":
     { es: "Completa el identificador y el token para poder guardar." },
+
+  // ─── Configurações → Conversões: identidade da Meta exigida no #2098 ────
+  "Identidade salva.": { es: "Identidad guardada." },
+  "Página e conta do WhatsApp Business das vendas de clique-para-WhatsApp":
+    { es: "Página y cuenta de WhatsApp Business de las ventas de clic para WhatsApp" },
+  "Quando a venda vem de anúncio clique-para-WhatsApp, a Meta exige o ID da Página ou o ID da conta do WhatsApp Business junto do evento. Sem nenhum dos dois, ela recusa a venda e o motivo aparece na lista de pendências. Preencha o que estiver vinculado ao seu conjunto de dados.":
+    {
+      es: "Cuando la venta viene de un anuncio de clic para WhatsApp, Meta exige el ID de la página o el ID de la cuenta de WhatsApp Business junto al evento. Sin ninguno de los dos, rechaza la venta y el motivo aparece en la lista de pendientes. Completa lo que esté vinculado a tu conjunto de datos.",
+    },
+  "ID da Página": { es: "ID de la página" },
+  "Só números. É o ID da página do Facebook que abre a conversa do anúncio.":
+    { es: "Solo números. Es el ID de la página de Facebook que abre la conversación del anuncio." },
+  "Só números. Serve quando não há página a informar: a Meta aceita um ou outro, não os dois juntos.":
+    { es: "Solo números. Sirve cuando no hay página que informar: Meta acepta uno u otro, no los dos juntos." },
 
   // ─── Configurações → Conversões: card do Google Ads (migration 0307) ───
   "Google Ads": { es: "Google Ads" },
