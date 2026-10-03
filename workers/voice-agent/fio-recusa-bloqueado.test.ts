@@ -25,10 +25,10 @@ const fakes = vi.hoisted(() => ({
     default_ai_agent_id: null,
     fallback_user_id: null,
   },
-  hangup: vi.fn(async () => undefined),
-  setVar: vi.fn(async () => undefined),
-  continuar: vi.fn(async () => undefined),
-  garantir: vi.fn(async () => ({ criado: false, motivo: "ja_existe" })),
+  hangup: vi.fn<(...a: Array<unknown>) => unknown>(),
+  setVar: vi.fn<(...a: Array<unknown>) => unknown>(),
+  continuar: vi.fn<(...a: Array<unknown>) => unknown>(),
+  garantir: vi.fn<(...a: Array<unknown>) => unknown>(async () => ({ criado: false, motivo: "ja_existe" })),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({

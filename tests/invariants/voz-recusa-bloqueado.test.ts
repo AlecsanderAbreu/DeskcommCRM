@@ -97,7 +97,7 @@ beforeAll(async () => {
       values ('${NEGOCIO_BLOQ}', '${GOV_ORG}', '${GOV_PIPELINE}', '${GOV_STAGE}', '${CONTATO_BLOQ}', 'Negocio do bloqueado', 'open', now() - interval '30 days')
       on conflict (id) do update set last_activity_at = now() - interval '30 days';
     insert into public.crm_leads (id, organization_id, pipeline_id, stage_id, contact_id, title, status, last_activity_at)
-      values ('${NEGOCIO_OK}', '${GOV_ORG}', '${GOV_PIPELINE}', '${GOV_STAGE}', 'Negocio do controle', 'open', now() - interval '30 days')
+      values ('${NEGOCIO_OK}', '${GOV_ORG}', '${GOV_PIPELINE}', '${GOV_STAGE}', '${CONTATO_OK}', 'Negocio do controle', 'open', now() - interval '30 days')
       on conflict (id) do update set last_activity_at = now() - interval '30 days';
     delete from public.voice_calls where organization_id = '${GOV_ORG}' and wacalls_call_id in ('bloq-1', 'ok-1');
     delete from public.agent_inbox_items where organization_id = '${GOV_ORG}' and ref_id in ('${CONTATO_BLOQ}', '${CONTATO_OK}');
