@@ -1,3 +1,4 @@
+-- manifest: **A chave de mapas da organização (`map_provider_credentials`).** Com uma chave da Geocoding API do Google, o pino de localização do WhatsApp — que chegava só com coordenadas (medido: 10 de 10 pinos do mês) — ganha rua, cidade e região aproximados (bairro e número não saem: medidos pouco confiáveis), e o agente deixa de perguntar a cidade. Opcional: sem chave, nada muda. Server-side only como a 0214: RLS ligada sem policies, grants revogados de anon/authenticated, chave cifrada por `fn_encrypt_oauth` e só os 4 últimos caracteres na tela.
 -- 0504 — A chave de MAPAS da organização (geocodificação reversa do pino).
 --
 -- Medido numa loja que vende pelo WhatsApp (28/09/2026): 10 de 47 conversas do
