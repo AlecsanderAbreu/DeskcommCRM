@@ -208,8 +208,9 @@ it("platform admin support_readonly FORA do suporte não anonimiza — o modo de
   // `platform_admins.scope='support_readonly'` SEM sessão de suporte — que é o
   // estado normal de quem entra no painel só para observar. O portão antigo
   // aceitava `(fn_is_platform_admin() and support is null)`, e a função pura
-  // ignora o scope: a redação irreversível passava pelo PostgREST (e pela rota,
-  // que chama com a sessão do usuário).
+  // ignora o scope: a redação irreversível passava pela chamada direta ao
+  // PostgREST (a rota da tela já recusava: o requireRole só abre o atalho de
+  // plataforma para scope full desde 9c0cf9114).
   const f = await fixture();
   const padmin = randomUUID();
   await pool.query("insert into auth.users(id,email) values($1,$2)", [padmin, `${padmin}@invariant.test`]);
