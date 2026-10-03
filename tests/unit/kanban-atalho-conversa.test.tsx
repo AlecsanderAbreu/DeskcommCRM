@@ -14,9 +14,11 @@ import { describe, expect, it, vi } from "vitest";
  *
  * ─── O que os casos vigiam ──────────────────────────────────────────────────
  *
- * Metade prova que o slot SOME quando não há conversa — lead criado à mão ou
- * por webhook não tem contato, e um "sem mensagens" cinza em metade dos cards
- * ocuparia a linha para não dizer nada.
+ * Metade prova que o slot SOME quando não há conversa — lead criado à mão não
+ * tem contato, e um "sem mensagens" cinza em metade dos cards ocuparia a linha
+ * para não dizer nada. Lead com CONTATO mas sem conversa é outro caso, e virou
+ * a ação "Abrir conversa" da #1993: ele tem contrato próprio, em
+ * `components/kanban/ConversaSlot.test.tsx`.
  *
  * O resto vigia o gesto: o card inteiro é arrastável e abre o dossiê ao clicar,
  * então o atalho precisa parar a propagação — senão um clique tem dois
@@ -73,9 +75,9 @@ describe("mostra a última mensagem", () => {
 });
 
 describe("some quando não há conversa", () => {
-  it("lead sem conversa não renderiza NADA", () => {
-    // Lead criado à mão ou por webhook não tem contato. Um "sem mensagens"
-    // cinza em metade dos cards ocuparia a linha para não dizer nada.
+  it("lead sem conversa E sem contato não renderiza NADA", () => {
+    // Criado à mão, sem contato: um "sem mensagens" cinza em metade dos cards
+    // ocuparia a linha para não dizer nada — e sem alvo não há ação a oferecer.
     const { container } = render(<ConversaSlot conversa={null} />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -146,6 +148,10 @@ describe("o elo que some sem barulho", () => {
 
   it("o card renderiza o slot", () => {
     const fonte = readFileSync("components/kanban/KanbanCard.tsx", "utf8");
-    expect(fonte).toContain("<ConversaSlot conversa={lead.conversa} />");
+    // A prévia E a ação "Abrir conversa" (#1993) saem do mesmo slot: o card
+    // passa os dois dados do contato para ele decidir qual dos dois pintar.
+    expect(fonte).toMatch(/<ConversaSlot\s+conversa=\{lead\.conversa\}/);
+    expect(fonte).toContain("contactId={lead.contact_id}");
+    expect(fonte).toContain("phone={lead.contact_phone}");
   });
 });
