@@ -15,6 +15,7 @@ import {
   normalizeProspect,
   razaoDeAbordarSelecionado,
   type CampaignConfig,
+  type CampaignPace,
   type SearchInput,
   type Prospect,
 } from "./schema";
@@ -425,5 +426,70 @@ export async function activateCampaign(
       [org, id, config],
     );
     return { started: true };
+  });
+}
+
+/**
+ * O ajuste do ritmo é UM `update`, e as três guardas moram na própria cláusula
+ * `where`, não só no `if` que vem antes dela:
+ *
+ * - `organization_id = $1`: a organização vem da sessão, nunca do corpo;
+ * - `status = 'paused'`: com a campanha rodando, o envio pode estar no meio de uma
+ *   abordagem, e trocar o intervalo ali seria trocar a régua no meio da medida;
+ * - `config is not null`: `null || jsonb` é `null`, e o merge apagaria a
+ *   configuração inteira de uma campanha que ainda não foi iniciada.
+ *
+ * `||` entre jsonb troca só as duas chaves e preserva as demais — conexão, agente,
+ * funil, base legal e instrução não são tocados, por construção e não por cuidado.
+ *
+ * `next_send_at = least(next_send_at, now())` existe porque a hora do próximo envio
+ * foi gravada com o ritmo ANTIGO — ou com o fim da janela de 24 horas, quando o
+ * limite do dia estourou — e o envio sai cedo enquanto ela está no futuro. Sem isto,
+ * baixar o intervalo (ou subir o limite) só valeria depois de esperar o ritmo velho,
+ * que é o contrário do que a tela promete. Antecipar é seguro: janela, ritmo do
+ * canal, teto da esteira fria, limite do dia e intervalo desde o último envio são
+ * RECALCULADOS a cada rodada do envio, e quem não puder enviar só reagenda.
+ * Aumentar o intervalo também vale na hora, porque o envio compara com o último envio.
+ */
+export const AJUSTE_DE_RITMO_SQL =
+  "update prospecting_campaigns set config = config || jsonb_build_object('daily_limit', $3::int, 'interval_minutes', $4::int), next_send_at = least(next_send_at, now()), updated_at = now() where organization_id = $1 and id = $2 and status = 'paused' and config is not null returning id";
+
+/**
+ * Troca o limite por dia e o intervalo de uma campanha PAUSADA.
+ *
+ * O envio lê `campaignConfigSchema.parse(c.config)` a cada rodada, então o valor
+ * novo vale já na próxima rodada depois de "Retomar", que revalida a configuração
+ * gravada.
+ * Devolve também o ritmo ANTERIOR, para a auditoria dizer "de quanto para quanto":
+ * lido cru, sem `parse`, para que uma campanha cuja configuração antiga já não
+ * passa no schema atual ainda possa ser consertada por aqui.
+ */
+export async function adjustPace(pool: pg.Pool, org: string, id: string, pace: CampaignPace) {
+  return withProspectingLock(pool, org, async (db) => {
+    const c = (
+      await db.query<{ status: string; config: Record<string, unknown> | null }>(
+        "select status, config from prospecting_campaigns where organization_id=$1 and id=$2",
+        [org, id],
+      )
+    ).rows[0];
+    if (!c) throw new ProspectingError("Campanha não encontrada.", 404);
+    if (c.status !== "paused" || !c.config)
+      throw new ProspectingError("Pause a campanha antes de ajustar o ritmo.", 409);
+    const changed = await db.query(AJUSTE_DE_RITMO_SQL, [
+      org,
+      id,
+      pace.daily_limit,
+      pace.interval_minutes,
+    ]);
+    // Alguém retomou entre o select e o update: o `where` recusou, e é isso que vale.
+    if (!changed.rows.length)
+      throw new ProspectingError("Pause a campanha antes de ajustar o ritmo.", 409);
+    return {
+      previous: {
+        daily_limit: c.config.daily_limit ?? null,
+        interval_minutes: c.config.interval_minutes ?? null,
+      },
+      next: { daily_limit: pace.daily_limit, interval_minutes: pace.interval_minutes },
+    };
   });
 }

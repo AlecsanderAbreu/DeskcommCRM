@@ -12,6 +12,7 @@ import { ProspectingError } from "@/lib/prospecting/provider";
 import { prospectingInputSchema } from "@/lib/prospecting/schema";
 import {
   activateCampaign,
+  adjustPace,
   configureCredential,
   createSearch,
   validateConfig,
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
     const pool = getRequestPool();
     const admin = createAdminClient();
     let result: unknown;
+    let auditMetadata: Record<string, unknown> = { operation: body.action };
     if (body.action === "configure") {
       await configureCredential(pool, admin, org, body.api_key);
       result = { configured: true };
@@ -144,6 +146,14 @@ export async function POST(req: NextRequest) {
       if (!changed.rows.length)
         throw new ProspectingError("Campanha em execução não encontrada.", 404);
       result = { paused: true };
+    } else if (body.action === "adjust_pace") {
+      const { previous, next } = await adjustPace(pool, org, body.id, {
+        daily_limit: body.daily_limit,
+        interval_minutes: body.interval_minutes,
+      });
+      result = next;
+      // O histórico precisa dizer DE QUANTO PARA QUANTO — só o nome da ação não diz.
+      auditMetadata = { operation: body.action, previous, next };
     } else if (body.action === "select") {
       result = await withProspectingLock(pool, org, async (db) => {
         const campaign = (
@@ -194,7 +204,7 @@ export async function POST(req: NextRequest) {
       actorApiTokenId: auth.apiTokenId ?? null,
       resourceType: "prospecting",
       resourceId,
-      metadata: { operation: body.action },
+      metadata: auditMetadata,
       requestId,
     });
     return ok(result, { requestId, headers });
