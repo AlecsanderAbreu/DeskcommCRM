@@ -228,6 +228,30 @@ check "v_db_url explica a CA quando o Postgres recusa o certificado" \
 check "a explicação fica no ramo do erro de certificado, não em qualquer falha" \
   bash -c 'awk "/^v_db_url\(\) \{/,/^\}/" "$1" | grep -q "\[Cc\]ertificate\|\[Cc\]ertificado"' _ "$KIT/install.sh"
 
+# O ramo de certificado do v_db_url pelo COMPORTAMENTO, não pelo texto: a
+# função de verdade (extraída do install.sh) com o psql trocado por um dublê
+# que devolve a saída dada. Um padrão largo como *SSL* sequestrava o
+# diagnóstico de senha errada e o de queda de rede.
+classifica_db_url() {  # classifica_db_url <saída do psql> → a linha 👉 escolhida
+  SAIDA_PG="$1" bash -c '
+    t() { printf "%s" "$1"; }
+    pg_container() { printf "%s" "$SAIDA_PG"; return 1; }
+    ca_do_supabase() { return 1; }
+    eval "$(awk "/^v_db_url\(\) \{/,/^\}/" "$1")"
+    v_db_url "postgresql://postgres.ref:x@aws-0-sa-east-1.pooler.supabase.com:5432/postgres"
+  ' _ "$KIT/install.sh" | grep "👉"
+}
+r="$(classifica_db_url 'connection to server failed: SSL error: certificate verify failed')"
+check "v_db_url: falha de verificação de certificado cai no ramo da CA" \
+  bash -c 'printf "%s" "$1" | grep -q "certificado TLS"' _ "$r"
+r="$(classifica_db_url 'connection to server failed: FATAL:  password authentication failed for user "postgres"
+connection to server failed: FATAL:  SSL connection is required')"
+check "v_db_url: senha errada citando SSL continua no ramo da SENHA" \
+  bash -c 'printf "%s" "$1" | grep -q "Senha do banco errada"' _ "$r"
+r="$(classifica_db_url 'connection to server failed: SSL SYSCALL error: Connection reset by peer')"
+check "v_db_url: SSL SYSCALL (rede) não vira falha de certificado" \
+  bash -c '! printf "%s" "$1" | grep -q "certificado TLS"' _ "$r"
+
 # ── 9. Documentação da chave ─────────────────────────────────────────────────
 echo "── 9. Documentação"
 check ".env.example documenta SUPABASE_SSL_ROOT_CERT" \

@@ -419,7 +419,12 @@ v_db_url() {
     # É o `SELF_SIGNED_CERT_IN_CHAIN` da issue: a cadeia do pooler não está na
     # trust store padrão. O erro cru não diz o que fazer, então este ramo fala o
     # que falta — com o NOME da variável — antes de qualquer outra hipótese.
-    *[Cc]ertificate*|*[Cc]ertificado*|*[Ss][Ss][Ll]*)
+    # Só mensagem de CERTIFICADO entra aqui, nunca qualquer "SSL": senha errada
+    # com a segunda tentativa citando "SSL connection is required" tem de cair
+    # no ramo da senha, e "SSL SYSCALL error" é queda de rede. As mensagens de
+    # verificação da libpq que conhecemos citam "certificate"; o
+    # ca-supabase-tls.test.sh prende a classificação pelo comportamento.
+    *[Cc]ertificate*|*[Cc]ertificado*|*SELF_SIGNED_CERT*)
       echo "   👉 $(t "O Postgres recusou o certificado TLS: a cadeia dele não está na trust store desta máquina (SELF_SIGNED_CERT_IN_CHAIN).")"
       if ca_do_supabase >/dev/null 2>&1; then
         echo "      $(t "SUPABASE_SSL_ROOT_CERT já está declarada — confira se o arquivo é o prod-ca-2021.crt oficial do Supabase e se o hostname da connection string bate com o certificado.")"
