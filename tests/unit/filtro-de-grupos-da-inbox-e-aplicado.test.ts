@@ -11,7 +11,7 @@
  * em silêncio, que é exatamente o defeito que a issue relata.
  *
  * Medido em 2026-10-03: os quatro casos abaixo passam — o filtro em si NÃO é
- * a causa da aba vazia (ver "O que medi" no PR #2190).
+ * a causa da aba vazia (ver "O que medi" no PR #2200).
  */
 import { describe, expect, it } from "vitest";
 

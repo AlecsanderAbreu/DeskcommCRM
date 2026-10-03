@@ -159,15 +159,16 @@ export function ConversationList({
         {items.length === 0 && filtrosAtivos.length > 0 && (
           <EmptyPorFiltro filtros={filtrosAtivos} onLimpar={onLimparFiltros} />
         )}
-        {/* O vazio do GRUPO é o único que tem CAUSA conhecida: nenhuma conversa de
-            grupo existe até o operador ligar um grupo do número em Conexões ›
-            Grupos (spec: "Só entram os grupos escolhidos. O padrão é desligado").
-            Sem esta linha o operador só ouve "Nenhuma conversa com esses filtros"
-            e reabre a issue #2103 — o botão Grupos parece quebrado quando, na
-            verdade, ainda não há o que listar. */}
+        {/* Grupos tem uma regra que o vazio sozinho não conta: conversa de grupo
+            só nasce na primeira mensagem recebida depois de o grupo ser ligado em
+            Conexões › Grupos (spec: "Só entram os grupos escolhidos. O padrão é
+            desligado"). A frase diz a regra, não o diagnóstico: o filtro Grupos
+            soma com Fila e Busca, e a lista pode vir vazia com grupos ligados.
+            Sem esta linha o operador só ouve "Nenhuma conversa com esses
+            filtros" e acha o botão quebrado (issue #2103). */}
         {items.length === 0 && filters.is_group && (
           <p className="px-6 pb-6 text-center text-xs text-text-subtle">
-            {t("Nenhuma conversa de grupo ainda. Ligue pelo menos um grupo do número em Conexões › Grupos para que as mensagens dele apareçam aqui.")}
+            {t("Só entram na inbox os grupos ligados em Conexões › Grupos, e cada um aparece aqui a partir da primeira mensagem recebida depois de ligar (o histórico anterior não entra).")}
           </p>
         )}
         {items.map((c, i) => (

@@ -1,6 +1,6 @@
 ---
 impacto: nada_mudou
 secao: corrigido
-titulo: O vazio da aba Grupos do inbox diz onde ligar um grupo
+titulo: O vazio da aba Grupos do inbox explica quais grupos entram e a partir de quando
 ---
-Com o filtro **Grupos** ligado e a lista vazia, a inbox agora mostra "Nenhuma conversa de grupo ainda. Ligue pelo menos um grupo do número em Conexões › Grupos para que as mensagens dele apareçam aqui." junto do "Nenhuma conversa com esses filtros". Antes o operador só ouvia a frase genérica, sem pista de que nenhum grupo do número está ligado em Conexões › Grupos (#2103).
+Com o filtro **Grupos** ligado e a lista vazia, a inbox agora mostra "Só entram na inbox os grupos ligados em Conexões › Grupos, e cada um aparece aqui a partir da primeira mensagem recebida depois de ligar (o histórico anterior não entra)." junto do "Nenhuma conversa com esses filtros". Antes o operador só ouvia a frase genérica, sem pista de que só entram os grupos ligados em Conexões › Grupos, e só a partir da primeira mensagem depois de ligar (#2103).
