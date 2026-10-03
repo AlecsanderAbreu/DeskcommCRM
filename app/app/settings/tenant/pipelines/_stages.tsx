@@ -780,6 +780,10 @@ function JanelaDaEtapa({
   const [hora, setHora] = useState(rascunhoDe(gravada, "horas"));
   const diasRef = useRef<HTMLInputElement>(null);
   const horaRef = useRef<HTMLInputElement>(null);
+  // Escape chama `blur()`, e o blur confirma — com o rascunho DESTA renderização,
+  // não com o restaurado (o setState ainda não aplicou). Sem esta marca, Escape
+  // gravava o que devia descartar.
+  const descartando = useRef(false);
 
   function restaurar() {
     setDias(rascunhoDe(gravada, "dias"));
@@ -787,6 +791,10 @@ function JanelaDaEtapa({
   }
 
   function confirmar() {
+    if (descartando.current) {
+      descartando.current = false;
+      return;
+    }
     const brutoDias = dias.trim();
     const brutoHoras = hora.trim();
     // Vazio NOS DOIS = limpar = voltar ao padrão de 24 h. Um dos dois
@@ -811,6 +819,7 @@ function JanelaDaEtapa({
   function aoTeclar(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") event.currentTarget.blur();
     if (event.key === "Escape") {
+      descartando.current = true;
       restaurar();
       event.currentTarget.blur();
     }
