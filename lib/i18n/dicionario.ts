@@ -2674,7 +2674,7 @@ export const DICIONARIO: Traducoes = {
   },
   "Nunca indexado": { es: "Nunca indexado" },
   "agora há pouco": { es: "hace un momento" },
-  "há": { es: "hace" },
+  "há {tempo}": { es: "hace {tempo}" },
   "Nenhuma fonte configurada.": { es: "Ninguna fuente configurada." },
   Configurar: { es: "Configurar" },
   "Última indexação": { es: "Última indexación" },

@@ -1086,7 +1086,7 @@
   "Os produtos vêm da sincronização com o e-commerce, não de conteúdo digitado aqui.": "产品来自与电商的同步，而不是在此处输入的内容。",
   "Nunca indexado": "从未索引",
   "agora há pouco": "刚刚",
-  "há": "距今",
+  "há {tempo}": "距今 {tempo}",
   "Nenhuma fonte configurada.": "未配置任何来源。",
   "Configurar": "配置",
   "Última indexação": "上次索引",
