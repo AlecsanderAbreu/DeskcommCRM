@@ -151,3 +151,14 @@ describe("filtro de valor do funil — só compara dentro da moeda do limite", (
     expect(dentro.map((l) => l.id)).toEqual(["alto", "velho"]);
   });
 });
+
+describe("organização em outra moeda — a linha sem moeda veste a da organização", () => {
+  it("o pendente sem currency sai na moeda da organização, nunca em real", () => {
+    montar([pendente({ appointment_id: "e1", suggested_price_cents: 500_000 })], "EUR");
+    marcar("e1");
+    const texto = semNbsp(botaoFaturar().textContent ?? "");
+    expect(texto).toContain("5000,00 €");
+    expect(texto).not.toContain("R$");
+    expect(screen.getAllByText((t) => semNbsp(t) === "5000,00 €").length).toBeGreaterThan(0);
+  });
+});
