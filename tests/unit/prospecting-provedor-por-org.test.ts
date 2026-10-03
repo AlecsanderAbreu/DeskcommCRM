@@ -19,8 +19,9 @@ vi.mock("@/lib/webhooks/secrets", () => ({
   encryptWebhookSecret: vi.fn(async () => "cifrado"),
 }));
 
-import { configureCredential, createSearch } from "@/lib/prospecting/store";
+import { configureCredential, createSearch, synchronizeSearch } from "@/lib/prospecting/store";
 import { ProspectingError } from "@/lib/prospecting/provider";
+import { provedorDeTeste } from "@/lib/prospecting/provedor-teste";
 import { searchSchema } from "@/lib/prospecting/schema";
 
 const ORG_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -121,6 +122,7 @@ function observarRun(pool: ReturnType<typeof fakeDb>) {
 let fetch: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
   fetch = vi.fn();
   vi.stubGlobal("fetch", fetch);
 });
@@ -203,5 +205,61 @@ describe("#1758 provedor de prospecção escolhido por organização", () => {
     expect(candidato.escopo).toBe("candidato");
     expect(new ProspectingError("x").escopo).toBe("campanha");
     expect(new ProspectingError("x").status).toBe(422);
+  });
+  /** Campanha já lançada pelo provedor de teste, pronta para o tick do worker. */
+  async function campanhaDoTeste(org: string): Promise<Campanha> {
+    const run = await provedorDeTeste.startSearch("chave", BUSCA);
+    return {
+      id: "22222222-2222-4222-8222-222222222222",
+      organization_id: org,
+      name: BUSCA.name,
+      search: BUSCA,
+      config: null,
+      status: "draft",
+      search_status: "running",
+      run_id: run.id,
+      dataset_id: run.defaultDatasetId ?? null,
+      next_send_at: new Date("2026-10-03T12:00:00Z"),
+      created_at: new Date("2026-10-03T12:00:00Z"),
+      error: null,
+    };
+  }
+
+  it("synchronizeSearch lê a busca e os resultados pelo provedor escolhido, sem rede", async () => {
+    const db = fakeDb({ [ORG_A]: { prospecting: { provider: "teste" } } });
+    fetch.mockRejectedValue(new Error("a rede não deve ser usada"));
+
+    await synchronizeSearch(db.client as never, {} as never, (await campanhaDoTeste(ORG_A)) as never);
+
+    expect(fetch).not.toHaveBeenCalled();
+    const candidatos = db.log.filter((q) => q.sql.startsWith("insert into prospecting_candidates"));
+    expect(candidatos).toHaveLength(BUSCA.limit);
+    expect(db.log.some((q) => q.sql.includes("search_status='succeeded'"))).toBe(true);
+  });
+
+  it("fora de NODE_ENV=test o provedor 'teste' não existe: nenhuma campanha nem candidato é gravado", async () => {
+    // O 'teste' grava telefones com formato válido de celular, que o worker aborda
+    // por WhatsApp quando a campanha é ativada. Em produção ele cai no erro fechado
+    // de provedor desconhecido, como qualquer outro nome fora do catálogo (#2174).
+    vi.stubEnv("NODE_ENV", "production");
+    const db = fakeDb({ [ORG_A]: { prospecting: { provider: "teste" } } });
+
+    const falha = await createSearch(
+      db.pool as never,
+      {} as never,
+      ORG_A,
+      "66666666-6666-4666-8666-666666666666",
+      BUSCA,
+    ).catch((e: unknown) => e);
+    expect(falha).toBeInstanceOf(ProspectingError);
+    expect((falha as Error).message).toContain("desconhecido");
+
+    await expect(
+      synchronizeSearch(db.client as never, {} as never, (await campanhaDoTeste(ORG_A)) as never),
+    ).rejects.toBeInstanceOf(ProspectingError);
+
+    expect(db.log.some((q) => q.sql.startsWith("insert into prospecting_campaigns"))).toBe(false);
+    expect(db.log.some((q) => q.sql.startsWith("insert into prospecting_candidates"))).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

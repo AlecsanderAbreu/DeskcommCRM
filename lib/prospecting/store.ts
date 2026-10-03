@@ -169,9 +169,11 @@ export async function createSearch(
 export async function synchronizeSearch(db: pg.PoolClient, admin: SupabaseClient, c: Campaign) {
   if (!c.run_id) return;
   const key = await credential(db, admin, c.organization_id);
-  // Mesmo provedor que lançou esta execução: a escolha que vale é a DESTE
-  // organização (#1758), relida a cada tick — trocar de provedor não exige
-  // redeploy, só a configuração nova.
+  // A escolha ATUAL desta organização (#1758), relida a cada tick — e não
+  // necessariamente o provedor que lançou esta execução: nada aqui guarda quem
+  // lançou. Trocar de provedor com uma busca em andamento faz o novo ler um id
+  // que não é dele. Rotear pelo provedor que lançou fica para a fatia que
+  // trouxer um provedor real (#2174).
   const provedor = await provedorDaOrganizacao(db, c.organization_id);
   const run = await provedor.readSearch(key, c.run_id);
   if (["FAILED", "ABORTED", "TIMED-OUT"].includes(run.status)) {
