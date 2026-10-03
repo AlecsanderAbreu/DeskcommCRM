@@ -133,7 +133,11 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
         media_derived_status: "failed",
         metadata: { ...(msg.metadata ?? {}), media_derived_motivo: motivo },
       })
-      .eq("id", msg.id).eq("organization_id", msg.organization_id);
+      .eq("id", msg.id).eq("organization_id", msg.organization_id)
+      // A mesma guarda LGPD do caminho `ready` (#1991): `metadata` aqui é a
+      // foto lida no começo, e a anonimização que acontecer no meio a zera —
+      // regravá-la devolveria à linha redigida o que a cascata apagou.
+      .filter("body", "isdistinct", MENSAGEM_REDIGIDA);
   };
 
   try {
