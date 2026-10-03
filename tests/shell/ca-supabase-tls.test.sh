@@ -124,7 +124,10 @@ check "duas execuções => um mount por execução (sem duplicação)" \
 echo "── 3. Caminho relativo vira absoluto"
 saida="$( (cd "$CERTS" && env -i PATH="$PATH" HOME="$HOME" DOCKER_LOG="$DOCKER_LOG" \
   SUPABASE_SSL_ROOT_CERT=prod-ca-2021.crt bash -c ". '$KIT_REAL/_common.sh'; ca_do_supabase" 2>&1) )"
-check "a helper devolve o caminho absoluto" test "$saida" = "$CERTS/prod-ca-2021.crt"
+# `env -i` descarta o PWD, e o bash recalcula o caminho FÍSICO: no macOS o
+# mktemp devolve /var/..., que é symlink de /private/var/... A comparação é com
+# o físico, que é o que a helper (corretamente absoluta) devolve nos dois SOs.
+check "a helper devolve o caminho absoluto" test "$saida" = "$(cd "$CERTS" && pwd -P)/prod-ca-2021.crt"
 
 # ── 4. CA declarada mas arquivo INEXISTENTE: recusa com o nome da variável ────
 echo "── 4. Arquivo inexistente não vira mount quebrado"
