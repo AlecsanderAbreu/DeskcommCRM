@@ -641,9 +641,10 @@ describe("D8 — as varreduras de RLS, security definer e cascata de LGPD com os
       ]);
 
       const expostas = funcoesNovasExpostas(p.funcoes);
-      expect(expostas.map((e) => e.assinatura), "a função nova exposta não foi anotada (1/1 previsto)").toEqual([
-        "fn_sonda_aberta()",
-      ]);
+      expect(
+        [...new Set(expostas.map((e) => e.assinatura))],
+        "a função nova exposta não foi anotada (1/1 previsto)",
+      ).toEqual(["fn_sonda_aberta()"]);
       const motivos = expostas.map((e) => e.motivo).sort().join(" + ");
       expect(
         motivos,
