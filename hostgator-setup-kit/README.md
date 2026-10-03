@@ -198,12 +198,19 @@ Confira com o diagnóstico do kit:
 ```bash
 bash hostgator-setup-kit/healthcheck.sh
 # com a CA:  ✓ TLS do banco verificado (sslmode=verify-full com a CA de SUPABASE_SSL_ROOT_CERT)
-# sem ela:   ⚠ SUPABASE_SSL_ROOT_CERT não está declarada no .env — sem ela o kit não recebe a CA…
+# sem ela:   (opcional) SUPABASE_SSL_ROOT_CERT não declarada no .env — nada a verificar.
 ```
 
 Idempotente (pode rodar quantas vezes quiser), sem segredo em log (o kit nunca imprime a connection
 string), e a verificação de cadeia e de hostname continua ligada nos dois sentidos. A instalação que
-não declara a chave continua com exatamente o comportamento de antes.
+não declara a chave continua com o comportamento de antes; o healthcheck só mostra uma linha
+informativa, e no single-server diz que o passo não se aplica.
+
+Um efeito para quem **declara** a CA: na libpq, `PGSSLROOTCERT` apontando para um arquivo que existe
+faz `sslmode=require` se comportar como `verify-ca`. Nos psql do kit (instalação, atualização,
+backup), uma connection string com `require` passa a verificar a cadeia — e uma CA errada faz esses
+comandos falharem fechado. Sem `sslmode` na string, vale o padrão da libpq (`prefer`), que não
+verifica certificado — e isso não muda.
 
 ## Suporte
 

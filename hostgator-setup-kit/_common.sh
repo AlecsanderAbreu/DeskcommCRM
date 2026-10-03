@@ -323,9 +323,12 @@ dc_files() {
 #     (volume :ro + NODE_EXTRA_CA_CERTS), que dc() só acrescenta com a CA pronta;
 #   • quem lê .env direto (node, cliente Node fora do compose) → a própria
 #     chave, documentada em .env.example.
-# A verificação NUNCA é desligada: esta seção só entrega a CA a quem já
-# verifica (sslmode=verify-full / rejectUnauthorized). Chave ausente = o kit
-# faz exatamente o que sempre fez.
+# A verificação NUNCA é desligada. No Node (NODE_EXTRA_CA_CERTS) a CA soma à
+# trust store. Na libpq, o PGSSLROOTCERT apontando para um arquivo que existe
+# faz `sslmode=require` se comportar como verify-ca (comportamento documentado
+# da libpq): com a CA declarada, uma URL com require passa a verificar a cadeia
+# nos psql do kit — e uma CA errada faz esses psql falharem fechado.
+# Chave ausente = o kit faz o que sempre fez (o healthcheck só informa).
 #
 # O download oficial (a mesma CA da issue):
 #   curl -fsSL -o /root/certs/prod-ca-2021.crt \
