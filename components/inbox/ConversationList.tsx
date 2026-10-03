@@ -159,6 +159,17 @@ export function ConversationList({
         {items.length === 0 && filtrosAtivos.length > 0 && (
           <EmptyPorFiltro filtros={filtrosAtivos} onLimpar={onLimparFiltros} />
         )}
+        {/* O vazio do GRUPO é o único que tem CAUSA conhecida: nenhuma conversa de
+            grupo existe até o operador ligar um grupo do número em Conexões ›
+            Grupos (spec: "Só entram os grupos escolhidos. O padrão é desligado").
+            Sem esta linha o operador só ouve "Nenhuma conversa com esses filtros"
+            e reabre a issue #2103 — o botão Grupos parece quebrado quando, na
+            verdade, ainda não há o que listar. */}
+        {items.length === 0 && filters.is_group && (
+          <p className="px-6 pb-6 text-center text-xs text-text-subtle">
+            {t("Nenhuma conversa de grupo ainda. Ligue pelo menos um grupo do número em Conexões › Grupos para que as mensagens dele apareçam aqui.")}
+          </p>
+        )}
         {items.map((c, i) => (
           <ConversationListItem
             key={c.id}

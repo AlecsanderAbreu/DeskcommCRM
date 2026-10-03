@@ -1264,6 +1264,7 @@ export const DICIONARIO: Traducoes = {
 
   // ─── Inbox: filtros e lista ───
   "Nenhuma conversa com esses filtros": { es: "No hay conversaciones con esos filtros" },
+  "Nenhuma conversa de grupo ainda. Ligue pelo menos um grupo do número em Conexões › Grupos para que as mensagens dele apareçam aqui.": { es: "Aún no hay conversaciones de grupo. Activa al menos un grupo del número en Conexiones › Grupos para que sus mensajes aparezcan aquí." },
   "Ativos:": { es: "Activos:" },
   "Busca": { es: "Búsqueda" },
   "Etiqueta": { es: "Etiqueta" },
