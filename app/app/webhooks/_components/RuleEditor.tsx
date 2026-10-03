@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash, CaretUp, CaretDown } from "@/lib/ui/icons";
-import { createAutomationRuleSchema, TRIGGER_EVENTS } from "@/lib/schemas/webhooks";
+import { acoesQueFechamLaco, createAutomationRuleSchema, TRIGGER_EVENTS } from "@/lib/schemas/webhooks";
 import {
   DIAS_MAX,
   DIAS_MIN,
@@ -736,11 +736,15 @@ export function RuleEditor({ open, onOpenChange, rule }: Props) {
                 <SelectValue placeholder={t("Adicionar ação")} />
               </SelectTrigger>
               <SelectContent>
-                {(Object.keys(ACTION_LABELS) as ActionType[]).map((actionType) => (
-                  <SelectItem key={actionType} value={actionType}>
-                    {t(ACTION_LABELS[actionType])}
-                  </SelectItem>
-                ))}
+                {/* Os gatilhos de ganho/perda/reabertura/responsável não oferecem
+                    as ações que regravam o lead: fechariam laço (#1528). */}
+                {(Object.keys(ACTION_LABELS) as ActionType[])
+                  .filter((actionType) => !acoesQueFechamLaco(triggerEvent, [{ type: actionType }]).length)
+                  .map((actionType) => (
+                    <SelectItem key={actionType} value={actionType}>
+                      {t(ACTION_LABELS[actionType])}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </section>

@@ -112,6 +112,43 @@ export const GATILHOS_DO_TRIGGER_DE_LEAD = [
   "lead.assigned",
 ] as const satisfies readonly GatilhoDeAutomacao[];
 
+/**
+ * As ações que regravam o status ou o dono do lead — vetadas nos gatilhos acima.
+ *
+ * Esses eventos nascem do trigger com `metadata '{}'`, e o anti-laço do motor só
+ * reconhece `caused_by_rule`. Uma regra "responsável mudou → atribuir" ou
+ * "ganhou → mover para etapa aberta" regrava o lead, o trigger emite o próximo
+ * evento, e duas regras opostas se realimentam sem fim (cada volta dobra os
+ * eventos). Critério de aceite da #1528: "regra lead.assigned → assign_owner não
+ * entra em laço".
+ *
+ * ponytail: veto inteiro, não detecção de laço. Cai quando o item 5 da #1528
+ * existir (GUC `app.caused_by_rule` copiada pelo trigger para `metadata`).
+ */
+export const ACOES_QUE_REGRAVAM_O_LEAD = ["assign_owner", "create_or_move_lead"] as const;
+
+export const MENSAGEM_DO_LACO_DE_LEAD =
+  "Neste gatilho a automação não pode atribuir responsável nem mover o lead: a própria mudança dispararia a automação de novo, sem fim.";
+
+/** As ações da regra que fechariam laço com o gatilho dela (vazio = regra segura). */
+export function acoesQueFechamLaco(
+  triggerEvent: string | undefined,
+  actions: readonly { type: string }[] | undefined,
+): string[] {
+  if (!triggerEvent || !(GATILHOS_DO_TRIGGER_DE_LEAD as readonly string[]).includes(triggerEvent)) return [];
+  return (actions ?? [])
+    .map((a) => a.type)
+    .filter((t) => (ACOES_QUE_REGRAVAM_O_LEAD as readonly string[]).includes(t));
+}
+
+function recusarLacoDeLead(
+  regra: { trigger_event?: string; actions?: readonly { type: string }[] },
+  ctx: z.RefinementCtx,
+): void {
+  if (!acoesQueFechamLaco(regra.trigger_event, regra.actions).length) return;
+  ctx.addIssue({ code: "custom", path: ["actions"], message: MENSAGEM_DO_LACO_DE_LEAD });
+}
+
 export const TRIGGER_EVENTS = Object.keys(ENTIDADE_ESPERADA_POR_GATILHO) as [
   GatilhoDeAutomacao,
   ...GatilhoDeAutomacao[],
@@ -220,7 +257,8 @@ export const createAutomationRuleSchema = z
     trigger_config: z.record(z.string(), z.unknown()).optional(),
   })
   .superRefine(exigirConfigDoGatilhoDeData)
-  .superRefine(exigirConfigDosGatilhosDeTempo);
+  .superRefine(exigirConfigDosGatilhosDeTempo)
+  .superRefine(recusarLacoDeLead);
 
 /**
  * O gatilho de data sem a configuração dele é uma regra que NUNCA dispara — a
@@ -298,7 +336,10 @@ export const updateAutomationRuleSchema = z
     // configuração, produz o mesmo calado da criação (#1540): regra salva que
     // a varredura não sabe avaliar.
     exigirConfigDosGatilhosDeTempo(patch as { trigger_event: string; trigger_config?: Record<string, unknown> }, ctx);
-  });
+  })
+  // Só vê o laço quando o PATCH traz gatilho E ações; o PATCH parcial é
+  // conferido contra a regra gravada na rota.
+  .superRefine(recusarLacoDeLead);
 
 export type CreateWebhookSourceInput = z.infer<typeof createWebhookSourceSchema>;
 export type UpdateWebhookSourceInput = z.infer<typeof updateWebhookSourceSchema>;

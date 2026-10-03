@@ -28,7 +28,11 @@ import { getAction } from "@/lib/automation/actions";
 import type { ActionResultDetail } from "@/lib/automation/types";
 import { audit } from "@/lib/audit";
 import { regraDoEvento } from "@/lib/automation/gatilho-de-data-do-funil";
-import { ENTIDADE_ESPERADA_POR_GATILHO, GATILHOS_DO_TRIGGER_DE_LEAD } from "@/lib/schemas/webhooks";
+import {
+  acoesQueFechamLaco,
+  ENTIDADE_ESPERADA_POR_GATILHO,
+  GATILHOS_DO_TRIGGER_DE_LEAD,
+} from "@/lib/schemas/webhooks";
 import { logger } from "@/lib/logger";
 
 export const AUTOMATION_CONSUMER_KEY = "automation-rules";
@@ -272,6 +276,13 @@ export async function runAutomationForEvent(
       const executor = getAction(action.type);
       if (!executor) {
         results.push({ type: action.type, status: "failed", error: "unknown_action" });
+        continue;
+      }
+      // Defesa em profundidade do veto de #1528: a regra pode ter chegado por
+      // outra porta que não o schema (SQL, import). Regravar o lead aqui
+      // reemitiria o próprio gatilho, sem marca de anti-laço.
+      if (acoesQueFechamLaco(row.event_type, [action]).length) {
+        results.push({ type: action.type, status: "skipped", error: "acao_fecharia_laco" });
         continue;
       }
       try {
