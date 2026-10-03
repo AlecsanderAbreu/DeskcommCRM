@@ -18,13 +18,11 @@ import {
   type SearchInput,
   type Prospect,
 } from "./schema";
+import { ProspectingError } from "./provider";
 import {
-  ProspectingError,
-  providerRequest,
-  readResults,
-  readSearch,
-  startSearch,
-} from "./provider";
+  provedorDaOrganizacao,
+  validarCredencialDaOrganizacao,
+} from "./provedor";
 
 export interface Campaign {
   id: string;
@@ -106,7 +104,10 @@ export async function configureCredential(
   org: string,
   key: string,
 ) {
-  await providerRequest(key, "users/me");
+  // A régua é a DO PROVEDOR ESCOLHIDO (#1758). Sem escolha nenhuma, `apify`
+  // responde com a MESMA validação de sempre — `users/me`, mesma URL, mesmo
+  // erro — então quem não pediu nada não muda de comportamento.
+  await validarCredencialDaOrganizacao(pool, org, key);
   const encrypted = await encryptWebhookSecret(admin, key);
   if (!encrypted)
     throw new ProspectingError("A cifra de credenciais da instalação não está disponível.");
@@ -129,13 +130,18 @@ export async function createSearch(
     );
     if (prior.rows[0]) return prior.rows[0];
     const key = await credential(db, admin, org);
+    // O provedor é ESCOLHA desta organização (#1758) e resolve-se ANTES de
+    // qualquer escrita: escolha desconhecida falha fechado sem deixar campanha
+    // órfã no banco. As outras organizações resolvem as suas próprias — a
+    // escolha de uma não vaza para a outra.
+    const provedor = await provedorDaOrganizacao(db, org);
     const { rows } = await db.query<Campaign>(
       "insert into prospecting_campaigns(organization_id,request_id,name,search) values($1,$2,$3,$4) returning *",
       [org, requestId, search.name, search],
     );
     const campaign = rows[0]!;
     try {
-      const run = await startSearch(key, search);
+      const run = await provedor.startSearch(key, search);
       await db.query(
         "update prospecting_campaigns set run_id=$3,dataset_id=$4,search_status='running',updated_at=now() where organization_id=$1 and id=$2",
         [org, campaign.id, run.id, run.defaultDatasetId ?? null],
@@ -163,7 +169,11 @@ export async function createSearch(
 export async function synchronizeSearch(db: pg.PoolClient, admin: SupabaseClient, c: Campaign) {
   if (!c.run_id) return;
   const key = await credential(db, admin, c.organization_id);
-  const run = await readSearch(key, c.run_id);
+  // Mesmo provedor que lançou esta execução: a escolha que vale é a DESTE
+  // organização (#1758), relida a cada tick — trocar de provedor não exige
+  // redeploy, só a configuração nova.
+  const provedor = await provedorDaOrganizacao(db, c.organization_id);
+  const run = await provedor.readSearch(key, c.run_id);
   if (["FAILED", "ABORTED", "TIMED-OUT"].includes(run.status)) {
     await db.query(
       "update prospecting_campaigns set search_status='failed',error=$3,updated_at=now() where organization_id=$1 and id=$2",
@@ -174,7 +184,7 @@ export async function synchronizeSearch(db: pg.PoolClient, admin: SupabaseClient
   if (run.status !== "SUCCEEDED") return;
   const dataset = run.defaultDatasetId ?? c.dataset_id;
   if (!dataset) throw new ProspectingError("Busca concluída sem resultado disponível.");
-  const items = await readResults(key, dataset, c.search.limit);
+  const items = await provedor.readResults(key, dataset, c.search.limit);
   let inserted = 0;
   await db.query("begin");
   try {
