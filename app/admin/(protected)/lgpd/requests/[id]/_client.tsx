@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TenantBadge } from "@/components/admin/inbox/TenantBadge";
 import { useAdminLgpdRequest } from "@/hooks/useAdminLgpdRequest";
 import type { AdminLgpdStatus, AdminLgpdRequestType } from "@/hooks/useAdminLGPDRequests";
-import { diasAtePrazo, fimDoPrazo, prazoEmBr } from "@/lib/lgpd/sla";
+import { diasAtePrazo, prazoEmBr, progressoDoPrazo } from "@/lib/lgpd/sla";
 import { useT } from "@/hooks/i18n/useT";
 
 // ---------------------------------------------------------------------------
@@ -34,12 +34,10 @@ function SlaTimelineInline({ received_at, due_at, request_type }: SlaTimelinePro
   // mediam até a meia-noite UTC do dia do prazo: a barra chegava a 100% às 21h da
   // VÉSPERA, e a contagem dizia "1d em atraso" às 9h do DIA do prazo. Medido —
   // ver `tests/unit/lgpd-prazo-e-dia-civil.test.ts`.
-  const fim = fimDoPrazo(due_at);
   const diasRestantes = diasAtePrazo(due_at, now);
 
   const elapsed = now.getTime() - receivedAt.getTime();
-  const total = fim ? fim.getTime() - receivedAt.getTime() : 0;
-  const progress = Math.min(1, Math.max(0, total > 0 ? elapsed / total : 0));
+  const progress = progressoDoPrazo(received_at, due_at, now);
   const progressPct = Math.round(progress * 100);
 
   const daysElapsed = Math.floor(elapsed / (1000 * 60 * 60 * 24));

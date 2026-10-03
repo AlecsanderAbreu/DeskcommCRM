@@ -4,7 +4,7 @@ import { useLocaleDeData } from "@/hooks/i18n/useLocaleDeData";
 
 import { differenceInDays, format, isBefore } from "date-fns";
 import { useT } from "@/hooks/i18n/useT";
-import { diasAtePrazo, diasDeAtraso, fimDoPrazo } from "@/lib/lgpd/sla";
+import { diasAtePrazo, diasDeAtraso, progressoDoPrazo } from "@/lib/lgpd/sla";
 
 interface SlaTimelineProps {
   received_at: string;
@@ -40,10 +40,14 @@ function getMilestones(
 /**
  * O estado do último marco. `prazoPassou` chega calculado de `diasDeAtraso` —
  * ver `SlaTimeline`, abaixo —, e não de `isBefore(dueDate, now)`: `due_at` é o
- * INÍCIO do dia guardado, então comparar o instante dele com agora deixava o
- * último marco "current" durante o dia inteiro do prazo, e só o marcava no dia
- * seguinte. Medido em São Paulo com prazo no dia 05/10: às 09h do dia 05 o resto
- * da tela já dizia "vence hoje" e o marco ainda não estava "current".
+ * INÍCIO do dia guardado, então o predicado antigo já dava o prazo por passado
+ * às 21h da VÉSPERA (São Paulo), enquanto o resto da tela dizia "vence hoje".
+ * Agora ele vira no mesmo instante que o selo `expired`.
+ *
+ * Na prática o ramo `isLast && prazoPassou` não é alcançado hoje: o último marco
+ * (D+7 ou D+15 corridos) cai antes do prazo (7 ou 15 dias ÚTEIS), e o marco já
+ * está "completed" quando o prazo passa — medido em 4.380 recebimentos de 2026
+ * e 2027, zero alcançam o ramo, com o predicado antigo ou com este.
  */
 function milestoneStatus(
   milestoneDate: Date,
@@ -63,10 +67,6 @@ export function SlaTimeline({ received_at, due_at, request_type }: SlaTimelinePr
   const receivedAt = new Date(received_at);
   const now = new Date();
 
-  // O FIM do dia guardado é a âncora da barra: sem ele, `total` era a distância
-  // até a meia-noite UTC do dia do prazo, e a barra chegava a 100% às 21h da
-  // VÉSPERA. Medido: 100% em 04/10 21:00 (São Paulo) para um prazo no dia 05/10.
-  const fim = fimDoPrazo(due_at);
   const diasRestantes = diasAtePrazo(due_at, now);
   const prazoPassou = diasDeAtraso(due_at, now) > 0;
 
@@ -85,13 +85,9 @@ export function SlaTimeline({ received_at, due_at, request_type }: SlaTimelinePr
       };
     });
 
-  // Linear progress 0..1, medida até o FIM do dia guardado. Sem `fim` (prazo
-  // ilegível) não há janela para medir: a barra fica em zero em vez de virar
-  // `NaN%` — e um `new Date(due_at)` de reserva aqui reintroduziria justamente o
-  // instante que a armadilha deste arquivo reprova.
-  const elapsed = now.getTime() - receivedAt.getTime();
-  const total = fim ? fim.getTime() - receivedAt.getTime() : 0;
-  const progress = Math.min(1, Math.max(0, total > 0 ? elapsed / total : 0));
+  // Medida até o FIM do dia guardado. Antes, até a meia-noite UTC do dia do
+  // prazo: a barra chegava a 100% às 21h da VÉSPERA (São Paulo).
+  const progress = progressoDoPrazo(received_at, due_at, now);
   const progressPct = Math.round(progress * 100);
 
   const daysElapsed = differenceInDays(now, receivedAt);

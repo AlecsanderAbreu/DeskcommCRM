@@ -49,6 +49,7 @@ import {
   diasDeAtraso,
   fimDoPrazo,
   horasAteOFimDoPrazo,
+  progressoDoPrazo,
   prazoEmBr,
 } from "@/lib/lgpd/sla";
 import { computeRiskLevel, computeSlaBucket } from "@/lib/lgpd/balde-de-sla";
@@ -390,7 +391,6 @@ describe("a coluna 'Vence em' conta até o FIM do dia, não até a meia-noite UT
 describe("a barra do prazo das telas de detalhe lê o fim do dia, não a meia-noite UTC", () => {
   const recebido = "2026-09-14T12:00:00.000Z";
   const prazo = computeDueAt(d("2026-09-14"), 15).toISOString(); // 2026-10-05T00:00:00Z
-  const fim = fimDoPrazo(prazo)!;
 
   /** `progresso` como as DUAS cópias calculavam: até a meia-noite UTC do dia. */
   const progressoAntigo = (agora: Date): number => {
@@ -398,11 +398,8 @@ describe("a barra do prazo das telas de detalhe lê o fim do dia, não a meia-no
     const total = new Date(prazo).getTime() - new Date(recebido).getTime();
     return Math.min(1, Math.max(0, total > 0 ? elapsed / total : 0));
   };
-  const progressoNovo = (agora: Date): number => {
-    const elapsed = agora.getTime() - new Date(recebido).getTime();
-    const total = fim.getTime() - new Date(recebido).getTime();
-    return Math.min(1, Math.max(0, total > 0 ? elapsed / total : 0));
-  };
+  // a conta que as DUAS telas chamam — não uma cópia dela
+  const progressoNovo = (agora: Date): number => progressoDoPrazo(recebido, prazo, agora);
 
   it("fimDoPrazo é a meia-noite UTC do dia seguinte ao guardado", () => {
     // A âncora que os quatro consumidores passaram a compartilhar. Sem asserção
@@ -479,7 +476,7 @@ describe("a barra do prazo das telas de detalhe lê o fim do dia, não a meia-no
     ]) {
       const fonte = codigoSemComentario(arquivo);
       expect(fonte, `${arquivo} deixou de usar diasAtePrazo`).toContain("diasAtePrazo(");
-      expect(fonte, `${arquivo} deixou de usar fimDoPrazo`).toContain("fimDoPrazo(");
+      expect(fonte, `${arquivo} deixou de usar progressoDoPrazo`).toContain("progressoDoPrazo(");
       expect(
         /differenceInDays\(\s*due/.test(fonte) || /msUntilDue/.test(fonte),
         `${arquivo} voltou a medir o prazo a partir de due_at em vez do helper`,
@@ -487,11 +484,15 @@ describe("a barra do prazo das telas de detalhe lê o fim do dia, não a meia-no
     }
   });
 
-  it("o último marco fica 'current' quando o prazo passou — e não o dia inteiro antes", () => {
+  it("o último marco dá o prazo por passado junto com o selo — e não desde as 21h da véspera", () => {
     // `milestoneStatus` comparava `isBefore(dueAt, now)`: `dueAt` é o INÍCIO do dia
-    // guardado, então o marco só ficava 'current' no dia seguinte ao prazo.
+    // guardado, então o predicado antigo já era verdadeiro às 21h da VÉSPERA.
     const antes = new Date("2026-10-05T12:00:00.000Z"); // 09:00 do dia do prazo
     const depois = new Date("2026-10-06T01:00:00.000Z"); // 22:00 do dia do prazo
+    const vespera = new Date("2026-10-05T01:00:00.000Z"); // 22:00 da VÉSPERA
+    // na véspera, o predicado antigo já dava o prazo por passado; o novo, não
+    expect(new Date(prazo).getTime() < vespera.getTime()).toBe(true);
+    expect(diasDeAtraso(prazo, vespera)).toBe(0);
     expect(diasDeAtraso(prazo, antes)).toBe(0);
     expect(diasDeAtraso(prazo, depois)).toBe(1);
     expect(new Date(prazo).getTime() < depois.getTime()).toBe(true); // o predicado antigo
