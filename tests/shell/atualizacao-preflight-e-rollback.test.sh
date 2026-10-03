@@ -78,6 +78,8 @@ cat > "$WORK/bin/docker" <<'DUBLE'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$DOCKER_LOG"
 ESTADO="$DUB/estado.txt"
+# Caso 6: o daemon travado pelo resolver saturado — todo comando fica preso.
+[ -f "$DUB/trava" ] && exec sleep 20
 
 reg() {  # reg <serviço> <estado>
   local s="$1" e="$2" tmp="$ESTADO.tmp.$$"
@@ -237,7 +239,7 @@ preparar_vps() {
   printf '0.8.0\n' > "$DUB/imagens-locais"
   : > "$DUB/registro"                          # o registro está alcançável
   : > "$DUB/voz-pronta"                        # e as QUATRO imagens publicadas
-  rm -f "$DUB/worker-exited" "$DUB/worker-some"
+  rm -f "$DUB/worker-exited" "$DUB/worker-some" "$DUB/trava"
 }
 
 # rodar_update <raiz> <saída> [VAR=valor ...] → status em RC
@@ -440,6 +442,42 @@ case "$AGENTE" in
   *'= "incompleta"'*) ok "e só cala quando há imagem FALTANDO (incompleta)" ;;
   *) nao "silencia em incompleta" 'teste contra "incompleta"' "ausente" ;;
 esac
+
+# ════════════════════════════════════════════════════════════════════════════
+echo "── caso 6 — Docker travado: a conferência e o diagnóstico têm PRAZO"
+# O diagnóstico roda no gatilho de saída, inclusive quando o preflight recusou
+# porque o Docker não respondeu: sem prazo no `ps`, a atualização nunca
+# terminaria. O `timeout` daqui encurta qualquer prazo para 2s (e existe no
+# macOS, que não tem um), para a prova não custar 30s por chamada.
+mkdir -p "$WORK/bin-prazo"
+cat > "$WORK/bin-prazo/timeout" <<'STUB'
+#!/usr/bin/env bash
+shift
+"$@" & p=$!
+( sleep 2; kill -TERM "$p" ) >/dev/null 2>&1 & k=$!
+wait "$p"; rc=$?
+kill "$k" 2>/dev/null
+exit "$rc"
+STUB
+chmod +x "$WORK/bin-prazo/timeout"
+PATH_ANTES="$PATH"; PATH="$WORK/bin-prazo:$PATH"
+preparar_vps
+: > "$DUB/trava"
+inicio=$SECONDS; fora6="$(servicos_fora_do_ar)"; dur=$((SECONDS - inicio))
+if [ "$dur" -lt 10 ] && [ -z "$fora6" ]; then
+  ok "servicos_fora_do_ar volta em ${dur}s com o Docker travado, e 'não sei' não acusa ninguém"
+else
+  nao "conferência com prazo" "menos de 10s e lista vazia" "${dur}s, lista '$fora6'"
+fi
+DIAGNOSTICO_ARQUIVO="$WORK/diag6.log"
+inicio=$SECONDS; diagnostico_de_atualizacao 3; dur=$((SECONDS - inicio))
+if [ "$dur" -lt 10 ] && grep -q 'não respondeu' "$DIAGNOSTICO_ARQUIVO" 2>/dev/null; then
+  ok "o diagnóstico volta em ${dur}s e escreve que o Docker não respondeu"
+else
+  nao "diagnóstico com prazo" "menos de 10s e 'não respondeu' no arquivo" "${dur}s; $(tail -2 "$DIAGNOSTICO_ARQUIVO" 2>/dev/null | tr '\n' ' ')"
+fi
+rm -f "$DUB/trava"
+PATH="$PATH_ANTES"
 
 printf '\n'
 if [ "$falhas" -eq 0 ]; then echo "TUDO VERDE"; exit 0; fi

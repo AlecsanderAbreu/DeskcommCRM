@@ -1050,7 +1050,10 @@ diagnostico_de_atualizacao() {
     printf 'rollback:   %s\n' "${UPDATE_ROLLBACK:-não precisou (a atualização não passou da troca de versão)}"
     printf 'containers:\n'
     # shellcheck disable=SC2046
-    docker compose $(dc_files) ps -a 2>/dev/null || printf '  (o Docker não respondeu)\n'
+    # Com prazo: este bloco roda no gatilho de SAÍDA, inclusive quando o
+    # preflight recusou porque o Docker não respondeu — sem prazo, o `ps`
+    # travaria ali e a atualização nunca terminaria.
+    com_prazo 30 docker compose $(dc_files) ps -a 2>/dev/null || printf '  (o Docker não respondeu em 30s)\n'
     printf '\n'
   } >> "$arq" 2>/dev/null || true
   return 0
