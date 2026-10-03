@@ -71,11 +71,11 @@ const abertos = async (org: string): Promise<number> => {
 
 beforeAll(async () => {
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name) values ($1,$2,$2,$2)`,
+    `insert into organizations (id, slug, legal_name, display_name) values ($1, $2::text, $2::text, $2::text)`,
     [ORG_A, "midia-a"],
   );
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name) values ($1,$2,$2,$2)`,
+    `insert into organizations (id, slug, legal_name, display_name) values ($1, $2::text, $2::text, $2::text)`,
     [ORG_B, "midia-b"],
   );
 });

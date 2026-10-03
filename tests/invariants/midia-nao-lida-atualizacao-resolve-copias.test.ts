@@ -45,7 +45,7 @@ function blocoDa0527(): string {
 
 beforeAll(async () => {
   await pool.query(
-    `insert into organizations (id, slug, legal_name, display_name) values ($1,$2,$2,$2)`,
+    `insert into organizations (id, slug, legal_name, display_name) values ($1, $2::text, $2::text, $2::text)`,
     [ORG, "midia-copias"],
   );
 });
