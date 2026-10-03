@@ -133,7 +133,7 @@ export function contagemDoPrazo(
 
 /**
  * O rótulo da coluna "Vence em" da lista da ORGANIZAÇÃO, e o sinal de urgência
- * que pinta a linha de vermelho.
+ * que pinta de vermelho o prazo da linha.
  *
  * ## O defeito que este arquivo conserta
  *
@@ -145,10 +145,11 @@ export function contagemDoPrazo(
  * ```
  *
  * Medido em São Paulo (UTC−3), com prazo no dia **05/10**
- * (`2026-10-05T00:00:00.000Z`), varrendo uma hora por vez: **23 horas** em que o
- * rótulo dizia "atrasado hoje" enquanto `diasDeAtraso` — o predicado do selo da
- * mesma linha — ainda era 0. Ia de 04/10 22:00 até 05/10 20:59, ou seja a linha
- * anunciava atraso no dia INTEIRO anterior ao vencimento. A contagem para frente
+ * (`2026-10-05T00:00:00.000Z`): por **quase 24 horas** o rótulo dizia "atrasado
+ * hoje" enquanto `diasDeAtraso` — o predicado do selo da mesma linha — ainda era
+ * 0 (a varredura hora a hora pega 23 amostras). Ia de logo depois de 04/10 21:00
+ * até 05/10 21:00, ou seja a linha anunciava atraso no dia INTEIRO anterior ao
+ * vencimento. A contagem para frente
  * errava junto, para menos: "em 12h" às 09h de 04/10, quando faltava um dia.
  *
  * ## A régua agora
@@ -167,9 +168,9 @@ export function contagemDoPrazo(
  *
  * ## O `urgent` também muda de âncora
  *
- * `urgent` pinta a linha de vermelho, e era `diffMs < 2 dias` — dois dias antes do
+ * `urgent` pinta o prazo de vermelho, e era `diffMs < 2 dias` — dois dias antes do
  * INÍCIO do dia do prazo. Agora são 48 h até o FIM dele. Medido: às 09h de 03/10,
- * com prazo no dia 05/10, a linha estava vermelha; agora deixa de estar.
+ * com prazo no dia 05/10, o prazo estava em vermelho; agora deixa de estar.
  */
 export function distanciaDoPrazo(
   dueAt: string | null,
