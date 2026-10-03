@@ -46247,3 +46247,9 @@ begin
   end loop;
 end
 $$;
+
+-- ---- seleção de empresas na prospecção, issue #1896 (migration 0506) ----
+-- O operador escolhe quais empresas da busca entram na fila. Padrão TUDO
+-- marcado: quem só atualiza continua com a mesma fila de antes.
+alter table public.prospecting_candidates
+  add column if not exists selected boolean not null default true;
