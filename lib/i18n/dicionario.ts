@@ -5549,6 +5549,9 @@ export const DICIONARIO: Traducoes = {
   "Quando um negócio for perdido": { es: "Cuando un negocio se cierre como perdido" },
   "Quando um lead encerrado for reaberto": { es: "Cuando se reabra un lead cerrado" },
   "Quando o responsável do lead mudar": { es: "Cuando cambie el responsable del lead" },
+  "Neste gatilho esta ação não roda: atribuir responsável ou mover o lead dispararia a automação de novo, sem fim. Abra a automação e tire a ação.": {
+    es: "Con este disparador esta acción no se ejecuta: asignar responsable o mover el lead volvería a disparar la automatización, sin fin. Abra la automatización y quite la acción.",
+  },
   "Neste gatilho a automação não pode atribuir responsável nem mover o lead: a própria mudança dispararia a automação de novo, sem fim.": {
     es: "Con este disparador la automatización no puede asignar responsable ni mover el lead: el propio cambio volvería a disparar la automatización, sin fin.",
   },

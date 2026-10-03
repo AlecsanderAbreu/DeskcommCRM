@@ -3442,6 +3442,7 @@
   "Quando um negócio for perdido": "When a deal is lost",
   "Quando um lead encerrado for reaberto": "When a closed lead is reopened",
   "Quando o responsável do lead mudar": "When the lead owner changes",
+  "Neste gatilho esta ação não roda: atribuir responsável ou mover o lead dispararia a automação de novo, sem fim. Abra a automação e tire a ação.": "With this trigger this action doesn't run: assigning an owner or moving the lead would fire the automation again, endlessly. Open the automation and remove the action.",
   "Neste gatilho a automação não pode atribuir responsável nem mover o lead: a própria mudança dispararia a automação de novo, sem fim.": "With this trigger the automation can't assign an owner or move the lead: the change itself would fire the automation again, endlessly.",
   "Quando chegar mensagem no WhatsApp": "When a WhatsApp message arrives",
   "Quando uma mensagem não for entregue": "When a message isn't delivered",
