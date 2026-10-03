@@ -7759,7 +7759,7 @@ export const DICIONARIO: Traducoes = {
   "Tente ajustar os filtros ou a busca.": { es: "Intenta ajustar los filtros o la búsqueda." },
 
   // ─── Contacts: vocabulário da timeline (lib/leads/activity-vocabulary.ts) ───
-  "Entrou pelo WhatsApp": { es: "Entró por WhatsApp" },
+  "Entrou no funil": { es: "Entró al embudo" },
   "Mudou de estágio": { es: "Cambió de etapa" },
   "Correção do que o assistente tinha feito": { es: "Corrección de lo que había hecho el asistente" },
   "Anotação": { es: "Anotación" },

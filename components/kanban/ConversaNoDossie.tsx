@@ -12,7 +12,7 @@ import type { Contact } from "@/lib/types/contacts";
  *
  * O card tem o atalho desde o PR do quadro, e ele funciona. Mas o dossiê é para
  * onde se vai quando a pergunta é "o que está acontecendo com este negócio?" — e
- * lá dentro a linha do tempo ANUNCIA "Entrou pelo WhatsApp / primeira mensagem
+ * lá dentro a linha do tempo ANUNCIA "Entrou no funil / primeira mensagem
  * recebida no WhatsApp" e não oferece nenhum jeito de abrir essa conversa.
  *
  * Anunciar um canal e não dar a porta é pior que não anunciar: quem lê procura,
