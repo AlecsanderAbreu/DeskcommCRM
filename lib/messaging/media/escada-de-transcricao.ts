@@ -87,6 +87,26 @@ export interface AnuncioDaTranscricao {
   modelId: string | null;
 }
 
+/**
+ * O porquê de cada desfecho da escada, em frase FIXA. A tela de Provedores
+ * mostra este motivo traduzido por `t()`, que casa a frase inteira e não
+ * interpola — por isso o modelo não entra no texto (#2205): na tela ele já
+ * aparece ao lado, e no worker o log carrega a organização. Toda frase daqui
+ * precisa de tradução: `tests/unit/i18n-provedores-e-pontos.test.ts` cobra.
+ */
+export const MOTIVOS_DA_TRANSCRICAO = {
+  servicoDaInstalacao:
+    "o serviço de transcrição configurado nesta instalação (TRANSCRIPTION_API_KEY) é o que ouve os áudios",
+  chaveOpenai: "a chave OpenAI desta organização ou instalação usa o padrão de transcrição de sempre",
+  modeloDaOrganizacao:
+    "o modelo de conversa da organização declara a capacidade audio e transcreve com a própria chave",
+  semModeloDeConversa:
+    "não consegui resolver o modelo de conversa desta organização e não há chave OpenAI para transcrever",
+  modeloSemAudio:
+    "o modelo de conversa da organização não declara a capacidade audio, e não há chave OpenAI para o serviço de transcrição",
+  ninguem: "não há chave OpenAI nem modelo de conversa com capacidade audio nesta organização",
+} as const;
+
 /** O modelo de CONVERSA da organização, já resolvido pelo worker. */
 export interface ConversaDaOrganizacao {
   provider: string;
@@ -189,8 +209,7 @@ export async function decidirTranscricao(entrada: {
         model: env.TRANSCRIPTION_MODEL || undefined,
         languages: idiomas,
       }),
-      motivo:
-        "o serviço de transcrição configurado nesta instalação (TRANSCRIPTION_API_KEY) é o que ouve os áudios",
+      motivo: MOTIVOS_DA_TRANSCRICAO.servicoDaInstalacao,
       anuncio: { provider: "openai", modelId: modelo },
     };
   }
@@ -211,7 +230,7 @@ export async function decidirTranscricao(entrada: {
         model: modelo,
         languages: idiomas,
       }),
-      motivo: "a chave OpenAI desta organização ou instalação usa o padrão de transcrição de sempre",
+      motivo: MOTIVOS_DA_TRANSCRICAO.chaveOpenai,
       anuncio: { provider: "openai", modelId: modelo },
     };
   }
@@ -232,7 +251,7 @@ export async function decidirTranscricao(entrada: {
         baseUrl: conversa.baseUrl ?? null,
         languages: idiomas,
       }),
-      motivo: `o modelo de conversa ${conversa.modelId} declara a capacidade audio e transcreve com a própria chave`,
+      motivo: MOTIVOS_DA_TRANSCRICAO.modeloDaOrganizacao,
       // É ESTE anúncio — e não `whisper-1` — que a tela precisa mostrar quando
       // a organização não tem chave OpenAI (#2190).
       anuncio: { provider: conversa.provider, modelId: conversa.modelId },
@@ -241,10 +260,10 @@ export async function decidirTranscricao(entrada: {
 
   // 4 · Nada — e o motivo é do caso, não um "deu erro" genérico.
   const motivo = !conversa
-    ? "não consegui resolver o modelo de conversa desta organização e não há chave OpenAI para transcrever"
+    ? MOTIVOS_DA_TRANSCRICAO.semModeloDeConversa
     : conversa.modelId && !transcreveAudio(conversa.provider, conversa.modelId)
-      ? `o modelo de conversa ${conversa.modelId} não declara a capacidade audio, e não há chave OpenAI para o serviço de transcrição`
-      : "não há chave OpenAI nem modelo de conversa com capacidade audio nesta organização";
+      ? MOTIVOS_DA_TRANSCRICAO.modeloSemAudio
+      : MOTIVOS_DA_TRANSCRICAO.ninguem;
   return {
     origem: "nada",
     transcriber: null,
