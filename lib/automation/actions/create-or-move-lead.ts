@@ -36,12 +36,17 @@ async function execute(ctx: ActionCtx, config: Record<string, unknown>): Promise
     actor: { type: "webhook_source", id: ctx.ruleId },
     requestId: `rule:${ctx.ruleId}`,
   };
-  const lead = ctx.context.lead as { id: string; pipeline_id: string; contact_id?: string } | undefined;
+  // A LINHA INTEIRA do negócio, como `buildContext` a lê (`select *` de
+  // `crm_leads`): o ramo abaixo precisa de `title`, `tags`, `custom_fields` e
+  // companhia quando o caminho é a transferência (#2155).
+  const lead = ctx.context.lead as OrigemParaClonar | undefined;
   const contact = ctx.context.contact as
     | { id: string; name?: string | null; display_name?: string | null; phone_number?: string | null }
     | undefined;
 
-  const contactId = contact?.id ?? lead?.contact_id;
+  // `?? undefined` porque `OrigemParaClonar.contact_id` admite `null` (a linha
+  // do banco) e `publicaNoContexto` aceita `string | undefined`.
+  const contactId = contact?.id ?? lead?.contact_id ?? undefined;
   handlerCtx.serviceOrigin = contactId
     ? (await originFromAutomationEvent(ctx, contactId)) ?? { kind: "unavailable", reason: "origin_capture_failed" }
     : { kind: "unavailable", reason: "origin_capture_failed" };
@@ -49,6 +54,35 @@ async function execute(ctx: ActionCtx, config: Record<string, unknown>): Promise
   try {
     if (lead) {
       if (lead.pipeline_id !== pipelineId) {
+        // ── O GATILHO lead.tag_added COM O NEGÓCIO EM OUTRO FUNIL: A REGRA TRANSFERE (#2155) ──
+        //
+        // O caminho que TRANSFERE (`transfereParaOFunil`, o mesmo da rota
+        // `POST /api/v1/leads/[id]/clone`) era alcançável SÓ pelo ramo por
+        // contato — e o ramo por contato roda quando o evento NÃO traz o
+        // negócio. Com o negócio no evento, o galho acima devolvia
+        // `cross_pipeline_move_not_allowed` e a regra "Recepção etiqueta,
+        // regra transfere" ficava sem saída: `run_count = 0` e o card parado
+        // no funil de entrada.
+        //
+        // O escopo é ESTREITO de propósito: só `lead.tag_added`. É o gatilho
+        // da que a Recepção usa para etiquetar, é o que a issue mediu, e é a
+        // fatia que não pede migration. Os demais gatilhos que trazem o
+        // negócio (`lead.created`, `lead.stage_changed`, …) seguem recusando —
+        // a proposta principal da #2155 (destino por intenção em
+        // `ai_router_members`) continua fora, porque exige migration.
+        if (ctx.event?.event_type === "lead.tag_added") {
+          const transferencia = await transfereParaOFunil(ctx, handlerCtx, lead, pipelineId, stageId);
+          if (!transferencia.ok) {
+            return { type: "create_or_move_lead", status: "failed", error: transferencia.error };
+          }
+          // O CLONE é o negócio das próximas ações da regra — não o que fechou.
+          publicaNoContexto(ctx, transferencia.clone, contactId);
+          return {
+            type: "create_or_move_lead",
+            status: "success",
+            detail: { transferido: String(transferencia.clone.id ?? ""), origem: lead.id },
+          };
+        }
         return { type: "create_or_move_lead", status: "failed", error: "cross_pipeline_move_not_allowed" };
       }
       const movido = await moveLeadHandler(ctx.admin, handlerCtx, lead.id, { to_stage_id: stageId });
