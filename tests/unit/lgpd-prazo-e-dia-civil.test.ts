@@ -624,7 +624,8 @@ describe("a janela de 5 dias do painel conta até o FIM do dia do prazo", () => 
     // (`agora + N dias`) menos a distância entre o início e o fim do dia guardado.
     const ingênuo = new Date(agora.getTime() + 5 * DIA_MS);
     const corte = corteDaJanela(agora, 5);
-    const distanciaDoDia = fimDoPrazo(guardado("2026-10-05"))!.getTime() - guardado("2026-10-05").getTime();
+    const distanciaDoDia =
+      fimDoPrazo(guardado("2026-10-05"))!.getTime() - guardado("2026-10-05").getTime();
     expect(ingênuo.getTime() - corte.getTime()).toBe(distanciaDoDia);
     expect(distanciaDoDia).toBe(DIA_MS);
   });
