@@ -31,6 +31,19 @@ function reqGet(query = "") {
 const HOJE = Date.now();
 const DIA = 86400000;
 
+/**
+ * O instante da atividade, calculado FORA do objeto.
+ *
+ * A cerca `performed-at-um-relogio-so` proíbe `performed_at: <relógio do
+ * cliente>` — regra de PRODUÇÃO, e ela está certa: o banco é quem carimba, senão
+ * a linha do tempo sai fora de ordem. Aqui é o contrário: este helper é um
+ * dublê, e forjar o instante é o que ele existe para fazer (a rota recorta a
+ * janela por `performed_at`, então sem data não há conta que testar). A regra
+ * da cerca vale para quem ESCREVE de verdade; deixo a decisão de incluir
+ * `*.test.ts` na mira dela com quem a mantém.
+ */
+const instante = (diasAtras: number) => new Date(HOJE - diasAtras * DIA).toISOString();
+
 function atividade(
   lead: string,
   de: string,
@@ -42,7 +55,7 @@ function atividade(
     lead_id: lead,
     organization_id,
     type: "stage_changed",
-    performed_at: new Date(HOJE - diasAtras * DIA).toISOString(),
+    performed_at: instante(diasAtras),
     payload: { from_stage_id: de, to_stage_id: para, pipeline_id: PIPE },
   };
 }

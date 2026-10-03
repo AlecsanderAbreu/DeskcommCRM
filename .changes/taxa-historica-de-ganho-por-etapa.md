@@ -1,3 +1,4 @@
+---
 impacto: capacidade_nova
 secao: adicionado
 titulo: Taxa histórica de ganho por etapa, sugerida ao gestor para calibrar a probabilidade
