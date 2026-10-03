@@ -8,6 +8,722 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ## [Não lançado]
 
+## [1.70.0] — 2026-10-03
+
+### Adicionado
+
+- **Fluxo de follow-up ganha caixas de mover o card no funil e gravar tag** Um fluxo de follow-up só sabia mandar mensagem. Agora ele também tem duas caixas de ação que não falam com o cliente: "mover lead no funil", que põe o card na etapa escolhida pelo mesmo caminho que o quadro e as automações usam (trocar de funil continua recusado), e "editar tag do lead", que grava etiqueta com o merge idempotente da ação de automação — tag que o negócio já tem não duplica e nada é apagado. As duas entram no seletor de caixas do editor, ganham card e formulário, e a publicação recusa a caixa publicada sem etapa ou sem tag escolhida. Salvar rascunho continua aceitando a caixa pela metade, como as outras. Nenhuma mudança de banco: o grafo continua no jsonb que já existia. "Disparar campanha" e editar outros dados do lead ficaram para o passo seguinte.
+
+  Contribuição de @webtecnica (#2181, refs #2065).
+
+- **Token de API administra fluxos de follow-up, agentes, prospecção e tipos de agendamento** Quem automatiza a configuração da instalação (configuração como código) agora pode usar o token de API (`dsk_`, com escopos `mcp:read`/`mcp:write` e papel `admin`) nas rotas de configuração de IA, follow-up e agenda, em vez de precisar da sessão por cookie ou de escrever direto no banco (que pulava a validação do grafo, a auditoria e o controle de versões):
+
+  - **Fluxos de follow-up** — `GET/POST /api/v1/ai/followup-flows` e `POST /api/v1/ai/followup-flows/from-model` (instalar um modelo do catálogo como rascunho).
+  - **Agentes de IA** — `GET/POST /api/v1/ai/agents` e `GET/POST /api/v1/ai/agents/:id/versions` (criar agente e versão como rascunho).
+  - **Prospecção** — `GET/POST /api/v1/prospecting` (configurar, pesquisar e pausar campanhas). Iniciar e retomar campanha continuam exigindo a tela, porque enviam mensagem, e qualquer ação nova da prospecção só passa por token quando for liberada de propósito.
+  - **Tipos de agendamento** — `GET/POST/PATCH/DELETE /api/v1/agenda/tipos` (`calendar_event_types`).
+
+  Nos quatro blocos vale a mesma regra de sessão, agora duplicada pelo token: a organização sai da linha do token (nunca do corpo/query), o papel mínimo exigido é o mesmo da sessão (viewer para leitura; manager/admin para escrita), a escrita vai para o rascunho (publicar, reverter, iniciar e retomar campanha continuam exigindo a tela) e o rate limit por token é o mesmo das demais portas que aceitam Bearer. Toda mutação segue auditada com o id do token na trilha.
+
+  Não é preciso fazer nada na instalação para receber a capacidade; quem já automatiza por banco pode substituir a escrita direta pelas rotas e ganhar as validações de volta.
+
+  Contribuição de @webtecnica (#2028), fechando a #1875.
+
+- **A assinatura (HMAC) de uma fonte de captação agora se liga pela tela** Cada fonte de captação (Automações › Fontes) tem um endereço próprio, e até agora
+  era só esse endereço que protegia a entrada de contatos: quem o descobrisse — num
+  log do proxy, no histórico do navegador, num print — conseguia criar leads na sua
+  conta. O produto já sabia exigir assinatura nesse endereço, mas não havia onde
+  configurá-la, então nenhuma fonte criada pela tela nascia protegida.
+
+  No painel da fonte há agora a seção "Assinatura (HMAC)". Quem administra gera um
+  segredo com um clique, vê o valor uma única vez para copiar e guardar, e a partir
+  daí o endereço passa a recusar qualquer envio que não venha assinado por quem tem
+  esse segredo. Dá para trocar o segredo (avisando que as integrações antigas param
+  até serem atualizadas) e para removê-lo, voltando ao estado anterior. O valor
+  aparece uma vez e não é mostrado de novo: o sistema guarda apenas uma versão
+  cifrada dele, que serve para conferir os envios e não para exibir — nem para
+  quem opera o servidor. Perdeu o segredo, o caminho é gerar outro.
+
+  Quem envia os dados assina o corpo da requisição com HMAC-SHA256 e manda o
+  resultado em hexadecimal no cabeçalho `X-Deskcomm-Signature`. Com a assinatura
+  ligada, o botão "Enviar lead de teste" sai de cena: o teste passa a ser feito do
+  sistema que envia os dados, que é quem tem o segredo.
+
+  Contribuição de @maclevison.
+
+- **Mensagens enviadas ao cliente podem mostrar quem fala (atendente ou IA) em negrito, na linha de cima** Uma opção por organização, em **Configurações › Distribuição de atendimento**, liga a assinatura do emissor nas mensagens enviadas ao cliente: quem é atendente humano aparece pelo próprio nome com as iniciais em maiúsculo, e a IA aparece por um nome configurável (padrão "Assistente Virtual"). Atendentes e IA se ligam separadamente. O nome sai em negrito na linha de cima, com o texto logo abaixo, e vale também para a legenda de mídia. Tudo o que a IA escreve assina com o nome da IA — inclusive o follow-up do agente e a ação de regra "Mensagem escrita pela IA" —; campanhas, a sequência de follow-up do CRM, lembretes de agenda e integrações por token ficam de fora. A assinatura entra só no que vai ao cliente — o histórico do CRM continua guardando o texto como foi escrito, e o WhatsApp via WAHA continua reconhecendo o eco do próprio envio assinado (sem pausar a IA). Nada a fazer na instalação: a função nasce desligada.
+
+  Contribuição de @webtecnica, a partir da issue #2066 de @Cgaban.
+
+- **O balão do áudio avisa "Transcrevendo…" enquanto a transcrição é gerada** Enquanto o sistema ainda está transcrevendo um áudio, o balão da conversa mostrava só o player: o atendente não tinha como saber se o texto ia existir nem quanto tempo faltava. Agora, enquanto a transcrição está sendo gerada, o balão mostra um discreto "Transcrevendo…" logo abaixo do player; quando o texto fica pronto, ele aparece identificado com o rótulo "Transcrição". Quando a leitura falha ou não é possível, o balão continua mostrando só o player, sem aviso — como já era.
+
+  Não é preciso fazer nada na instalação: o aviso vale para áudio recebido e para áudio enviado pelo celular, e some sozinho quando a transcrição fica pronta — ou depois de alguns minutos, se o texto não vier (áudio de grupo, por exemplo, nunca é transcrito). O áudio gravado pelo atendente no CRM não mostra o aviso.
+
+  Contribuição de @webtecnica, na issue #2133 e no PR #2154.
+
+- **Cadastrar, na captação, o campo que o formulário mandou** No painel de cada captação (Webhooks › Leads recebidos), o campo que já está cadastrado no funil aparece pelo rótulo, e o que ainda não está ganha o botão "Cadastrar como campo do lead", com rótulo e tipo sugeridos a partir do valor recebido. O cadastro vale para o card do lead, o Kanban e as mensagens. Quem não administra o funil não vê o botão.
+
+- **O chat de casos mostra os trechos do acervo ligados à pergunta** Ao perguntar dentro de um caso (`Conversar sobre o caso`), a tela passa a mostrar, num painel
+  ao lado, os trechos do acervo de conhecimento do agente do caso que se ligam à pergunta. A busca
+  é a mesma das conversas (F1 da #1869): mesma fonte, mesmo limiar. Os trechos acompanham a
+  resposta, mas a IA ainda não os lê ao responder, então eles não são a fonte dela. Fazer a
+  resposta se apoiar no acervo é o próximo passo da #1869. Sem acervo publicado, nada aparece e
+  nada dá erro. As guardas da conversa seguem iguais: 404 em vez de 403 para conjunto vazio,
+  idempotência por `turn_id` e recusa de contato anonimizado.
+
+  Contribuição de @webtecnica (#1952).
+
+- **Venda de quem veio de anúncio da Meta pela sua página agora é reportada ao pixel, com o valor lido da conversa** Antes, só o anúncio "Clique para o WhatsApp" fazia a venda chegar à Meta. Quem chegava pelo botão da sua página com uma UTM de anúncio (`utm_source` igual a `meta`, `facebook`, `fb`, `instagram` ou `ig`) era tratado como origem de site, e o negócio ganho não aparecia no Histórico de envios. Agora essa venda vai para o pixel como compra (Purchase), identificada pelo telefone do cliente em hash. Venda orgânica e de outras origens continua fora. Quando o negócio é ganho sem valor preenchido e a venda tem para onde ir (a conexão com a Meta ligada, ou "Enviar vendas pelo canal da conversa" ligada com um canal que reporta), a IA lê a conversa e usa o valor que aparece escrito nela. Sem conexão com a Meta, a conversa não é lida. Se a IA não achar o valor escrito, nada é enviado, e a venda fica como pendência "sem valor" em Configurações › Conversões, com o motivo. Nem o texto da conversa nem o nome do produto vão para a Meta: o produto aparece só no Histórico de envios. A leitura aparece em Execuções da IA como "Ler o valor da venda na conversa" e usa o orçamento de IA da organização.
+
+- **Cada etapa do funil pode avisar a Meta, não só a venda** Em Configurações › Conversões, com a conexão da Meta configurada, aparece o cartão "O que cada etapa do funil informa à Meta". Para cada etapa aberta do funil você escolhe se ela envia um evento padrão da Meta (Lead enviado, Lead qualificado, Início de compra, Adicionou ao carrinho ou Viu o conteúdo) quando um negócio entra nela, e o botão "Usar o recomendado" sugere pelo nome da etapa: orçamento ou proposta envia Início de compra, agendamento ou visita envia Lead enviado. O evento sai uma vez por negócio, sem valor (o valor continua indo na compra, quando o negócio é ganho), e só para quem veio de anúncio da Meta, pelo "Clique para o WhatsApp" ou pela sua página com UTM da Meta. Movimentos feitos antes de você ligar a regra não são enviados. Cada envio aparece no Histórico de envios, e o que falhar pode ser reprocessado ali.
+
+- **Um guia de IA passa a orientar o uso diário do CRM pela interface** Quem opera o CRM ganha um guia que encontra telas, explica fluxos e encaminha dúvidas para o guia especializado certo. Crédito: @italopabloferreria.
+
+- **O "digitando…" do agente passa a aparecer também no número oficial (WhatsApp Cloud API)** Quando o agente de IA começa a responder por um número conectado pela API oficial da Meta, o cliente passa a ver "digitando…" na conversa, como já acontecia nos números conectados por QR Code. Na API oficial o indicador vem junto com a confirmação de leitura: a última mensagem do cliente fica com os dois tracinhos azuis no mesmo instante em que o "digitando…" aparece, porque a Meta não oferece um sem o outro. O indicador acende quando o agente começa a pensar na resposta; se ele terminar sem mandar mensagem (passagem para a equipe, por exemplo), a mensagem do cliente fica como lida e o "digitando…" some sozinho em 25 segundos. Não é preciso fazer nada na instalação.
+
+  Contribuição de @lauropilatti-c01.
+
+- **O segundo fator pode ser exigido de qualquer nível de papel, com carência** Quem administra uma clínica, um escritório jurídico ou qualquer operação que recebe foto de documento pelo WhatsApp agora pode pedir a verificação em duas etapas de toda a equipe, e não só de quem administra. Na tela de Segurança, a caixa "Exigir de quem administra" virou um seletor de nível mínimo (não exigir de ninguém, administradores, gerentes, atendentes, somente leitura) mais um campo de carência de 0 a 30 dias: enquanto o prazo corre ninguém é bloqueado, e depois dele a tela passa a travar até a pessoa cadastrar o fator.
+
+  Quem já tem a verificação continua provando a cada entrada, seja qual for essa escolha, e quem está obrigado não consegue desligar o próprio fator. A troca da regra fica registrada na auditoria com o valor anterior e o novo.
+
+  Nada muda ao atualizar: sem essa escolha, a regra continua a de sempre — nenhuma organização passa a exigir nada por conta própria, e o "exigir de quem administra" gravado antes continua valendo só para administradores. Não há migration e nada precisa ser configurado.
+
+  Contribuição de @webtecnica (#2163).
+
+- **Extensão declarativa pode contribuir um tema (gancho)** Uma extensão declarativa v1 pode contribuir um TEMA de tokens de cor
+  (`contributions.theme`), que a organização pode ativar gravando a paleta na
+  configuração da extensão (a tela de escolha vem depois) — sem quebrar a tela de
+  quem não escolheu. A contribuição passa pela mesma régua
+  de forma de valor do branding (hex/rgb()/rgba()/var(--nome)) com allowlist de
+  chave, recusa token de fundo, texto ou borda declarado só no claro (vazaria para
+  o modo escuro), exige a permissão `theme.apply`, e o banco passa a guardar a paleta
+  escolhida (`sage`/`clay`/`mist`/`plum`/`olive`) em
+  `organization_extensions.configuration.theme`. Quem não escolheu tema não muda de
+  visual: o bloco de CSS só existe quando a organização escolheu o tema de uma
+  extensão ativa. A condição é protegida por teste (`extensao-tema-nao-vaza-para-
+  quem-nao-escolheu.test.ts`).
+
+  Contribuição de @webtecnica (PR #2091).
+
+- **A janela de esfriando de cada etapa vira um campo editável** Quem monta o funil já via a janela de esfriando ("X dias sem mexer") só no radar de risco, como leitura — nenhuma tela, rota ou comando do assistente deixava trocar o valor. Agora a etapa ganha um campo editável em configurações (`Janela de esfriando`, com entrada em dias e horas, convertida para horas) e a mesma janela passa a ser aceita e devolvida em toda a cadeia: `PATCH/POST/GET /api/v1/pipelines/.../stages`, `crm_update_stage` e `crm_list_stages` no MCP, e os tipos das telas.
+
+  Vazio no campo = `null` = o padrão de hoje: 24 h sem movimento põem o negócio em risco (esfriando) e 72 h o tornam crítico. Com uma janela configurada, o crítico chega em três vezes o valor (72 h configuradas = crítico em 216 h), porque quem lê é o `resolveStageWindow` que já existia. A validação é inteiro de 1 a 8760 horas (uma hora a um ano), no Zod da rota e em `validarJanelaDeEsfriamento`, ao lado de `validarNomeDeEtapa` — **sem migration**: a coluna `crm_stages.expected_duration_hours` já existia no banco e continua sem `CHECK`.
+
+  Atenção ao diminuir a janela de uma etapa cheia: na passada seguinte do radar, todo negócio que passar a ficar frio esfria de uma vez e ganha uma proposta de reativação (pendente e sem rascunho). A tela ainda não avisa isso ao salvar.
+
+  Esta é a parte 1 da #1532. Ficam de fora o aviso ao salvar, o `CHECK` no banco, o relógio que conta a mensagem da equipe, o radar mostrar janelas menores que 24 h e o selo do quadro por funil.
+
+  Contribuição de @webtecnica (#2161), construída sobre a proposta de @franceschini-lucas (#1532). Refs #1532.
+
+- **O cartão do Jev avisa quem é da área da saúde** O cartão do Jev passa a mostrar um aviso para empresas da área da saúde: as mensagens que o Jev lê podem conter dado de saúde, que a LGPD trata como sensível. Antes de ligar, a empresa deve conferir com quem cuida da LGPD se o contrato da TypeSafe cobre esse tipo de dado. O aviso aparece para todos, escrito para quem é da área; para as demais empresas, nada muda no funcionamento.
+
+  Contribuição de @webtecnica (#2085).
+
+- **Uma rede a mais para a LGPD alcançar os módulos instalados** Quando um módulo instalável cria uma tabela com dado de pessoa ligada a um contato, essa tabela precisa estar declarada para que a anonimização a alcance. Faltava uma verificação automática que recusasse um módulo novo sem essa declaração; agora ela roda a cada mudança no código, antes de qualquer versão sair.
+
+  Nada muda para quem opera: é uma proteção contra um erro futuro, não a correção de um vazamento existente.
+
+  Contribuição de @webtecnica (#2083).
+
+- **Campos do formulário nas mensagens das automações** Nas automações, `{{servico}}` passa a valer como atalho do campo `servico` do lead (antes só o caminho longo, `{{lead.custom_fields.servico}}`, funcionava). Os campos cadastrados no funil aparecem como botões na ação de WhatsApp, e a "Mensagem escrita pela IA" passa a receber o rótulo cadastrado ("Serviço que precisa") em vez da chave crua. Quem já usa `{{nome}}` e `{{telefone}}` não percebe diferença. Resolve a parte de variáveis da issue #1993.
+
+- **O operador escolhe quais empresas da prospecção entram na fila antes de iniciar as abordagens** Na Prospecção, antes de iniciar as abordagens com IA, o operador pode marcar e
+  desmarcar quais empresas encontradas entram na fila (com "marcar todas" e
+  "desmarcar todas"). Só as marcadas são abordadas; as demais ficam como "Não
+  abordado", com o motivo "Não selecionada pelo operador.". Quem não mexer
+  continua vendo todas as empresas na fila, como antes — o padrão é tudo marcado.
+
+- **Quem responde PARAR tem o negócio aberto fechado sozinho, com o motivo "Pediu para não receber mensagens"** Quando um contato respondia PARAR (ou outra palavra de saída), o sistema já bloqueava o contato na hora, mas o negócio dele ficava aberto na etapa de origem até alguém arrastá-lo à mão para "Perdido". Enquanto isso o card continuava contando como demanda viva e sujando o radar de risco. Agora, junto com o bloqueio, cada negócio aberto do contato é encerrado como perdido com um motivo novo e próprio, "Pediu para não receber mensagens" — e não "Cliente solicitou cancelamento", porque pedir silêncio não é cancelar. O fechamento vale para todo negócio aberto do contato, inclusive pedido que já passou de "Pago"; reabrir continua sendo manual, e desbloquear o contato não reabre o card. O motivo conta como perda no painel e nas métricas do atendente, aparece no relatório de perdas na categoria "Cliente" e também pode ser escolhido à mão na janela de perder. Se o funil não tiver etapa de perdido, o negócio fica como estava e o motivo vai para o log; a mensagem entra do mesmo jeito. Não é preciso fazer nada na instalação: a atualização já aplica a mudança no banco.
+
+- **O fluxo de silêncio pode esperar antes de recomeçar para quem já passou por ele** O gatilho de silêncio ganha o campo «Pausa antes de recomeçar (horas)». Com ele,
+  quem já passou pelo fluxo — respondeu a uma mensagem dele ou chegou ao fim — só
+  volta a recebê-lo do início depois desse tempo sem escrever; cada mensagem nova
+  do cliente recomeça a contagem. Quem nunca passou pelo fluxo entra no tempo de
+  silêncio de sempre, e as esperas entre os passos não mudam. Com a pausa em 0
+  (o padrão), nada muda.
+
+- **A pausa do gatilho de silêncio pode contar a partir do último envio do fluxo** Com uma pausa antes de recomeçar, o gatilho de silêncio ganha a opção «Contar a
+  pausa a partir do último envio deste fluxo (e não da última mensagem do
+  cliente)». Serve para o toque curto que deve sair no máximo uma vez por dia —
+  por exemplo, 10 minutos depois de o cliente parar de responder, com pausa de
+  24 horas: contada da última mensagem, essa pausa nunca se cumpria dentro de um
+  máximo de silêncio de 60 minutos, e o toque saía uma única vez por contato. Com
+  a opção ligada, o botão do gatilho mostra «no máximo 1× a cada 24 h». Sem ela
+  (o padrão), nada muda.
+
+- **Portugal entra no registro de países, ainda fora do seletor até a citação do RGPD ser revisada** O registro de países já conhece Portugal: o documento do titular é o NIF, com o dígito de controlo (mod-11 da Autoridade Tributária) conferido na hora; o exemplo de telefone é `+351912345678`; o anonimizador redige o NIF e o código postal `1234-567` antes de a conversa ir para a IA; e o prazo do pedido de dados salta os feriados obrigatórios portugueses (a Terça-feira de Carnaval, que é facultativa, não conta).
+
+  Quem opera não vê nada mudar ainda. O seletor de país em Configurações › Empresa só oferece país cuja citação da lei foi revisada, e a do RGPD (art. 15.º do Regulamento (UE) 2016/679) ainda não foi. Portugal aparece no seletor quando essa revisão acontecer. Como o prazo do RGPD deve ser contado (dias úteis hoje, o mês que a lei descreve) continua em aberto na issue #1946.
+
+  Contribuição de @webtecnica (2084), com revisão de @maclevison.
+
+- **O pino de localização do WhatsApp pode chegar com a rua e a cidade aproximadas** Em Agente de IA › Provedores há um cartão novo, «Mapas (Google)», onde o
+  administrador cola uma chave da Geocoding API do Google, testa e grava. Com a
+  chave, quando o cliente manda a localização pelo WhatsApp, o sistema consulta o
+  Google e a mensagem passa a mostrar a rua, a cidade e a região aproximadas,
+  marcados «(aprox.)» — para o agente de IA, que deixa de perguntar a cidade a
+  quem já mandou o pino, e para a equipe, no cartão do pino na conversa. A chave
+  fica cifrada e a tela mostra só os 4 últimos caracteres. O botão «Testar»
+  explica os erros comuns (API não habilitada no projeto, restrição de IP). Sem
+  chave, nada muda. Hoje vale para o WhatsApp conectado pelo canal intermediado,
+  o único que entrega as coordenadas do pino.
+
+- **Cada empresa escolhe quanto tempo a IA espera depois de uma resposta pelo celular** Quando alguém da equipe responde o cliente direto pelo celular, fora do CRM, o agente de IA fica calado naquela conversa por um tempo, e cada nova resposta pelo celular recomeça a contagem. Esse tempo era fixo em 60 minutos, e numa clínica em que a recepção atende o dia inteiro pelo celular a contagem nunca acabava: a IA não respondia nenhum paciente durante o expediente, e o log só dizia "conversa silenciada". Agora o tempo fica em Configurações › Atendimento, por empresa, entre 5 minutos e 24 horas. Quem não mexer continua com os mesmos 60 minutos de antes, e não é preciso fazer nada na instalação.
+
+  Diagnóstico e teste dos valores inválidos de @gaberaldo-svg (#2005).
+
+- **A proteção contra promessas considera as condições comerciais consultadas pelo agente** A proteção contra promessas passa a receber os produtos e trechos de materiais que o agente consultou naquele atendimento. Assim, pode distinguir uma condição comercial cadastrada, como matrícula gratuita somente no plano anual, de uma oferta inventada. A resposta inteira continua sendo avaliada, inclusive promessas adicionais e mudanças de plano ou prazo. Não exige recadastrar as condições nem adiciona outra chamada de IA; há um limite para o contexto enviado. Trechos de "Conversas anteriores" nunca contam como prova, porque ali está o que o cliente escreveu. Sem evidência consultada, o comportamento anterior é preservado. Crédito: @vitorlacerdadigital, construído sobre o caminho aberto por @webtecnica no #1981.
+
+- **Dá para ajustar o ritmo de uma campanha de prospecção pausada** Na Prospecção, uma campanha pausada agora tem o botão **Editar ritmo**: o administrador troca o limite de abordagens por dia e o intervalo entre elas sem perder a fila de empresas já encontradas. Até aqui o ritmo era escolhido só ao iniciar, e quem via o número aquecer demais só podia retomar com o mesmo ritmo ou refazer a busca. Só esses dois valores mudam; conexão, agente, funil, base legal e instrução continuam fixos depois de iniciada, e a mudança fica registrada com o valor anterior e o novo. Também há um aviso na instrução da campanha lembrando que ela se soma ao prompt do agente. Não é preciso fazer nada na instalação. Crédito: @paulolimajr77.
+
+- **Na Prospecção, dá para mexer na fila de uma campanha pausada e excluir as empresas desmarcadas** Antes, escolher quais empresas seriam abordadas só era possível antes de iniciar a campanha. Agora, com a campanha **pausada**, você marca e desmarca as empresas que ainda estão na fila: quem foi desmarcado vira "Não abordado" e não recebe mensagem, e quem já foi abordado não muda. As desmarcadas ficam escondidas da lista, com o link "Mostrar desmarcadas", e o botão **Excluir desmarcadas** (com confirmação) tira da lista as que você não vai abordar; como o telefone delas é o que evita repetir empresa em buscas futuras, depois de excluir elas podem aparecer de novo como novas em outra busca. Nas campanhas que criam o contato ao iniciar, desmarcar só impede o envio: o negócio já criado continua no funil. Não é preciso fazer nada na instalação. Crédito: @paulolimajr77.
+
+- **Na Prospecção, a empresa pode entrar no funil só quando for abordada** Até aqui, ao iniciar uma campanha de prospecção, o CRM criava contato, negócio e conversa para a fila inteira de uma vez, e o funil mostrava como "Abordado" empresas que ninguém tinha abordado ainda. Agora a campanha tem a escolha **"Quando a empresa entra no funil"**: **só quando for abordada** (marcada por padrão nas campanhas novas) ou **todas ao iniciar**, como era antes. No modo novo, cada empresa nasce no CRM na vez dela de receber a primeira mensagem, e o funil mostra só quem já foi abordado. Campanhas já criadas continuam como estavam. Não é preciso fazer nada na instalação. Crédito: @paulolimajr77.
+
+- **A distribuição de atendimento ganha o modo por menor carga** A tela de Configurações › Atendimento passa a oferecer o modo em que o cliente novo cai com quem está com MENOR número de conversas em aberto: o empate continua resolvendo pelo rodízio, e quem está fora do horário ou sem folga segue de fora, como nos outros modos. Na tela de equipe, o item "Balanceamento por carga (em breve)" deixa de aparecer desabilitado. Quem usa as tools do agente passa a ver o NOME de cada atendente e de cada membro do time junto do identificador, para escrever a regra de roteamento citando gente em vez de UUID. Não há ação para quem opera a VPS: quem quiser usar escolhe o modo na tela.
+
+  Contribuição de @webtecnica (#1711).
+
+- **O gatilho de silêncio aceita um máximo — o fluxo só começa enquanto o silêncio for recente** O gatilho de silêncio ganha o campo «Silêncio máximo, em minutos (opcional)».
+  Com ele, o fluxo só começa para quem parou de responder há pouco — por exemplo,
+  entre 10 e 60 minutos depois da última mensagem do cliente —, e quem está calado
+  há mais tempo fica de fora. Serve para a pergunta rápida que reanima a conversa
+  logo depois da apresentação do produto, sem disparar para todos os contatos
+  calados há horas ou dias no momento em que o fluxo é ligado. Sem o máximo (o
+  padrão), nada muda.
+
+- **O texto do áudio aparece no balão da conversa, logo abaixo do player** Quando o sistema transcreve um áudio, o texto agora aparece no balão da conversa, logo abaixo do player. Antes, só o agente de IA lia essa transcrição; agora o atendente que não pode ouvir naquele momento também lê o que o cliente disse.
+  Vale para áudio recebido e para áudio enviado pelo celular, e o texto acompanha a cor do balão nos dois casos. Quando o áudio não pôde ser lido (por exemplo, numa instalação sem chave de transcrição configurada), o balão mostra só o player, sem nenhum aviso no lugar do texto.
+  Não é preciso fazer nada na instalação: os áudios que já foram transcritos passam a mostrar o texto assim que a conversa é aberta. Contribuição de @webtecnica, a partir do pedido de @Alencaf.
+
+- **As varreduras de LGPD, RLS e security definer agora veem os módulos instalados** As três verificações automáticas de segurança (RLS ligada, funções security definer e cascata de LGPD) rodavam sempre num banco recém-criado, sem nenhum módulo instalado. As tabelas que uma provisionadora só cria quando o módulo é instalado, portanto, não apareciam para nenhuma delas: um módulo podia nascer com tabela sem RLS, com função exposta para a chave anon ou com dado de pessoa fora da anonimização, e as verificações seguiam verdes porque simplesmente não enxergavam aquela tabela.
+
+  Um teste novo agora provisiona todos os módulos do catálogo no banco antes de rodar as três varreduras, com as regras que faltavam para módulo: toda tabela nova com organização precisa de RLS ligada e de um teste comportamental declarado, função criada na instalação não pode ser executada nem pela chave anon nem por usuário logado (só pelo servidor), e tabela com dado de pessoa precisa de seção declarada para ser alcançada pela anonimização.
+
+  Nada muda para quem opera: é uma proteção contra um erro futuro de módulo novo, não a correção de um vazamento existente.
+
+  Contribuição de @webtecnica (#2201).
+
+### Alterado
+
+- **O seletor de etiqueta do atendimento passa a ter prova com dublês que respeitam a organização ativa** O conserto da #1336, que saiu na v1.42.0, fez o seletor de etiqueta do atendimento se apoiar no último vocabulário conhecido, para não sumir quando a lista de etiquetas volta indefinida por um instante. O teste novo usa dublês que respeitam a organização ativa, como os hooks reais, e passa a reprovar se o seletor deixar de consultar o vocabulário da organização. Ele também cobre um filtro já aplicado com uma etiqueta que saiu do vocabulário: durante a oscilação, essa etiqueta continua no menu, que é o único lugar onde dá para desmarcá-la. Nada muda no comportamento de quem opera: só a cobertura.
+
+  Contribuição de @webtecnica (#2045, refs #1336).
+
+- **A resposta do agente com Anthropic custa menos — os passos do laço de ferramentas leem do cache** Numa resposta com ferramentas, cada passo reenviava ao provedor o contexto do
+  cliente, o histórico e os resultados dos passos anteriores a preço cheio. Com
+  Anthropic, esse trecho passa a ir para o cache de 5 minutos, e o passo seguinte o
+  lê de lá. O agente vê exatamente o mesmo conteúdo; muda só o que se paga. Medido
+  numa instalação real antes da mudança: 46% do custo de cada resposta era esse
+  trecho reenviado.
+
+- **A bolinha colorida no avatar da lista de conversas diz o que significa** Na lista de conversas do inbox, a bolinha no canto do avatar mostra quem está no comando da conversa (roxa para o automático, azul para uma pessoa, laranja para quem espera atendente), mas a tela não explicava as cores, e a equipe perguntava o que cada uma queria dizer. Agora, ao passar o mouse sobre a bolinha, aparece a palavra do estado: "Automático atendendo", "Em atendimento", "Aguardando atendente", "Sem atendente" ou "Encerrada". Uma conversa fechada diz "Encerrada" mesmo quando alguém a tinha assumido. O leitor de tela também passa a ler essa palavra, que antes ficava escondida dele. "Sem atendente" e "Encerrada" ganharam a tradução para o espanhol. Não é preciso fazer nada na instalação. Crédito: @valterhjr.
+
+- **Migration nova se descreve no próprio arquivo e para de conflitar com as outras** A descrição de migration nova sai do `supabase/migrations/MANIFEST.md` e passa para uma linha `-- manifest: <o quê e por quê>` no cabeçalho do próprio `.sql`. Todo PR com migration acrescentava uma linha no fim da mesma tabela, e o GitHub ignora o `merge=union` que resolvia isso no git local: cada migration que entrava deixava os outros PRs com migration em conflito. O MANIFEST.md vira histórico, o gate passa a ler as duas fontes e continua reprovando migration sem descrição, número repetido e carimbo repetido. Nada muda para quem opera uma VPS: o kit não lê o MANIFEST.
+
+- **A busca de prospecção passa por um despachante de provedor, e a Apify continua sendo a fonte** A prospecção tinha o provedor de busca como constante de módulo. Agora a busca passa por um despachante de interface única (`startSearch`, `readSearch`, `readResults`), e a escolha do provedor é lida de `organizations.settings.prospecting.provider`, sem migration. A Apify continua sendo o provedor de toda organização: quem opera a VPS não vê nada diferente, a validação da chave segue em `users/me`, e a chave segue na mesma `prospecting_settings.credential_encrypted`, por organização e cifrada. É a base para a próxima fatia trazer outro fornecedor de busca.
+
+  Os contratos de erro (`EscopoDaFalha`, `ProspectingError`) não se moveram: `worker.ts` e `guard.ts` seguem com zero linhas alteradas.
+
+  Contribuição de @webtecnica (#2174, refs #1758).
+
+### Corrigido
+
+- **Sessão volta a ser renovada na tela de conta suspensa** `/account-suspended` estava na lista de caminhos públicos do proxy
+  (`lib/auth/public-paths.ts`). Por isso o `proxy.ts` saía antes do
+  `getUser()` — que é quem revalida e renova o cookie da sessão — e o
+  refresh que a própria página tentava no Server Component é ignorado por
+  desenho (`lib/supabase/server.ts`). Na prática, a sessão que expirava
+  com a pessoa nessa tela nunca era renovada, e uma navegação seguinte
+  podia derrubá-la no login.
+
+  A rota agora sai da lista pública. Quem cai em `/account-suspended` vem
+  do redirect do layout de `/app` já autenticado, então o proxy passa a
+  revalidar e renovar a sessão normalmente ali, como em qualquer outra
+  rota da árvore logada. Quem chega sem sessão já era levado ao login; a
+  diferença é que agora volta ao mesmo ponto depois de entrar — por
+  exemplo, ao pedido de LGPD aberto em `/account-suspended?pedido=...`.
+
+  Refs #2016
+
+  Contribuição de @webtecnica (#2019).
+
+- **A regra "admin de plataforma pode escrever nesta empresa?" agora é UMA função** A pergunta "este administrador de plataforma pode escrever nesta empresa?"
+  voltava a ser reescrita à mão em cada server action — 16 checagens em 15
+  arquivos, com três grafias diferentes, que nem sempre consideravam a sessão de
+  suporte. Sem um lugar único, a próxima action escolheria uma das três e a regra
+  continuaria divergindo das rotas `/api/v1`.
+
+  Agora a resposta mora em um só lugar: `podeAdministrarEmpresa` em `lib/auth`,
+  com o mesmo atalho de papel das rotas (`requireRole(..., { allowPlatformAdmin })`):
+  o super-admin de plataforma com escopo `full`, fora da sessão de suporte, passa
+  (escopo `support_readonly` ou nenhum não escreve pelo atalho, como nas rotas);
+  senão o papel efetivo na organização ativa tem de ser `admin`. O MFA e a
+  empresa suspensa continuam sendo checados por quem chama. Todas as server actions que
+  faziam a checagem à mão passam a chamá-la, com o mesmo resultado de autorização
+  para os mesmos inputs — e há um teste que pina a regra e exige o uso da função.
+
+  Refs #1852.
+
+  Contribuição de @webtecnica (#2027).
+
+- **"Mandar ao cliente" passa a enviar compromisso que não é Google Meet** Num compromisso **presencial**, ou de qualquer local que não seja Google Meet, clicar em **Mandar ao cliente** era aceito e não enviava nada: o job de entrega terminava falhando, sempre, e o cliente nunca recebia os dados do compromisso. O campo que guarda a solicitação de link era nulo dos dois lados, e a checagem que libera o envio comparava os dois com `=`, que em SQL não é verdadeiro quando os dois são nulos — então a entrega era recusada por "acesso ou revisão desatualizada" mesmo com tudo em ordem.
+
+  Agora a checagem é a mesma que o resto do sistema já usa para esse campo: nulo de um lado e nulo do outro é o estado legítimo de quem não tem reunião por link, e continua recusando quando os identificadores não batem. Reunião com link pronto segue funcionando como antes.
+
+  Nada é preciso fazer na instalação, e nenhum compromisso existente muda: o que muda é a leitura do mesmo registro na hora de enviar.
+
+  Contribuição de @Tong-bit-art (#2192, refs #2188); causa medida no banco por @amexgestao.
+
+- **O calendário de "Novo agendamento" não abre mais num mês sem horário livre** No último dia útil do mês, depois do último horário, "Novo agendamento" abria no mês que estava acabando, com todos os dias apagados e "Nenhum horário livre", e o próximo horário livre, no dia seguinte, ficava escondido atrás da seta de mês. Agora o calendário abre direto no mês seguinte quando o mês de hoje não tem mais nenhum horário livre. Quem quiser marcar um encaixe hoje ainda pode voltar para o mês atual pela seta. Ao trocar de mês, o dia 1º também deixou de aparecer como disponível por um instante antes de os horários do novo mês carregarem. Não é preciso fazer nada na instalação.
+
+- **A anonimização de um contato não é mais desfeita por um worker de mídia ou de clima que estava no meio do trabalho** O worker que guarda a mídia recebida e o que mede o clima da conversa passam a aplicar, na própria gravação, a mesma guarda que o worker de transcrição já aplicava: mensagem já anonimizada não recebe dado de volta. Se a mídia terminar de subir depois de a mensagem ter sido anonimizada, o arquivo é removido do armazenamento e a transcrição não é pedida. Nada muda para quem opera.
+
+- **Campos diferentes gravados ao mesmo tempo no mesmo negócio não se apagam mais** Quando duas gravações dos campos personalizados de um mesmo negócio chegavam juntas, por exemplo quem atende salvando a ficha no dossiê enquanto o assistente anotava pelo MCP um campo que a ficha não mostrava, a segunda gravava por cima da primeira e um dos campos sumia. Não aparecia erro nenhum: o dado simplesmente não estava mais lá.
+
+  Agora a soma dos campos acontece dentro do banco, numa única gravação. A segunda espera a primeira terminar e soma sobre o que ela gravou, então os campos de cada uma ficam. A rota que move o negócio de etapa já tinha proteção própria e não muda.
+
+  Um caso continua: a ficha do dossiê salva todos os campos que mostrava quando foi aberta. Se alguém, ou o assistente, mudou um campo que a ficha já mostrava enquanto ela estava aberta, quem salva por último vence. Esse ajuste é do formulário e segue à parte.
+
+  Nada muda ao atualizar e não há nada a configurar. A migration é idempotente e não mexe em dado existente.
+
+  Contribuição de @paulolimajr77 (#2009).
+
+- **Aplicar uma proposta deixa de apagar onze configurações do assistente** Ao aplicar uma proposta do flywheel em um assistente de IA (o botão que transforma um aprendizado em versão nova e publica ela), a cópia da versão publicada levava só parte das colunas: o follow-up automático, o papel Operador (ligação, modelo e ferramentas), o escopo de funis e de materiais, a janela de corte das mensagens, o atraso anti-burst de resposta, os casos e o rascunho com IA voltavam ao padrão da instalação na versão que passava a atender — a tela mostrava tudo desligado ou vazio, sem dizer por quê, e a mudança era aplicada sem aviso. Agora a cópia é integral, e um teste passa a varrer o código atrás de todo caminho que grava versão, de modo que a próxima porta a esquecer uma chave reprove antes de chegar na tela. Não é preciso fazer nada na instalação.
+
+  Contribuição de @webtecnica (#2145).
+
+- **O registro de auditoria passa a ser só-inclusão para todo papel do banco, inclusive o do worker** O registro de auditoria só aceita novas linhas: nenhum papel do banco altera nem apaga o que já está lá, a não ser a limpeza automática por prazo de retenção. Até aqui essa regra valia para uma lista fixa de papéis, e o papel dedicado do worker que o guia de instalação com Postgres próprio manda criar ficava fora dela. Agora vale para qualquer papel, com o nome que você tiver dado a ele, e a atualização reaplica a regra sozinha. O guia de instalação também foi ajustado. Não é preciso fazer nada na instalação.
+
+- **Quem responde pedindo para parar (ex.: "Parar não é daqui") recebe a confirmação de saída, e não o texto de "passei seu pedido para um atendente"** Quando um contato respondia algo como "Parar não é daqui", o bloqueio automático não valia (ele exige a palavra sozinha), o sentimento escalava a conversa para uma pessoa e o cliente lia "Prefiro não arriscar aqui: passei seu pedido para um atendente humano. Fica por aqui que já te respondem." Ou seja, prometia atendimento a quem tinha acabado de dizer que não queria mais mensagens. Agora, quando a conversa escala por esse motivo genérico e a última mensagem do cliente abre com a palavra de saída (PARAR, PARE, STOP, BAJA), ele recebe a frase de confirmação que o produto já tinha para pedidos de saída ("Entendi. Vou parar de te enviar mensagens automáticas por aqui…"). Quando a palavra vem seguida de "de …" sobre outra coisa ("pare de mandar o pedido nesse endereço") ou a mensagem é uma pergunta ("tem como parar a dor?", "parar de tomar o remédio faz mal?"), vale a regra de saída de sempre, e essas mensagens não mudam. Quem pediu uma pessoa, ou parou por limite de gasto, continua com a frase de sempre. Não é preciso fazer nada na instalação.
+
+- **Envio das boas-vindas numa empresa já configurada não mostra mais "db_error"** Uma aba de boas-vindas que ficou aberta depois de o onboarding ser concluído em outra aba continuava sendo recusada — nada é gravado, como deve ser —, mas a tela mostrava "Falha: db_error", com o detalhe "Organização já configurada.", como se o banco tivesse quebrado. Agora esse envio segue direto para a caixa de entrada, que é onde o onboarding levaria a pessoa em seguida, e os demais erros do mesmo formulário aparecem exatamente como antes. Quem está no meio do assistente não vê nenhuma diferença e nada precisa ser feito na instalação.
+
+  Contribuição de @webtecnica (#2152).
+
+- **O vazio da aba Grupos do inbox explica quais grupos entram e a partir de quando** Com o filtro **Grupos** ligado e a lista vazia, a inbox agora mostra "Só entram na inbox os grupos ligados em Conexões › Grupos, e cada um aparece aqui a partir da primeira mensagem recebida depois de ligar (o histórico anterior não entra)." junto do "Nenhuma conversa com esses filtros". Antes o operador só ouvia a frase genérica, sem pista de que só entram os grupos ligados em Conexões › Grupos, e só a partir da primeira mensagem depois de ligar (#2103).
+
+- **O banco deixa de acusar os avisos de segurança do painel do Supabase** O painel de segurança do Supabase (Security Advisor) apontava dois avisos numa instalação nova. Sete funções do banco não tinham o caminho de busca fixo, e uma delas, a que descobre de qual empresa é um número de telefone recebido na central de voz, podia ser chamada por qualquer usuário logado, de qualquer empresa. Agora as sete têm o caminho fixo e essa função só é chamada pelo próprio servidor, como o produto já fazia. Nada muda no uso: o atendimento por voz continua achando a empresa e o agente certos. Não é preciso fazer nada na instalação: a atualização aplica a correção sozinha.
+
+  Contribuição de @usebeehub (#2125).
+
+- **O gatilho de silêncio não tenta mais inscrever, a cada minuto, quem já está num follow-up** A varredura do gatilho de silêncio descobria que um contato já tinha follow-up
+  vivo só quando o banco recusava a inscrição: a tentativa passava pela fronteira
+  de atendimento, pela proteção da agenda e por um INSERT que o índice único
+  barrava. Com contatos parados na espera longa de um fluxo, isso se repetia a
+  cada minuto — numa instalação real, ~124 mil recusas por dia e 100 mil erros no
+  log do Postgres em 24 h, num banco já sem folga de CPU. Agora a varredura lê
+  antes quem já está vivo e pula sem tentar. Os contadores seguem os mesmos.
+
+- **Boas-vindas gravam na organização da aba, não na que estava ativa** Preencher a tela de boas-vindas numa aba e, enquanto ela fica aberta, trocar de
+  organização ativa em outra aba não sobrescreve mais os dados da organização
+  errada: o nome e a descrição gravam na organização para a qual a aba foi
+  aberta.
+
+  Contribuição de @webtecnica (#2072).
+
+- **Boas-vindas não renomeiam mais uma organização que já terminou o onboarding** Uma aba de boas-vindas que ficou aberta enquanto o onboarding era concluído em outra aba não reescrevia mais o nome do negócio nem o estado do passo depois que a organização já estava configurada — o nome dado no wizard sumia e o passo voltava a aparecer como não feito. A gravação das boas-vindas passou a valer só enquanto a organização ainda não terminou o assistente; o envio numa organização já configurada é recusado e nada é gravado. A recusa vale só para as boas-vindas: os outros passos do assistente seguem registrando o que fizeram, como antes. Quem está no meio do assistente não vê nenhuma diferença e nada precisa ser feito na instalação.
+
+  Contribuição de @webtecnica (#2143); relato de @trackerrm122-hub (#2113).
+
+- **Fonte de captação com assinatura só aceita envio que ela consegue conferir** Uma fonte de captação com assinatura (HMAC) ligada passa a recusar todo envio
+  sempre que o segredo dela não puder ser lido nesta instalação — por exemplo,
+  depois de uma troca da chave de cifra do servidor. Nenhum lead entra por uma
+  fonte que exige assinatura sem que a assinatura tenha sido conferida.
+
+  Se isso acontecer, a tela "Leads recebidos" mostra o envio como "Não entrou",
+  com o motivo "O segredo de assinatura desta fonte não pôde ser lido nesta
+  instalação". O caminho é gerar a assinatura de novo no painel da fonte e
+  atualizar quem envia os dados. Em instalações que nunca trocaram a chave, nada
+  muda e não é preciso fazer nada.
+
+- **A Central para de abrir o aviso de mídia não lida em dobro quando dois workers rodam juntos** Quando o agente não consegue ler uma foto ou um áudio que o cliente mandou, o sistema abre um aviso na Central. Esse aviso é para ser **um por empresa** enquanto o problema durar, mas a checagem era uma pergunta e uma escrita separadas: dois workers derivando mídia no mesmo instante perguntavam "já existe aviso aberto?" antes de qualquer escrita, os dois ouviam "não", e os dois abriam um aviso. A Central ficava com dois itens idênticos, um ao lado do outro.
+
+  Agora o banco é que garante: um índice único parcial impede um segundo aviso aberto do mesmo tipo para a mesma empresa, e quem chega segundo simplesmente encontra o que já estava lá. Resolver o aviso continua liberando o próximo, e o aviso de uma empresa não interfere no de outra.
+
+  Nada é preciso fazer na instalação. Avisos repetidos que já existiam ficam com um só aberto — o mais antigo — no momento da atualização; nenhum é apagado, os demais passam a constar como resolvidos.
+
+- **Comanda nasce na moeda da organização, não mais em real fixo** Numa empresa configurada em outra moeda (euro, por exemplo), a comanda aberta no balcão e a criada pelo faturamento em lote nasciam em real: o símbolo aparecia errado e a venda entrava na parte em real do relatório. Agora a comanda nasce na moeda da empresa. Comandas criadas antes desta versão não são alteradas. Numa empresa em real nada muda. Crédito: @webtecnica (#2173).
+
+- **Atendimentos sem comanda mostram a moeda da empresa, não mais real fixo** A empresa que opera em outra moeda via R$ na lista de atendimentos sem comanda e no total do botão Faturar. Agora vê a própria moeda. Cada moeda tem o seu total, lado a lado, sem conversão. Numa empresa em real nada muda. O filtro de valor do funil ficou preparado para comparar só dentro da moeda do limite, mas ainda não há controle na tela que o use. Limite: a comanda gerada ainda nasce em real; ver #2160. Crédito: @webtecnica no #2159.
+
+- **A conversão de venda clique-para-WhatsApp para de ser recusada pela Meta** A Meta recusava todo Purchase vindo de anúncio clique-para-WhatsApp (HTTP 400, error_subcode 2804116, "Falta a identificação da Página ou da conta do WhatsApp Business"). A tela de Conversões agora guarda a identidade que ela cobra, o envio manda o id que existir (Página primeiro, conta do WhatsApp Business na falta dela) e nunca inventa um. O erro da Meta passa a aparecer com a frase dela no livro-razão, em vez do "Invalid parameter" genérico que escondia a causa.
+
+  Para a venda passar, preencha em Configurações › Conversões o ID da Página (ou o ID da conta do WhatsApp Business); sem um dos dois, a recusa continua como antes. O produto não chuta o valor, porque id errado atribui a venda à conta de outra pessoa.
+
+- **O cálculo de custo do runtime nativo legado reconhece os ids da OpenRouter e não chama de grátis o preço que não conhece** Contribuição de @webtecnica (#1963, issue #1931). O cálculo de custo do runtime nativo legado (`lib/ai/runtime/`) agora reconhece ids da OpenRouter escritos com ponto na versão ou com sufixo de variante, como `anthropic/claude-haiku-4.5`. Quando o preço do modelo não é conhecido, o custo fica registrado como desconhecido, e não mais como zero. Um modelo gratuito de verdade continua custando zero, e a variante `:free` não herda o preço do modelo pago. Esse runtime não é o que calcula o custo numa instalação hoje: o caminho ativo passa por `lib/agent-engine/edge/llm/pricing.ts`, e a correção dele segue aberta na #1931. Não é preciso fazer nada na instalação.
+
+- **O dossiê do follow-up não lê mais falha do motor como contato com o cliente** Quem abria o dossiê de um follow-up que falhou lia "Última falha … (tentativa 2 de 5)" e podia concluir que o cliente fora procurado duas vezes. Aquela contagem é do motor tentando de novo processar a mesma etapa do fluxo depois de uma falha — quase sempre uma etapa sem saída ligada. O dossiê agora diz "Falha ao processar a etapa … (nova tentativa automática 2 de 5)", o campo "Passos dados" vira "Etapas executadas" e o desfecho sai por extenso ("Encerrado sem conversão") em vez do código cru. Falha de envio pelo canal continua contada à parte e, quando esgota, avisada na Central, como antes. Não é preciso fazer nada na instalação.
+
+  Contribuição de @webtecnica (#2081), a partir da issue de @hudson-souza-mkt (#2014).
+
+- **Empresas paradas deixam de virar uma lista de ids na URL que crescia sem teto (5 varreduras)** Até aqui, cinco varreduras (a rodada de campanhas, o lembrete de agenda, o lote de conversas da base de conhecimento, o worker de prospecção e o relógio/executar) buscavam a lista de ids de todas as empresas não operantes e montavam um `not(organization_id, in, (...))` na URL do PostgREST. Num revendedor com muitas empresas paradas a URL crescia sem limite e, acima de `max_rows = 1000`, a lista voltava cortada sem aviso — as empresas além do corte voltavam a disparar campanha, prospecção, lembrete e embedding.
+
+  Agora o corte sai no banco, antes do `limit`: as varreduras embutem o status da organização com `!inner` e filtram `organizations.status` na própria consulta (o `ehOperante` segue linha a linha como cinto), a promoção de campanhas agendadas escolhe os ids antes de promover, e o worker de prospecção usa a régua SQL `fn_org_operante`. Com isso as linhas de uma empresa parada também deixam de ocupar a janela das empresas ativas. Nenhuma query monta mais a lista de ids de paradas na URL, e mais de 1.000 empresas paradas não escapam mais do filtro. Nenhuma configuração ou ação é necessária.
+
+  Refs #2015.
+
+  Contribuição de @webtecnica (#2022).
+
+- **Encerrar uma conversa com a tela desatualizada não deixa mais o CRM lento** Quando alguém encerrava, arquivava ou reabria uma conversa que outra pessoa (ou o agente) já tinha mexido, o CRM recusava a ação — o certo — mas a recusa era tratada pelo servidor como um conflito passageiro e repetida sem parar, em segundo plano, mesmo depois de a tela desistir. Em instalações com o Supabase na própria VPS, isso chegou a ocupar o processador inteiro e deixar o CRM lento para todos os usuários. Agora a recusa sai como "o atendimento mudou, atualize e tente de novo" e nada fica repetindo.
+
+  Não é preciso fazer nada na instalação: a atualização troca a função do banco sozinha.
+
+  Contribuição de @AlecsanderAbreu.
+
+- **Escape no nome e na chance da etapa volta a descartar o rascunho, não a gravar (#2164)** Nos dois campos editados no lugar da tela de etapas, `NomeDaEtapa` e `ProbabilidadeDaEtapa`, a tecla Escape restaurava o valor gravado e chamava `blur()` na mesma hora: o `onBlur` que confirma rodava com o rascunho antigo (o `setState` do Escape ainda não tinha aplicado) e gravava justamente o que a tecla devia descartar — o nome saía `Carrinho abandonadoX` e a chance saía `40` no PATCH, medidos na issue. Agora os dois campos usam a mesma marca em `useRef` que o `JanelaDaEtapa` já usava: o Escape liga a marca antes do blur, o confirmar do blur seguinte a consome e não grava. Confirmar sem Escape (Enter ou sair do campo) continua gravando como antes, e o janela de esfriando não mudou. Nada de migration, rota ou texto novo em tela — não é preciso fazer nada na instalação.
+
+  Contribuição de @webtecnica (#2172, refs #2164).
+
+- **As conversas, o histórico e os pedidos numa conversa de atendimento também só alcançam o contato do turno** O conserto de #2158 escopou a busca e a ficha de contato; as outras leituras do atendimento
+  seguiram alcançando a organização inteira. `crm_list_conversations` devolvia as conversas de
+  todos os clientes da empresa com a prévia da última mensagem junto, `crm_get_conversation`
+  abria qualquer conversa pelo uuid, `crm_get_conversation_history` entregava o texto de ponta a
+  ponta de qualquer conversa e `crm_list_contact_orders` listava valor, entrega e rastreio de
+  qualquer contato — tudo filtrado por organização, sem vazamento entre empresas, mas tudo
+  indo para o lado errado dentro dela.
+
+  O contato da conversa agora também chega a essas quatro leituras como contexto de confiança
+  (`ctx.contatoDoTurno`, injetado pelo runtime — o modelo não escreve esse campo). Com ele, a
+  lista passa a devolver só as conversas desta conversa (e a paginação da varredura some junto),
+  a conversa e o histórico de quem não é o desta conversa são recusados com o motivo em texto,
+  na mesma forma que a escrita já devolvia — o histórico confere o dono da conversa antes de
+  ler as mensagens —, e os pedidos são recusados antes da consulta. Sem contato de turno —
+  rota HTTP, MCP externo — nada muda, e o Operador, que também recebe o contato do turno, fica
+  escopado.
+
+  Refs #2178
+
+  Contribuição de @webtecnica (#2182).
+
+- **Exportação LGPD do titular passa a incluir a transcrição/texto extraído da mídia** Quando um titular pede acesso aos próprios dados (LGPD Art. 18 II), o arquivo gerado (`data.json` + `report.pdf`) dizia que a mensagem tinha mídia, mas não trazia a transcrição do áudio nem o texto extraído da imagem — o conteúdo que a IA efetivamente leu. O binário da mídia continua fora do pacote. Agora o export traz `media_derived_text` de cada mensagem do titular, com rótulo legível no relatório ("transcrição/texto extraído da mídia"), e a de outros contatos continua fora do pacote. Na prévia da solicitação, a transcrição aparece mascarada, como o corpo da mensagem. Sem ação do operador: o worker gera o mesmo `data.json` e `report.pdf`, agora mais completos.
+
+  Refs #1990
+
+  Contribuição de @webtecnica (#2020).
+
+- **O resumo que o agente grava ao fim de cada resposta pede uma correção antes de repetir a resposta inteira** Ao terminar cada resposta, o agente grava um resumo em JSON (compromissos,
+  objeções, próximo passo). Quando esse JSON vinha fora do formato — medido com
+  um modelo barato no ponto «Fechar o atendimento», que às vezes acrescentava um
+  campo —, a fila repetia a resposta INTEIRA, a chamada principal do agente
+  incluída: até 3 vezes numa mensagem, pelo preço de três respostas. Agora o
+  sistema devolve o JSON recusado ao modelo, dizendo o que estava errado, numa
+  segunda chamada só do resumo. A resposta inteira só se repete se a correção
+  também vier fora do formato, como antes. Isso torna seguro usar um modelo
+  barato em «Fechar o atendimento».
+
+- **A ficha do negócio e o painel do CRM não desfazem mais o que outra pessoa alterou** Quem abria a ficha de um negócio — no dossiê ou no painel do CRM da caixa de entrada — e salvava devolvia ao valor antigo tudo o que outra pessoa (ou o assistente) tinha mudado naquele meio-tempo, mesmo sem tocar naquele campo: o formulário enviava a lista inteira de campos extras que carregou ao abrir e o servidor somava por cima do que já estava gravado. O campo simplesmente voltava, sem nenhum erro aparecer. Agora a ficha manda só o que a pessoa alterou, o merge continua sendo do servidor, e apagar um valor preenchido continua sendo transmitido e gravado.
+
+  Nada a fazer na instalação: a atualização entra sozinha com o resto do código.
+
+  Contribuição de @webtecnica (PR #2151, refs #2132).
+
+- **A trava de imutabilidade da versão publicada do agente cobre proposal_ai_draft_enabled e inbound_debounce_ms** A trava que impede mudar o conteúdo de uma versão de agente já publicada (`fn_ai_agent_version_content_immutable`) cobria só parte das colunas: `proposal_ai_draft_enabled` (a flag que decide se o agente rascunha proposta sozinho) e `inbound_debounce_ms` (a janela de rajada da configuração do agente) ficavam de fora. A tela já devolvia erro 409, mas essa era a única camada de defesa; com a service key a versão publicada podia ser reescrita em silêncio. Agora a trava cobre essas duas também, contra todas as colunas de conteúdo da tabela — sem mudança de comportamento para quem não mexer.
+
+  Contribuição de @webtecnica (#2013), fechando a #2003.
+
+- **O aviso ao cliente na passagem para atendente humano não usa mais travessão** Quando a conversa passa da IA para uma pessoa da equipe, o cliente recebe um
+  aviso automático. Duas das frases em português usavam travessão, e há marcas
+  cuja regra de estilo proíbe esse sinal em mensagem ao cliente. As duas agora
+  usam ponto ou ponto e vírgula, com o mesmo sentido. As frases em espanhol já
+  não tinham travessão. Não é preciso fazer nada na instalação.
+
+  Refs #1881.
+
+  Contribuição de @webtecnica (#2026).
+
+- **Roma entra nos fusos, e o fuso escolhido no primeiro acesso aparece igual em Configurações** Quem atende da Itália agora encontra Roma na lista de fusos, no primeiro acesso e em todas as telas de configuração. E quem escolheu Madri, Cuiabá, Rio Branco, Nova York ou Los Angeles no primeiro acesso não vê mais São Paulo ao abrir Configurações: as telas da empresa, do perfil, da jornada do atendente e da janela de envio passam a oferecer a mesma lista do primeiro acesso. Nada muda para quem já tinha escolhido um fuso.
+
+  Contribuição de @fabianmartinelli-fm.
+
+- **O guia de montagem para escritório de advocacia deixa de prometer a passagem automática por assunto jurídico** O guia que ajuda a montar o agente de um cliente novo dizia que mencionar "advogado", "Procon" ou "justiça" sempre passava a conversa para uma pessoa, antes de qualquer IA. Isso só vale no atendente antigo, que não responde desde a v1.17.0. O agente publicado não tem essa trava fixa: a conversa vai para uma pessoa quando o cliente pede alguém explicitamente, quando aparece uma das palavras de passagem configuradas no agente, ou quando o próprio agente decide chamar a equipe. O guia agora explica esses três caminhos e como ajustá-los pelo prompt. Um teste novo reprova se essa trava fixa passar a rodar em outro lugar sem que o guia seja corrigido junto. Nada muda no comportamento de quem opera. Refs #2097, #2156.
+
+- **A dica do laço na ação de texto do follow-up deixa de mostrar um "e" em português para quem usa em espanhol** Quem monta, em espanhol, a ação "texto" de um follow-up lia a dica das variáveis do laço com um "e" em português no meio da frase; agora lê "y". A tradução da interface para inglês entrou no sistema, com uma frase em inglês para cada frase da tela, mas ainda não aparece para escolha: ela passa a valer quando o idioma for liberado. Em português, nada muda.
+
+  Contribuição de @ajsaranetaeu.
+
+- **Retenção, escalação e resposta aprovada usam a janela de RESPOSTA pelo tipo** Depois que a janela de RESPOSTA (`channel_knobs.resposta_*`) foi separada da de
+  DISPARO (`window_*`), três consumidores da IA seguiam avaliando apenas a janela
+  de disparo: a rota de retenção da conversa, o aviso de escalação e o envio de
+  resposta aprovada. O resultado era a IA ser tratada como bloqueada (ou escalar)
+  mesmo com a janela de resposta aberta.
+
+  Agora cada caminho decide pelo TIPO do envio: retenção avalia "aberta agora"
+  como resposta, e escalação e resposta aprovada (que respondem a uma mensagem
+  recebida) tratam o envio como `resposta: true` — respeitando a mesma herança
+  coluna a coluna de `effectiveKnobs`. Um teste cobre os três caminhos com a
+  janela de resposta aberta e a de disparo fechada, provando que a resposta sai.
+
+  Refs #1985.
+
+  Contribuição de @webtecnica (#2031).
+
+- **Janelas (Dialog) com conteúdo alto rolam por dentro, e os botões ficam alcançáveis** O `DialogContent` base ganhou `max-h-[calc(100dvh-2rem)]` e `overflow-y-auto`:
+  qualquer janela que cresça com dados do usuário (ex.: campos personalizados de um
+  contato) passa a rolar por dentro em vez de deixar o rodapé da tela. Quem já
+  passava um `max-h` próprio continua com ele prevalecendo (o `cn()` usa
+  `twMerge`). Sem ação necessária.
+
+- **O agente deixa de perder a resposta quando o modelo repete o objeto JSON** Seis pontos do produto leem a resposta de um modelo de IA em texto e precisam achar o objeto JSON dentro dela: a sugestão de funil do passo de onboarding, a leitura das respostas do fluxo de atendimento, a classificação e o plano de espera do follow-up, e os dois guardrails de segurança (anti-jailbreak e promessa de venda). Todos recortavam o texto "do primeiro `{` ao último `}`" — e quando o modelo imprimia a resposta e depois a repetia inteira, o recorte abrangia as duas cópias, a leitura falhava e o ponto caía no seu caminho de fallback: a sugestão de funil mostrava um pacote pronto em vez do quadro montado para o negócio, e os guardrails degradavam sem conseguir analisar a mensagem. O sintoma aparece só em produção, com modelos que ecoam a resposta.
+
+  Agora os seis passam a ler o primeiro objeto JSON que conseguem parsear, tolerando prosa em volta, cerca de código e essa repetição. O que NÃO mudou é o comportamento quando não há JSON nenhum: cada ponto continua caindo exatamente no mesmo caminho de fallback de antes — inclusive os dois guardrails, que continuam deixando passar (fail-open): o de promessa com o mesmo aviso no log de antes, e o anti-jailbreak marcando o veredito como falho, como já marcava. Quando o modelo devolve a resposta inteira dentro de uma lista (`[{...}]`), os seis continuam achando o objeto lá dentro, como o recorte antigo achava, e o classificador de intenção do roteador volta a achá-lo; uma lista sem objeto nenhum é tratada como saída ilegível, pelo mesmo caminho de fallback. Nenhuma regra de bloqueio mudou e nada precisa ser feito na instalação.
+
+  Contribuição de @webtecnica (#2144).
+
+- **O comentário da timeline do negócio não promete mais o valor anterior no log de auditoria** O comentário que acompanha as edições de um negócio dizia que quem
+  precisa do valor anterior tem o `api_audit_log`. O log de auditoria de
+  `lead.updated` guarda só os nomes dos campos alterados, nunca o antes-e-depois —
+  o valor anterior não estava em lugar nenhum. O comentário agora diz o que o
+  código faz: o valor anterior não é guardado; guardar o antes-e-depois de campos
+  sem PII segue em aberto na #1755.
+  Crédito: @webtecnica.
+
+- **A busca e a ficha de contato numa conversa de atendimento só alcançam o contato do turno** A trava do contato do turno protegia as escritas do agente e não protegia as leituras. No
+  pacote Atender, `crm_search_contacts` era texto livre sobre a base inteira de contatos da
+  organização — devolvendo telefone e e-mail na própria resposta — e `crm_get_contact` abria a
+  ficha de qualquer uuid da empresa. Numa conversa com o cliente A, o agente buscava um nome e
+  recebia o telefone do cliente B; a auditoria gravava sucesso, e o dado saía no WhatsApp de
+  quem está do outro lado, encaminhável, sem volta.
+
+  O contato da conversa agora chega ao handler como contexto de confiança
+  (`ctx.contatoDoTurno`, injetado pelo runtime — o modelo não escreve esse campo). Com ele, a
+  busca passa a devolver só o contato desta conversa (e a paginação da varredura da
+  organização some junto), e a ficha de quem não é o desta conversa é recusada com o motivo em
+  texto, na mesma forma que a escrita já devolvia — e a recusa entra na auditoria como recusa,
+  não como sucesso. O Operador, cujo turno também recebe o contato da conversa, passa a ver só
+  esse contato nas duas ferramentas — o lado seguro, porque ele não fala com o lead. Sem
+  contato de turno — rota HTTP, MCP externo — nada muda, e a proteção de escrita continua de
+  pé.
+
+  Refs #2158
+
+  Contribuição de @webtecnica (#2175).
+
+- **O media-derive-worker não grava mais transcrição em mensagem já anonimizada** O `media-derive-worker`, ao derivar a transcrição (áudio/OCR) de uma mídia,
+  gravava o resultado final com um UPDATE que não considerava que a mensagem
+  pudesse ter sido redigida no ínterim. Na corrida `lê → anonimiza → grava`, a
+  cascata LGPD já tinha zerado o `body` da mensagem, mas o worker regravava o
+  `media_derived_text` ali — o token mais sensível (o texto do áudio/OCR). A
+  varredura diária (passo 9 de `lib/lgpd`) só conserta em D+1.
+
+  Agora o UPDATE final traz a guarda `body IS DISTINCT FROM '[mensagem anonimizada]'` no WHERE
+  do PostgREST e confere o resultado da escrita: se a anonimização redigiu a
+  mensagem entre a leitura e a gravação, zero linhas são casadas e nada é
+  gravado — o worker responde `skipped`/`message_redacted` em vez de afirmar
+  sucesso sobre uma escrita recusada.
+
+  Refs #1991.
+
+  Contribuição de @webtecnica (#2030).
+
+- **O negócio que nasce de uma mensagem no Instagram ou no Facebook não aparece mais como vindo do WhatsApp** Quando alguém escrevia pela primeira vez no direct do Instagram ou no Messenger do Facebook, o negócio aberto no funil era gravado com origem "whatsapp", e a linha do tempo dizia "Entrou pelo WhatsApp" e "primeira mensagem recebida no WhatsApp". Agora a origem gravada é a rede por onde a pessoa chegou, e o motivo na linha do tempo diz o canal certo ("primeira mensagem recebida no Instagram"). O rótulo da atividade passa a ser "Entrou no funil" para todos os canais, porque o canal agora aparece no motivo, inclusive para quem chega por ligação. A atualização também corrige a origem dos negócios que já tinham nascido assim; o registro antigo na linha do tempo fica como foi escrito. O motivo ganhou tradução em espanhol e em inglês, e o card sem nome de quem liga passa a se chamar "Novo contato pelo telefone". No atendimento, o aviso de "Ocultar no CRM" também deixa de dizer que a mensagem "continua no WhatsApp do cliente": agora diz "na conversa do cliente", o que vale para qualquer canal.
+
+  Contribuição de @paulolimajr77.
+
+- **A nota interna de uma conversa deixa de poder ser editada ou apagada por um colega que não a escreveu — só o autor ou um manager+ pode** Uma nota interna registrada numa conversa do Inbox é um registro da equipe sobre aquele atendimento. Até aqui, qualquer atendente que visse a conversa podia alterar ou apagar a nota de um colega — inclusive uma nota sigilosa — direto pela API. Isso passa a valer só para quem escreveu a nota ou para quem tem papel de manager (ou acima, administrador) na empresa: editar e apagar continuam dentro da visibilidade da conversa de sempre, e ninguém passa a criar nota em nome de outro. Nenhuma ação é necessária.
+
+- **OpenRouter: quatro auxiliares do agente leem o JSON do modelo mesmo com cerca de código, prosa ou repetição** Os auxiliares do agente pedem JSON no prompt e leem o texto de volta, porque o seam de modelo não envia `response_format`. Modelos roteados pelo OpenRouter às vezes respondem com cerca de código (```json), com o objeto no meio de prosa ou com o JSON repetido. A leitura antiga recortava do primeiro `{` ao último `}`. Quando o objeto vinha repetido, o recorte pegava as duas cópias e o parse falhava (sintoma relatado: "JSON inválido em 7 de 11 checagens").
+
+  O novo `extrairJsonDoTexto` (lib/agent-engine/texto/) tenta o texto inteiro e, se não der, devolve o primeiro objeto `{...}` que parsear. A varredura respeita strings, então `{`, `}` e `"` dentro do texto do cliente não a confundem. Ela nunca lança. Se um objeto não fecha até o fim do texto, a busca para e devolve nada. Assim uma saída truncada continua sendo recusada no fechamento do turno, em vez de gravar um checkpoint vazio. Quatro auxiliares do turno do agente passam a ler por ele: checkpoint, compactação, roteador de intenção e o flywheel de propostas. Um teste de cerca impede a volta do recorte antigo nesses quatro. Outros seis leitores com o mesmo recorte ainda não foram migrados.
+
+  Contribuição de @webtecnica (PR #2096).
+
+- **Quem tem acesso só de leitura ao painel de plataforma deixa de conseguir alterar empresas e outros dados pela API** `fn_is_platform_admin()` ignorava o scope do JWT. Um platform admin com `scope=support_readonly` alterava colunas de exibição e `settings` de organizations (e escrevia em outras tabelas admin de plataforma) com o próprio token, sem passar por `security definer` nem gatilho.
+
+  - Cria `fn_is_platform_admin_full()` — idêntica à atual, exigindo `scope='full'`.
+  - Policies de **escrita** de organizations (e as 14 políticas de escrita da base original) passam a usar `fn_is_platform_admin_full()`. A leitura (FOR SELECT) continua com `fn_is_platform_admin()`, então `support_readonly` segue lendo — só não escreve.
+  - Nas 6 tabelas cuja única policy era `FOR ALL` (api_tokens, nuvemshop_products, incidents, ai_invocations, contacts, channel_session_warmup), o par vira `_read` (SELECT) + `_write` (`_full`).
+  - Invariante em Postgres real (dk-harness, migração 0508): `support_readonly` → **0 linhas alteradas** em organizations; `full` → continua escrevendo.
+
+  Contribuição de @webtecnica (#2078).
+
+- **No número oficial intermediado, o pino que chegou sem coordenadas é recuperado sozinho** Quando o cliente manda a localização pelo WhatsApp, o sistema pede as
+  coordenadas à API do canal. Se a API não respondia a tempo, a mensagem ficava
+  para sempre como «📍 Location», sem mapa na conversa e sem link para quem
+  entrega. Agora o sistema tenta de novo depois de 1 minuto, e a cada 2 minutos
+  até 15 minutos; quando consegue, a mensagem passa a mostrar o mapa (e, com a
+  chave de Mapas, a rua e a cidade aproximadas), como se tivesse chegado assim.
+
+- **A barra do prazo das telas de LGPD conta até o fim do dia, e não até a meia-noite do servidor** Nas duas telas de detalhe de uma solicitação de LGPD — a da organização e a da administração da instalação —, a barra de prazo e a contagem "Nd restantes" mediam o prazo a partir da meia-noite do servidor, que no Brasil cai às 21h da véspera. A barra chegava a 100% nessa hora, um dia antes do prazo acabar; as duas telas já diziam "vence hoje" na véspera, e a da administração passava a "1d em atraso" às 21h da véspera, com o prazo ainda por vencer. Agora as duas contam até o fim do dia do prazo, que é a mesma conta que o e-mail ao DPO e o selo da lista já usavam.
+
+  As duas telas também discordavam entre si, porque cada uma fazia a conta de um jeito: medido, a partir das 21h da véspera uma já dizia "1d em atraso" enquanto a outra ainda dizia "vence hoje". Agora as duas leem o mesmo cálculo, e um teste reprova se alguma voltar a fazer a conta por conta própria.
+
+  Nada é preciso fazer na instalação, e o prazo de nenhuma solicitação existente muda: o que muda é a leitura do mesmo dia gravado.
+
+  Continua como estava, e é o próximo recorte: os marcos D+5/D+7 e D+10/D+15 das duas telas ainda são contados em dias corridos, enquanto o prazo é em dias úteis, e as duas telas ainda são duas cópias do mesmo componente.
+
+- **A coluna "Vence em" da lista de LGPD para de anunciar atraso antes do prazo vencer** Na lista de solicitações de LGPD da organização, a coluna "Vence em" media quanto faltava até a meia-noite do servidor, que no Brasil cai às 21h do dia anterior ao vencimento. Na prática ela anunciava "atrasado hoje" por quase 24 horas seguidas com o prazo ainda por vencer — das 21h da véspera às 21h do próprio dia do prazo —, já em vermelho. Para trás, a contagem também errava para menos: "em 12h" quando faltava um dia.
+
+  Agora a coluna conta até o fim do dia do prazo, que é a mesma conta que o e-mail ao DPO, o selo da lista da administração e a barra das telas de detalhe já usavam. "Atrasado hoje" passa a querer dizer menos de 24 horas de atraso, e o prazo só aparece em vermelho quando faltam 48 horas para ele acabar, junto com o selo Crítico — antes ficava vermelho um dia mais cedo, 72 horas antes do fim.
+
+  Nada é preciso fazer na instalação, e o prazo de nenhuma solicitação existente muda: o que muda é a leitura do mesmo dia gravado.
+
+- **O prazo de uma solicitação LGPD passa a sair no dia certo no e-mail ao DPO, e a lista deixa de marcar "Vencido" na véspera** O prazo que o produto calcula é um **dia útil** do calendário do país, contado a partir do dia em que o pedido entrou. O valor gravado é a meia-noite UTC desse dia — e quem lia esse valor redesenhava o instante no fuso de quem estava lendo, o que jogava o prazo um dia para trás em toda instalação brasileira. O efeito era visível em três lugares: o **e-mail de alerta que vai para o DPO** anunciava o vencimento com a data do dia anterior e dizia "1 dia(s) em atraso" no próprio dia do prazo; a **lista de solicitações** classificava a linha como "Vencido" a partir das 21h do dia anterior ao prazo, com quase um dia pela frente; e o **painel da instalação** acendia o alerta de LGPD em risco na mesma hora.
+
+  Agora o e-mail ao DPO traz a data do dia que foi contado, e o selo da lista e a contagem de atraso do e-mail passam a ler o dia, não o instante. No Brasil, o pedido passa a contar como vencido às 21h do **próprio** dia do prazo, e não mais às 21h do dia anterior; as três horas que sobram vêm de o prazo ser contado no relógio UTC e ficam para um próximo conserto. O que estava certo continua igual: o dia útil contado, os feriados do país da organização e o recebimento em fim de semana ou feriado, que continuam começando no próximo dia útil. Nada é preciso fazer na instalação, e nenhuma solicitação existente muda de prazo — as que já foram gravadas passam a sair na data correta no e-mail e no selo da lista.
+
+  Ainda seguem a régua antiga, e são o próximo conserto: o alerta "LGPD em risco" do painel da instalação; o selo de risco e o aviso de pedidos vencidos na página de LGPD da administração da instalação; e o texto de prazo nas telas de detalhe, na coluna de prazo da lista e na contagem de horas da administração.
+
+- **O painel da instalação deixa de contar prazo de LGPD a mais e de anunciar atraso na véspera** No painel da instalação, o cartão "LGPD em risco" e a lista de alertas mediam o prazo pela meia-noite do servidor, que no Brasil cai às 21h do dia anterior ao vencimento. Por isso o alerta anunciava **"Requisição LGPD vencida"** a partir das 21h da véspera do prazo e continuava assim durante todo o dia do vencimento; agora só anuncia depois que o dia do prazo acaba, junto com o selo da lista e o e-mail ao DPO.
+
+  O cartão também contava a mais: um pedido que vencia em cinco dias e meio entrava na janela de cinco dias. Agora a janela olha o fim do dia do prazo, então quem expira dentro de cinco dias entra e quem expira depois fica de fora. Nenhum prazo existente muda, e nada é preciso fazer na instalação.
+
+  A data que aparece no alerta passa a ser sempre o dia do prazo, e não mais o que o relógio do servidor mostrasse — medido, o mesmo pedido aparecia como 05/10 num servidor em UTC e 04/10 numa máquina em São Paulo.
+
+- **O painel da plataforma para de marcar "Vencido" na véspera do prazo, e a contagem de "Vence em" passa a contar até o fim do dia** Em **Admin › LGPD**, o selo de risco e a coluna "Vence em" liam o prazo como um
+  **instante**, e o prazo é um **dia**. O efeito, medido com um prazo no dia 05/10:
+
+  - o selo dizia **Vencido** a partir das 22h do dia **04/10** — quando o prazo ainda
+    era o dia seguinte;
+  - a coluna dizia **1h em atraso** nessa mesma hora, e **12h em atraso** às 9h da
+    manhã do dia 05/10, quando o prazo ainda vencia naquele dia.
+
+  Agora os dois leem o dia que o motor contou. O selo só fica **Vencido** depois que
+  o dia do prazo acaba, e a coluna mostra as horas que faltam até o fim dele — "1d
+  restantes" na véspera, "12h restantes" às nove da manhã do dia do prazo e "0h
+  restantes" na última hora. Nenhuma palavra nova entra na tela: as quatro formas de
+  antes continuam as quatro de agora, e o que muda é a hora a que cada uma aparece.
+
+  Um ganho que vem junto: o selo da plataforma e o balde da lista da organização
+  passam a marcar "vencido" **no mesmo instante**. Antes um contava dias e o outro
+  conta milissegundos, e os dois discordavam — o que é a pior forma de erro num
+  painel de quem decide o que cobrar primeiro.
+
+  Continua como estava, e é do motor e não da leitura: as três horas entre o fim do
+  dia do prazo no relógio do servidor e a meia-noite no relógio do Brasil. As telas de
+  detalhe, a coluna de prazo da organização e o alerta do painel da instalação ainda
+  usam a regra antiga, e estão nomeadas na lista de dívida do teste que vigia os
+  consumidores do prazo. Nada é preciso fazer na instalação.
+
+- **O prazo nas telas de detalhe de LGPD sai no dia certo, e a última hora do dia do prazo para de mostrar "0h restantes" ao lado de "Vencido"** Duas coisas do mesmo prazo de LGPD, nas telas de detalhe e na contagem do painel.
+
+  Nas telas de detalhe — a da organização e a da administração da instalação —, a linha **"Vence em"** redesenhava o prazo no fuso de quem estava lendo, e para quem está no Brasil saía **um dia antes**: um prazo contado no dia 05/10 aparecia como 04/10. Agora sai no dia que foi contado. O mesmo já tinha sido corrigido no e-mail ao DPO e na lista; faltavam estas duas telas.
+
+  Na coluna **"Vence em"** da lista do painel, a última hora do dia do prazo contradizia o próprio selo da linha: das 21h às 21h59 (horário de Brasília) a coluna dizia "0h restantes" enquanto o selo ao lado já dizia "Vencido". Os dois números vêm da mesma âncora e agora viram no mesmo instante — a coluna passa a dizer "1h em atraso" naquela hora, na menor unidade que ela tem.
+
+  Nada muda no resto: o prazo continua sendo o dia útil contado, o dia do prazo continua dizendo "vence hoje" e as telas mostram o mesmo texto de antes. As telas de lista da organização e a linha do tempo continuam com a regra antiga e estão nomeadas na lista de dívida do teste que vigia os consumidores do prazo. Nada é preciso fazer na instalação.
+
+- **O próximo passo que o sistema escreve na demanda nova aparece no idioma de quem lê** Quando uma mensagem nova abre uma demanda, o sistema grava o próximo passo "Responder à nova mensagem do cliente". Para quem usa o sistema em espanhol, o painel da conversa o mostrava em português. Agora a tela o traduz; o próximo passo escrito por uma pessoa continua aparecendo como ela escreveu.
+
+  Contribuição de @jmpo.
+
+- **O link de "esqueci a senha" da instalação single-server passa a abrir a troca de senha** Numa instalação single-server, o GoTrue mandava os e-mails de acesso no modelo padrão do Supabase, e o clique em "esqueci a senha" terminava na tela de login com "link inválido". Como não existe troca de senha estando logado, quem perdia a senha ficava fora do sistema. Agora o `.env` do Supabase recebe os dois modelos do app (`https://SEUDOMINIO/email-templates/recovery` e `/email-templates/confirmation`), e o override do kit os entrega ao serviço `auth`. O link sai com `token_hash` e `/login/reset` abre.
+
+  Quem instala agora recebe as duas chaves pelo `install-single-server.sh`. Quem já instalou recebe pelo `update.sh`, que as grava a partir do `SITE_URL` do Supabase antes de subir o `auth` de novo. Nas duas pontas, um modelo que o operador já tenha apontado é preservado.
+
+  Contribuição de @webtecnica (#2153), sobre o diagnóstico de @brunno-soaress na #2109.
+
+- **A regra "criar ou mover negócio" agora transfere o card quando o gatilho é uma etiqueta de negócio** Quando uma regra de automação de gatilho "etiqueta adicionada ao negócio" apontava para um funil diferente daquele onde o card estava, a ação "criar ou mover negócio" recusava com `cross_pipeline_move_not_allowed` e nada acontecia: a regra acumulava execuções zeradas e o card continuava parado no funil de entrada, sem etapa, follow-up por etapa nem relatório do funil do produto. Ela recusava justamente porque o evento traz o negócio junto — e o caminho que transfere (clona o card para o funil da regra e encerra o de origem como transferência, sem contar como perda comercial) só rodava quando o evento não trazia o negócio.
+
+  Agora, com gatilho "etiqueta adicionada ao negócio" e funil de destino diferente, a ação usa esse mesmo caminho: o card nasce no funil de destino com título, contato, valor, tags e campos personalizados da origem, o de origem é encerrado com o motivo de transferência e as próximas ações da regra enxergam o card novo. O card troca de funil no máximo uma vez a cada aplicação de etiqueta: se duas regras desse gatilho apontarem para funis diferentes no mesmo evento, vale a primeira, e a segunda aparece na aba Atividade com o motivo, sem transferir de novo. Os demais gatilhos que trazem o negócio (criação, troca de etapa, datas) continuam recusando mover entre funis, como antes.
+
+  Nada precisa ser feito na instalação: quem já tem uma regra dessas vê o card passar a ir para o funil certo assim que a etiqueta for aplicada. O caso em que o roteador de intenção classifica a mensagem sem que a equipe de recepção chegue a etiquetar continua fora do alcance desta correção e é o outro pedaço da mesma issue.
+
+  Contribuição de @webtecnica, na issue #2155 e no PR #2162.
+
+- **Mudar a regra de verificação em duas etapas da empresa pede o código na sessão de quem já usa a verificação** Em Configurações › Segurança, ligar ou desligar a exigência de verificação em duas etapas para quem administra a empresa passa a pedir que o administrador tenha informado o código de 6 dígitos nesta sessão, quando ele mesmo já tem a verificação ativada. É a mesma regra que já valia para desligar a verificação da própria conta e para as demais alterações sensíveis. Quem não ativou a verificação continua mudando a regra normalmente: ela segue opcional e desligada por padrão.
+
+- **A gravação de sessão do diagnóstico de erros passa pelo mesmo filtro de URL do resto da telemetria** A gravação de sessão que acompanha os relatórios de erro passa a aplicar às URLs o mesmo filtro que o resto da telemetria já aplicava: valores de parâmetro e segmentos de credencial no caminho saem redigidos. Nas páginas que trazem credencial na própria URL, como o link de convite, a gravação de sessão não acontece. O relatório de erro dessas páginas continua sendo enviado. Nada muda para quem opera a instalação.
+
+- **O roteador de intenções volta a classificar a transcrição do áudio — a conversa não fica mais presa no agente anterior** Num roteador com `sticky` ligado, a primeira mensagem (texto) era classificada normalmente, mas qualquer áudio seguinte nunca chegava ao classificador: a decisão saía `sticky` sem confiança, sem consultar o classificador nem o Jev. Um cliente que pedisse por áudio, por exemplo, uma vaga de consulta seguia com o agente de atendimento geral, que não tinha as ferramentas de agenda, em vez de ir para o agente de agendamento. Agora o áudio já transcrito é classificado como qualquer texto — a transcrição entra também no contexto curto do classificador —, e o áudio ainda sem transcrição segue como antes (mantém o agente atual). Não é preciso fazer nada na instalação.
+
+  Contribuição de @webtecnica (#2082).
+
+- **O fluxo de silêncio deixa de inscrever conversa que uma pessoa da equipe assumiu** O fluxo de silêncio deixa de inscrever conversa que uma pessoa da equipe
+  assumiu (ou em que a IA está silenciada), salvo quando a política de passagem do
+  fluxo é «permitir». Com a política padrão («pausar»), isso vale para todo fluxo
+  com gatilho de silêncio, remarketing incluído. Antes, a inscrição criada depois
+  da passagem não a via: o passo de texto saía por cima da pessoa, e o de IA
+  terminava sem enviar e se repetia a cada varredura.
+
+- **O instalador single-server deixa de apagar o REVERSE_PROXY escolhido no ambiente** O `install-single-server.sh` gravava `REVERSE_PROXY=caddy` fixo no `.env`, e os comandos de `docker compose` do modo single-server nunca incluíam o arquivo do Traefik ou do Nginx Proxy Manager. Agora o valor exportado chega ao `.env` e o arquivo do proxy entra junto. Sem a variável, nada muda: o padrão continua sendo o Caddy do kit. **A instalação single-server atrás de um proxy próprio ainda não conclui**: com Traefik, a fase 2 para com 404 por falta da rota do Supabase (medido na #2099); o Nginx Proxy Manager não foi testado. Isso segue aberto na #2099.
+
+  Crédito: #2150 (@webtecnica), construído sobre o diagnóstico de @brunno-soaress na #2099.
+
+- **Skill importada por .zip volta a ser editável na tela sem perder references/ e assets/** Uma skill instalada pelo .zip com `references/` ou `assets/` abria no editor, mas o botão Salvar chegava desabilitado e a API respondia 409: qualquer ajuste de descrição, palavra-chave ou corpo exigia reconstruir o pacote inteiro e subir o .zip de novo. O veto existia por um motivo de verdade — os objetos moram no Storage sob o id da versão, e a versão nova nasceria sem eles, o que faria o agente perder as references em silêncio —, mas o preço cobrado de quem só queria corrigir uma frase era desproporcional.
+
+  A edição textual passou a ser livre e a herança, explícita. O PUT cria a versão nova já com o manifesto da anterior e copia cada arquivo para o prefixo novo antes de mover o ponteiro, na mesma ordem do import: falha na cópia responde 500, remove o que já tinha subido e não anda com o ponteiro, então quem joga continua vendo a versão antiga com os arquivos intactos e nada de prefixo pela metade fica no bucket. A edição ESTRUTURAL continua travada de propósito: o corpo do PUT é estrito, então tentar mandar `manifest` pelo editor devolve 422, e a tela lista os arquivos do pacote como somente leitura dizendo que adicionar, trocar ou remover arquivo é por novo .zip.
+
+  Contribuição de @webtecnica (refs #2047).
+
+- **Acesso só de leitura ao painel de plataforma deixa de poder anonimizar contatos** A 0508 tirou a escrita de quem entra no painel de plataforma com `scope=support_readonly`, mas a função de anonimizar contato (`fn_lgpd_anonymize_contact`), alcançável direto pela API, continuava aceitando esse acesso (a tela já recusava; o buraco era só a chamada direta): o portão perguntava `fn_is_platform_admin()`, que ignora o scope do JWT, e a única condição a mais — estar fora de sessão de suporte — é o estado normal de quem observa.
+
+  Agora o atalho de plataforma exige `scope=full`. Um platform admin `full` fora de suporte continua anonimizando, e o admin da própria organização continua anonimizando com MFA comprovada; só o modo de leitura deixa de escrever. É a mesma régua das issues #2000 e #2078.
+
+  Nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2195).
+
+- **Acesso só de leitura ao painel de plataforma deixa de alterar conversas, mensagens, leads, sessões de canal e convites** A 0508 tirou a escrita de quem entra no painel de plataforma com `scope=support_readonly`, mas só nas policies de escrita do trecho original do banco. As policies criadas nos blocos seguintes ficaram com `fn_is_platform_admin()`, que ignora o scope do JWT — então o acesso de leitura ainda alterava, pela API, as tabelas do dia a dia: conversas, mensagens, leads do funil, sessões de canal e convites de equipe.
+
+  Agora as policies de escrita dessas cinco tabelas exigem `fn_is_platform_admin_full()`. A leitura continua como estava — `support_readonly` segue enxergando os dados, só não altera. Um platform admin `full` e os membros da organização escrevem exatamente como antes.
+
+  Nada é preciso fazer na instalação; a atualização reaplica o mesmo `drop`+`create` das policies. O restante da lista da issue #2115 (as outras 36 policies, incluindo a única cuja escrita é também a única leitura) vem em fatias seguintes.
+
+  Contribuição de @Tong-bit-art (#2115).
+
+- **Suspender uma empresa passa a calar a IA e os envios dela; quem tem acesso só de leitura ao painel deixa de poder alterar dados** Até aqui, suspender uma empresa em Admin › Empresas só tirava as pessoas da tela. A IA continuava respondendo aos clientes, o follow-up e as automações seguiam disparando, e o token de API e o MCP da empresa continuavam funcionando. Agora a suspensão suspende: nada que custe dinheiro ou saia para fora roda enquanto ela durar, e o que estava na fila para sair é descartado na hora em vez de sair depois.
+
+  As mensagens que chegam continuam gravadas, as páginas de anúncio e o link de rastreio seguem no ar, e pelo MCP a consulta aos pedidos de LGPD continua respondendo — as demais ferramentas do MCP recusam, e a API responde com um erro claro (403 `org_suspended`), pelo token ou pela tela. Quem entra numa empresa suspensa, ou já estava com o CRM aberto na hora, cai numa tela que diz o que fazer. Quem administra vê os pedidos de LGPD dos clientes, que não param durante a suspensão (o link do e-mail de prazo abre o pedido ali mesmo), e o contato do suporte quando o e-mail de suporte da instalação estiver configurado (`SUPPORT_EMAIL`); sem ele, a tela orienta a falar com quem administra o sistema. As demais pessoas leem que devem avisar o administrador, e quem participa de outra empresa ativa volta para ela com um clique.
+
+  Ao reativar, nada sai em rajada: a Central mostra um aviso com quantas conversas receberam mensagem durante a suspensão e leva ao Inbox, porque a IA não vai respondê-las sozinha. Os follow-ups em andamento ficam parados enquanto a suspensão durar e, ao reativar, retomam de onde pararam; o passo cujo envio foi descartado na suspensão ganha um envio novo, no ritmo normal da fila. Quem tem acesso só de leitura ao painel da instalação deixa de conseguir suspender, reativar ou alterar o estado de uma empresa, pela tela ou pela API, e também deixa de mudar configurações ou apagar dados de uma empresa em que é só participante. Nenhuma ação é necessária.
+
+- **O teste do kit "instalar sem chave de IA" para de reprovar por acaso (intermitência da #1570)** O caso `instalar SEM chave de IA — a tela final avisa` (`hostgator-setup-kit/test-validators.sh`,
+  integração da #670) reprovou o `verify-parte (3)` com intermitência, no run 35948236372, com
+  `✗ a tela final não avisa que a IA ainda não atende` — e o mesmo SHA passou na reexecução.
+
+  A causa não era chave de IA no ambiente: o CI não exporta nenhuma, e a suíte já zera as quatro
+  no topo desde o #1599. Era o cano das asserções. A suíte roda com `set -o pipefail`, e as
+  asserções liam a saída com `printf '%s' "$saida" | grep -q '...'`. O `grep -q` sai assim que
+  acha a frase; se o `printf` ainda está escrevendo, ele leva SIGPIPE (status 141), o `pipefail`
+  derruba o pipeline e o `!` lê isso como "a frase não está lá".
+
+  Medido num `ubuntu:24.04` com bash 5.2 e 1 CPU, sobre a saída real do próprio caso: pelo cano,
+  taxas baixas e variáveis de falso vermelho (de 1 a 6 em 6000, conforme a asserção), todas com
+  status `141/0`; com here-string (`grep -q '...' <<<"$saida"`), zero em 6000.
+
+  O conserto troca as 45 asserções `printf '%s' "$var" | grep -q` do arquivo por here-string —
+  sem cano, não há quem leve SIGPIPE — e mantém a medição na tela final (depois de
+  "Instalação concluída"). Ficam também as duas melhorias do PR original: o `install.sh` desse
+  caso recebe as quatro chaves de IA zeradas no próprio `env` da chamada (defesa extra), e,
+  quando o caso reprova, ele imprime as últimas linhas da saída para o diagnóstico nascer de dado.
+
+  Refs #1570.
+  Contribuição de @webtecnica (#2033), construído sobre o diagnóstico e a hermetização dele.
+
+- **Teto de escrita por token passa a valer também no upload de mídia e na abertura de conversa pelo contato** Duas rotas que aceitam autenticação por token de servidor (Bearer `dsk_`) não
+  tinham o teto de escrita: o upload de mídia (`conversations/[id]/media`) e a
+  abertura de conversa pelo contato compartilhado (`open-with-contact`). O proxy
+  não decide sobre elas, então o que uma integração em laço fazia por ali não era
+  contado em lugar nenhum. As duas passam a chamar o mesmo `tetoDeEscritaDoToken`
+  que as irmãs (`messages`, `drafts`, `leads` e a agenda) já usavam.
+
+  Para quem integra, o efeito é o mesmo que já existe nas outras rotas: por
+  token, cada rota respeita o teto por token e por organização da janela em
+  vigor e recusa com 429 quando a cota esgota. Quem usa a sessão do navegador
+  não tem teto e não percebe diferença.
+
+  Outras duas rotas, `drafts/consume` e o anexo de nota interna, recebem o mesmo
+  teto como defesa em profundidade. Hoje elas não aceitam token sem sessão, então
+  para elas nada muda. Não é preciso fazer nada na instalação.
+
+  Contribuição de @webtecnica (#2012).
+
+- **A transcrição de áudio usa o modelo de conversa da organização quando não há chave OpenAI, e o status da derivação nunca fica nulo** A nota de voz de uma organização rodando Gemini com a chave do Google validada, e sem chave da OpenAI, era recebida mas não transcrevia: o ponto `transcricao_de_audio` só falava o protocolo da OpenAI e pedia uma chave própria. A resolução virou uma escada — serviço de transcrição da instalação (`TRANSCRIPTION_API_KEY`), depois a chave OpenAI da organização ou da instalação, depois o modelo de CONVERSA da organização quando ele declara a capacidade `audio`, e no fim um "nada" legítimo com o motivo. A chave OpenAI vem antes do modelo da organização de propósito, pela mesma regra da base de conhecimento: quem já transcrevia pelo whisper não troca de fornecedor numa atualização. Vale para a nota de voz e para o áudio dos vídeos.
+
+  O segundo defeito da #2171 era o silêncio: `media_derived_status` ficava nulo quando a transcrição não existia ou falhava — "ninguém tentou" e "tentou e não deu" eram o mesmo nulo, e o dreno esperava o teto de 8 minutos por uma leitura que nunca ia chegar. Todo desfecho terminal passou a gravar `failed` ou `skipped` com o motivo em `metadata.media_derived_motivo`, inclusive quando o provedor devolve a transcrição vazia, quando o download da mídia esgota as tentativas e quando o evento de derivação nem sai. Quando a derivação desiste, a Central também abre o aviso de mídia não lida com a causa.
+
+  Contribuição de @webtecnica (#2189, refs #2171).
+
+- **Reverter uma versão ou criar um agente pela tela não desliga mais o follow-up automático** Ao reverter para uma versão antiga pelo Histórico ou ao criar um agente pela tela, a versão nova nascia com o follow-up automático no padrão (desligado), sem aviso. Ao criar uma versão pela API, a opção de o agente rascunhar proposta com IA voltava a ficar ligada, mesmo quando a chamada pedia desligada. Agora esses caminhos levam a configuração inteira da versão, e um teste reprova a próxima chave que for esquecida neles. Não é preciso fazer nada na instalação.
+
+  Contribuição de @webtecnica (#2011), fechando a #2004.
+
+- **Formulários do Elementor Pro passam a criar lead pelo webhook** O webhook de captação agora entende o formato que a ação "Webhook" do Elementor Pro envia. Antes, o envio era recusado com "Nenhum campo mapeável" e nenhum lead entrava, porque o Elementor manda cada campo no formato `fields[id][value]`. Agora nome, telefone e e-mail são encontrados pelo tipo do campo (texto, `tel`, `email`), e os demais campos do formulário chegam ao lead pelo nome interno, junto com o nome do formulário. Campos ocultos `utm_*` seguem para a origem do lead. Na tela de cada fonte, a ajuda "Como conectar no seu caso" agora explica como ligar o Elementor Pro (Ações após o envio › Webhook) e o JetFormBuilder (ação Call Webhook).
+
+- **O lixo interno do JetFormBuilder não aparece mais no lead** Os campos `__refer`, `__form_id` e `__is_ajax` (e nonce/referer do WordPress) que o JetFormBuilder manda junto com as respostas deixam de entrar como campos do lead. Nome, telefone e e-mail já funcionavam e continuam iguais.
+
 ## [1.69.0] — 2026-09-30
 
 ### Adicionado
@@ -9734,7 +10450,8 @@ Primeira versão marcada do DeskcommCRM. O projeto vinha sendo desenvolvido publ
 
 - **Node 22 é obrigatório para desenvolvimento.** A suíte de invariantes instancia o cliente do Supabase, que exige o `WebSocket` global — nativo apenas a partir do Node 22. Isso não afeta quem apenas hospeda: a VPS roda a imagem pronta.
 
-[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v1.69.0...HEAD
+[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v1.70.0...HEAD
+[1.70.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.68.0...v1.69.0
 [1.68.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.67.0...v1.68.0
 [1.67.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.66.1...v1.67.0
