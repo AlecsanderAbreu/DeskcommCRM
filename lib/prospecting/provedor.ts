@@ -131,8 +131,20 @@ async function escolha(banco: FonteDeSettings, organizacao: string): Promise<str
   return escolhaNasSettings(rows[0]?.settings) ?? PROVEDOR_PADRAO;
 }
 
+/**
+ * O `teste` só existe sob `NODE_ENV=test` (#2174). Ele grava empresas falsas com
+ * telefones em formato válido de celular, e o worker aborda os candidatos por
+ * WhatsApp quando a campanha é ativada. Em qualquer outro ambiente — inclusive
+ * `NODE_ENV` ausente — a escolha cai no erro fechado de provedor desconhecido.
+ * Lido a cada chamada, e não no carregamento do módulo, para o teste poder
+ * provar o caminho de produção sem recarregar nada.
+ */
+function disponivelNesteAmbiente(nome: string): boolean {
+  return nome !== "teste" || process.env.NODE_ENV === "test";
+}
+
 function registroDaEscolha(nome: string): RegistroDoProvedor {
-  const registro = REGISTRO[nome];
+  const registro = disponivelNesteAmbiente(nome) ? REGISTRO[nome] : undefined;
   if (!registro)
     throw new ProspectingError(
       `Provedor de busca desconhecido nesta organização: ${nome}. Corrija a escolha em settings.prospecting.provider.`,
