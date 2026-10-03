@@ -318,6 +318,45 @@ describe("create_or_move_lead — o gatilho lead.tag_added transfere o negócio 
     expect(spies.encerraDemanda).not.toHaveBeenCalled();
   });
 
+  it("UMA transferência por evento: a 2ª regra no MESMO contexto não leva o clone de volta (A→B→A)", async () => {
+    // O motor passa o MESMO `context` a todas as regras aplicáveis de um evento
+    // (`engine.ts`), e a 1ª transferência publica o clone nele. Duas regras
+    // `lead.tag_added` opostas casando juntas = duas execuções sobre este ctx.
+    limpaOsSpies();
+    spies.createLeadHandler.mockResolvedValue({
+      id: "clone-tag-0001",
+      pipeline_id: FUNIL_B,
+      stage_id: ETAPA_ESCOLHIDA,
+      contact_id: CONTATO,
+    });
+    spies.encerraDemanda.mockResolvedValue({ lead: { id: NEGOCIO_NO_FUNIL_A.id } });
+
+    const etapaAbertaDoA = {
+      id: ETAPA_DO_FUNIL_A,
+      pipeline_id: FUNIL_A,
+      position: 1,
+      is_won: false,
+      is_lost: false,
+      is_archived: false,
+    };
+    const ctx = contexto({
+      ...CENARIOS_DA_TRANSFERENCIA,
+      etapasDoDestino: [...ETAPAS_DO_FUNIL_B, etapaAbertaDoA],
+    });
+    const acao = getAction("create_or_move_lead");
+
+    const primeira = await acao!.execute(ctx, CONFIG);
+    const segunda = await acao!.execute(ctx, { pipeline_id: FUNIL_A, stage_id: ETAPA_DO_FUNIL_A });
+
+    expect(primeira.status).toBe("success");
+    expect(segunda.status).toBe("failed");
+    expect(segunda.error).toBe("lead_already_transferred_in_event");
+    expect(spies.createLeadHandler).toHaveBeenCalledTimes(1);
+    expect(spies.encerraDemanda).toHaveBeenCalledTimes(1);
+    // Vale a primeira regra: o negócio das próximas ações segue sendo o clone no funil B.
+    expect((ctx.context.lead as Record<string, unknown>).pipeline_id).toBe(FUNIL_B);
+  });
+
   it("o motivo da transferência segue sendo o canônico, não perda comercial", () => {
     expect(MOTIVO_PADRAO_DA_TROCA).toBe(MOTIVO_DA_TRANSFERENCIA);
   });

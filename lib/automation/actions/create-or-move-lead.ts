@@ -71,6 +71,21 @@ async function execute(ctx: ActionCtx, config: Record<string, unknown>): Promise
         // a proposta principal da #2155 (destino por intenção em
         // `ai_router_members`) continua fora, porque exige migration.
         if (ctx.event?.event_type === "lead.tag_added") {
+          // UMA TRANSFERÊNCIA POR EVENTO: o motor monta `context` uma vez e o
+          // passa a TODAS as regras aplicáveis (`engine.ts`), e o
+          // `publicaNoContexto` abaixo troca o negócio do evento pelo clone.
+          // Sem esta guarda, uma 2ª regra `lead.tag_added` para outro funil
+          // casando no mesmo evento transferia o clone de novo (A→B→C, ou
+          // A→B→A com regras opostas). Negócio no contexto que não é o do
+          // evento = outra regra já o transferiu: vale a primeira, como no ramo
+          // por contato.
+          if (lead.id !== ctx.event.entity_id) {
+            return {
+              type: "create_or_move_lead",
+              status: "failed",
+              error: "lead_already_transferred_in_event",
+            };
+          }
           const transferencia = await transfereParaOFunil(ctx, handlerCtx, lead, pipelineId, stageId);
           if (!transferencia.ok) {
             return { type: "create_or_move_lead", status: "failed", error: transferencia.error };
