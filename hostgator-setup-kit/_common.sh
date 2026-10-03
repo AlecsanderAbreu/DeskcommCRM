@@ -921,14 +921,21 @@ servicos_fora_do_ar() {
   local esperados="app worker scheduler" saida svc estado conhecidos=0 rodando=" " fora=""
   case "${REVERSE_PROXY:-caddy}" in traefik|npm) ;; *) esperados="$esperados caddy" ;; esac
   # shellcheck disable=SC2046
-  saida="$(docker compose $(dc_files) ps -a --format '{{.Service}} {{.State}}' 2>/dev/null)" || return 0
+  # Com prazo pelo mesmo motivo do healthcheck: um `ps` preso no resolver
+  # saturado prenderia aqui o fim da atualização. Estourou = "não sei".
+  saida="$(com_prazo 30 docker compose $(dc_files) ps -a --format '{{.Service}} {{.State}}' 2>/dev/null)" || return 0
   [ -n "$saida" ] || return 0
   while read -r svc estado; do
     [ -n "${svc:-}" ] || continue
+    # CONHECER o estado e estar RODANDO são perguntas diferentes: `exited` e
+    # `created` provam que o `ps` respondeu (então a lista vale), mas são
+    # justamente o serviço fora do ar que esta conferência existe para pegar.
     case "$estado" in
-      running|exited|created|paused|restarting|dead|removing|Up*)
+      running|Up*)
         conhecidos=$((conhecidos + 1))
         rodando="${rodando}${svc} " ;;
+      exited|created|paused|restarting|dead|removing|Exit*)
+        conhecidos=$((conhecidos + 1)) ;;
     esac
   done <<EOF
 $saida

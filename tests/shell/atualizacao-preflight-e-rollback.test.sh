@@ -86,6 +86,18 @@ reg() {  # reg <serviço> <estado>
   mv "$tmp" "$ESTADO"
 }
 
+# Caso 5: a versão NOVA sobe o app, mas o worker cai (`exited`) ou nem chega
+# a existir no `ps` (`some`) — o critério 6 da issue. Vale para todo `up` da
+# 0.9.0 (o do build e o do proxy); o da volta, na 0.8.0, sobe inteiro.
+queda_da_versao_nova() {
+  [ "${APP_IMAGE##*:}" = 0.9.0 ] || return 0
+  if [ -f "$DUB/worker-exited" ]; then reg worker exited; fi
+  if [ -f "$DUB/worker-some" ]; then
+    grep -v '^worker ' "$ESTADO" > "$ESTADO.tmp.$$"; mv "$ESTADO.tmp.$$" "$ESTADO"
+  fi
+  return 0
+}
+
 case "${1:-}" in
   info|ps|image|inspect|images|run|network|start|rm|volume|logs) exit 0 ;;
   buildx)
@@ -107,6 +119,7 @@ if [ "${1:-}" = compose ]; then
       # sobe tudo, como numa VPS de verdade depois da construção.
       case "$args" in *" build"*) printf '0.9.0\n' >> "$DUB/imagens-locais" ;; esac
       for s in app worker scheduler caddy; do reg "$s" running; done
+      queda_da_versao_nova
       exit 0 ;;
     *" exec "*)
       printf 'healthy\n{"data":{"status":"healthy","version":"0.9.0","checks":{"supabase":{"status":"ok","latency_ms":12}}}}\n'
@@ -125,6 +138,7 @@ if [ "${1:-}" = compose ]; then
       tag="${APP_IMAGE##*:}"
       if [ -n "$tag" ] && grep -qx "$tag" "$DUB/imagens-locais" 2>/dev/null; then
         for s in app worker scheduler caddy; do reg "$s" running; done
+        queda_da_versao_nova
         exit 0
       fi
       for s in app worker scheduler; do reg "$s" created; done
@@ -223,6 +237,7 @@ preparar_vps() {
   printf '0.8.0\n' > "$DUB/imagens-locais"
   : > "$DUB/registro"                          # o registro está alcançável
   : > "$DUB/voz-pronta"                        # e as QUATRO imagens publicadas
+  rm -f "$DUB/worker-exited" "$DUB/worker-some"
 }
 
 # rodar_update <raiz> <saída> [VAR=valor ...] → status em RC
@@ -367,6 +382,30 @@ else
   nao "diagnóstico do sucesso" "status de concluído" \
       "$(tail -4 "$DIAG3" 2>/dev/null | tr '\n' ' ')"
 fi
+
+# ════════════════════════════════════════════════════════════════════════════
+echo "── caso 5 — critério 6: app saudável com outro serviço fora do ar VOLTA a versão"
+# O app responde, mas o worker da versão nova caiu (`exited`) ou nem apareceu
+# no `ps`. A atualização não pode fechar como sucesso: tem de sair com falha e
+# devolver os pins. O controle com tudo `running` é o caso 3, que conclui.
+for jeito in exited some; do
+  preparar_vps
+  : > "$DUB/worker-$jeito"
+  R5="$WORK/caso5-$jeito"; mkdir -p "$R5"; montar_instalacao "$R5"
+  OUT5="$WORK/saida5-$jeito.txt"
+  rodar_update "$R5" "$OUT5" DESKCOMM_BUILD_LOCAL=1; RC5="$RC"
+  if [ "$RC5" -ne 0 ] && grep -q 'NÃO subiram: worker' "$OUT5"; then
+    ok "worker $jeito: a atualização FALHOU e nomeou o worker (RC $RC5)"
+  else
+    nao "worker $jeito acusado" "RC≠0 e 'NÃO subiram: worker'" "RC $RC5; $(tail -2 "$OUT5" | tr '\n' ' ')"
+  fi
+  if grep -q "^APP_IMAGE=$NS/deskcommcrm:0.8.0$" "$R5/deskcommcrm/.env" \
+     && grep -q "^WORKER_IMAGE=$NS/deskcomm-worker:0.8.0$" "$R5/deskcommcrm/.env"; then
+    ok "worker $jeito: os pins voltaram para a versão anterior (0.8.0)"
+  else
+    nao "worker $jeito: pins de volta" "…:0.8.0" "$(grep -E '^(APP|WORKER)_IMAGE=' "$R5/deskcommcrm/.env" | tr '\n' ' ')"
+  fi
+done
 
 # ════════════════════════════════════════════════════════════════════════════
 echo "── caso 4 — critério 1: release com imagem faltando NÃO é oferecida"
