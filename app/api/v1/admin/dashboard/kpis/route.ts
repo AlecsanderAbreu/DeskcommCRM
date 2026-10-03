@@ -54,6 +54,8 @@ export async function GET(_req: NextRequest) {
 
   const admin = createAdminClient();
 
+  // "LGPD em risco": o KPI e os alertas filtram `due_at` por ESTE corte, e só por ele.
+  const corteDeRisco = corteDaJanela(new Date(Date.now()), JANELA_DE_RISCO_EM_DIAS).toISOString();
   // ── KPI counts in parallel ────────────────────────────────────────────────
   const [
     tenantsRes,
@@ -83,9 +85,7 @@ export async function GET(_req: NextRequest) {
       .from("lgpd_requests")
       .select("*", { count: "exact", head: true })
       .not("status", "in", "(completed,failed)")
-      // O prazo EXPIRA em até 5 dias — e `due_at` é o INÍCIO do dia guardado,
-      // então o corte anda um dia para trás. Ver `corteDaJanela`.
-      .lte("due_at", corteDaJanela(new Date(Date.now()), JANELA_DE_RISCO_EM_DIAS).toISOString()),
+      .lte("due_at", corteDeRisco), // expira em até 5 dias: ver `corteDaJanela`
   ]);
 
   // O KPI de orçamento saiu daqui e passou a ser contado a partir das MESMAS
@@ -100,9 +100,6 @@ export async function GET(_req: NextRequest) {
 
   // ── Alerts: top 20, union from 4 sources ─────────────────────────────────
   const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  // Mesma janela do KPI acima, e pelo mesmo motivo: o corte olha o FIM do dia
-  // guardado, não o início dele.
-  const cutoff5d = corteDaJanela(new Date(Date.now()), JANELA_DE_RISCO_EM_DIAS).toISOString();
 
   const [
     wahaAlertsRes,
@@ -139,7 +136,7 @@ export async function GET(_req: NextRequest) {
         organizations!inner(display_name)
       `)
       .not("status", "in", "(completed,failed)")
-      .lt("due_at", cutoff5d)
+      .lte("due_at", corteDeRisco) // o MESMO corte e o MESMO operador do KPI
       .order("due_at", { ascending: true })
       .limit(20),
 

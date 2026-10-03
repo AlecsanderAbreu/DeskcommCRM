@@ -650,7 +650,7 @@ describe("a janela de 5 dias do painel conta até o FIM do dia do prazo", () => 
     expect(diaDoPrazo.getTime() <= corteDaJanela(agora, 5).getTime()).toBe(true);
   });
 
-  it("a janela de 0 dias é o próprio agora (o corte não vira 'ontem')", () => {
+  it("a janela de 0 dias conta só quem já expirou (o corte é agora menos o dia guardado)", () => {
     expect(corteDaJanela(agora, 0).getTime()).toBe(agora.getTime() - DIA_MS);
   });
 });
@@ -698,6 +698,18 @@ describe("o alerta 'vencida' do painel vira junto com o selo", () => {
     expect(computeRiskLevel(prazoIso, recebido, fim)).toBe("expired");
     expect(computeSlaBucket(prazoIso, recebido, fim)).toBe("overdue");
     expect(distanciaDoPrazo(prazoIso, t, fim).label).toBe("atrasado hoje");
+  });
+
+  it("a rota filtra `due_at` só pelo corte da janela, e não lê o instante dele", () => {
+    // Os casos acima provam o HELPER; este prova que a ROTA o usa. Sem ele,
+    // devolver o KPI ou a lista de alertas a `Date.now() + 5 dias`, ou o
+    // "vencida" a `Date.parse(row.due_at) < now`, passava verde (medido na triagem
+    // do #2179). KPI e alertas usam o MESMO corte com o MESMO operador.
+    const fonte = codigoSemComentario("app/api/v1/admin/dashboard/kpis/route.ts");
+    const filtros = fonte.match(/\.(?:lt|lte|gt|gte|eq)\(\s*"due_at"[^)]*\)/g) ?? [];
+    expect(filtros).toEqual(['.lte("due_at", corteDeRisco)', '.lte("due_at", corteDeRisco)']);
+    expect(fonte).toMatch(/const corteDeRisco = corteDaJanela\(/);
+    expect(fonte).not.toMatch(/(?:Date\.parse|new Date)\(\s*row\.due_at/);
   });
 
   it("o texto do alerta carrega o DIA guardado, e não o fuso do processo", () => {
