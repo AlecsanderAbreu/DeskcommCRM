@@ -4,14 +4,14 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   headers: vi.fn(),
   loadAuthUser: vi.fn(),
-  requirePlatformAdmin: vi.fn(),
+  escritaDeAdminOuRecusa: vi.fn(),
   gravarPelaTela: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
 vi.mock("@/lib/audit", () => ({ audit: mocks.audit }));
-vi.mock("@/lib/auth/requirePlatformAdmin", () => ({
-  requirePlatformAdmin: mocks.requirePlatformAdmin,
+vi.mock("@/lib/auth/escritaDeAdminOuRecusa", () => ({
+  escritaDeAdminOuRecusa: mocks.escritaDeAdminOuRecusa,
 }));
 vi.mock("@/lib/auth/server", () => ({ loadAuthUser: mocks.loadAuthUser }));
 vi.mock("@/lib/instalacao/config", () => ({ gravarPelaTela: mocks.gravarPelaTela }));
@@ -25,7 +25,10 @@ describe("updateCustomBrandingCss", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.headers.mockResolvedValue(new Headers({ "x-request-id": "req-test" }));
-    mocks.requirePlatformAdmin.mockResolvedValue({ user: ADMIN, platformAdmin: { scope: "full" } });
+    mocks.escritaDeAdminOuRecusa.mockResolvedValue({
+      ok: true,
+      ctx: { user: ADMIN, platformAdmin: { scope: "full" } },
+    });
     mocks.loadAuthUser.mockResolvedValue({ support: null });
     mocks.gravarPelaTela.mockResolvedValue({ ok: true });
   });
@@ -34,20 +37,26 @@ describe("updateCustomBrandingCss", () => {
     const resultado = await updateCustomBrandingCss({ css: CSS } as never);
 
     expect(resultado.ok).toBe(false);
-    expect(mocks.requirePlatformAdmin).not.toHaveBeenCalled();
+    expect(mocks.escritaDeAdminOuRecusa).not.toHaveBeenCalled();
     expect(mocks.gravarPelaTela).not.toHaveBeenCalled();
   });
 
   it("recusa escopo de plataforma insuficiente", async () => {
-    mocks.requirePlatformAdmin.mockResolvedValue({
-      user: ADMIN,
-      platformAdmin: { scope: "limited" },
-    });
+    mocks.escritaDeAdminOuRecusa.mockResolvedValue({ ok: false, error: "forbidden_scope" });
 
     const resultado = await updateCustomBrandingCss(CSS);
 
-    expect(resultado.ok).toBe(false);
+    expect(resultado).toEqual({ ok: false, error: "Esta ação exige acesso completo à instalação." });
     expect(mocks.loadAuthUser).not.toHaveBeenCalled();
+    expect(mocks.gravarPelaTela).not.toHaveBeenCalled();
+  });
+
+  it("recusa sessão com dívida de verificação em duas etapas", async () => {
+    mocks.escritaDeAdminOuRecusa.mockResolvedValue({ ok: false, error: "mfa_required" });
+
+    const resultado = await updateCustomBrandingCss(CSS);
+
+    expect(resultado).toEqual({ ok: false, error: "Confirme a verificação em duas etapas." });
     expect(mocks.gravarPelaTela).not.toHaveBeenCalled();
   });
 

@@ -55,7 +55,7 @@ export function CssPersonalizado({
             role="alert"
             className="rounded-md border border-error/30 bg-error/10 p-3 text-sm text-error-fg"
           >
-            {t("O CSS salvo não foi aplicado porque contém uma regra inválida.")} {t(erroAtual)}
+            {t("O CSS salvo não foi aplicado porque contém uma regra inválida.")} {erroAtual}
           </p>
         ) : null}
 

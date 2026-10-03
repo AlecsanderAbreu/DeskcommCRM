@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 
 import { audit } from "@/lib/audit";
-import { requirePlatformAdmin } from "@/lib/auth/requirePlatformAdmin";
+import { escritaDeAdminOuRecusa } from "@/lib/auth/escritaDeAdminOuRecusa";
 import { loadAuthUser } from "@/lib/auth/server";
 import {
   CHAVE_CSS_PERSONALIZADO,
@@ -25,10 +25,17 @@ export async function updateCustomBrandingCss(
   const validacao = validarCssPersonalizado(entrada);
   if (validacao.erro) return { ok: false, error: validacao.erro };
 
-  const { user, platformAdmin } = await requirePlatformAdmin();
-  if (platformAdmin.scope !== "full") {
-    return { ok: false, error: "Esta ação exige acesso completo à instalação." };
+  const escrita = await escritaDeAdminOuRecusa();
+  if (!escrita.ok) {
+    return {
+      ok: false,
+      error:
+        escrita.error === "mfa_required"
+          ? "Confirme a verificação em duas etapas."
+          : "Esta ação exige acesso completo à instalação.",
+    };
   }
+  const { user } = escrita.ctx;
   const usuarioAtual = await loadAuthUser();
   if (usuarioAtual?.support) {
     return { ok: false, error: "Saia do acompanhamento administrativo antes de mudar a marca." };
