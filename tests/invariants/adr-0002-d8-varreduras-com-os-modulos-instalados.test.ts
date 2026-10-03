@@ -781,7 +781,10 @@ describe("D8 — as varreduras de RLS, security definer e cascata de LGPD com os
               where contact_id = '7a5f0011-5555-4000-8000-000000000001';`),
       ).toBe("Assunto escrito sobre Vera");
 
-      expect(violacoesLgpd(p), "com a seção declarada o scan reprova o que o mecanismo alcança").toEqual([]);
+      expect(
+        violacoesLgpd(p),
+        "com a seção declarada o scan ainda reprova a tabela que o mecanismo alcança",
+      ).toEqual([]);
 
       sql(`select public.fn_lgpd_cascade_redact_contact(
             '7a5f0011-6666-4000-8000-000000000001',
@@ -793,7 +796,7 @@ describe("D8 — as varreduras de RLS, security definer e cascata de LGPD com os
         "a seção declarada não foi redigida pela anonimização — o scan diria coberto e a " +
           "pessoa ficaria legível, que é exatamente o modo de falha da LGPD",
       ).toBe("true");
-      // E o vizinho (outra linha da mesma tabela) não é tocado.
+      // E nenhuma linha da sonda ficou com o título (há uma só: isto não mede vizinho intocado).
       expect(
         Number(sql(`select count(*) from public.sonda_lgpd_titulo where title is not null;`)),
       ).toBe(0);
