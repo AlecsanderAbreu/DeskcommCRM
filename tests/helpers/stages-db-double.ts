@@ -222,6 +222,14 @@ export function makeDb(opts: DbOpts = {}): Registro {
 
   function builder(table: string) {
     const filtros: Array<[string, unknown]> = [];
+    /**
+     * `.gte(col, valor)` / `.lte(col, valor)` — recorte por DATA, o que a taxa
+     * histórica por etapa (#1753) usa para dizer de QUAL período é o número.
+     * Sem estes dois, a rota cairia num TypeError do dublê e o teste mediria o
+     * dublê em vez do handler. A comparação é de string: o `performed_at` do
+     * Postgres é ISO-8601 em UTC, e ISO ordena lexicograficamente.
+     */
+    const intervalos: Array<{ coluna: string; op: "gte" | "lte"; valor: string }> = [];
     const pertinencias: Array<[string, unknown[]]> = [];
     const negacoes: Array<[string, unknown]> = [];
     const disjuncoes: Clausula[][] = [];
@@ -245,6 +253,12 @@ export function makeDb(opts: DbOpts = {}): Registro {
         // filtros — a mesma combinação do PostgREST.
         .filter((r) =>
           disjuncoes.every((clausulas) => clausulas.some((clausula) => casa(r, clausula))),
+        )
+        .filter((r) =>
+          intervalos.every(({ coluna, op, valor }) => {
+            const texto = typeof r[coluna] === "string" ? r[coluna] : String(r[coluna]);
+            return op === "gte" ? texto >= valor : texto <= valor;
+          }),
         );
 
     /**
@@ -389,6 +403,14 @@ export function makeDb(opts: DbOpts = {}): Registro {
       },
       limit: (n: number) => {
         teto = n;
+        return b;
+      },
+      gte: (c: string, v: string) => {
+        intervalos.push({ coluna: c, op: "gte", valor: v });
+        return b;
+      },
+      lte: (c: string, v: string) => {
+        intervalos.push({ coluna: c, op: "lte", valor: v });
         return b;
       },
       order: (col: string) => {
