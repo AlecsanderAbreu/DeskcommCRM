@@ -141,6 +141,25 @@ describe("o elo que some sem barulho", () => {
     ).toMatch(/leads:\s*leadsComMarcadores\.leads/);
   });
 
+  it("contato SEM conversa sai como `null`, não ausente — senão \"Abrir conversa\" nunca aparece (#1993)", () => {
+    // O slot e o dossiê só pintam a ação com `conversa === null`; `undefined` é
+    // "ainda não carregou" e fica mudo. A primeira versão do #2207 testava o
+    // componente com `conversa={null}` direto, um valor que a rota não produzia:
+    // ela fazia `...(conversa ? { conversa } : {})` e o campo saía AUSENTE. O
+    // componente estava certo e o botão nunca aparecia no quadro de verdade.
+    const fonte = readFileSync("app/api/v1/pipelines/[id]/board/route.ts", "utf8");
+    const corpo = fonte.slice(fonte.indexOf("async function withConversas"));
+    const daFuncao = corpo.slice(0, corpo.indexOf("\n}\n"));
+    // Lead sem contato continua sem o campo: ele sai antes, e é ausência legítima.
+    expect(daFuncao).toMatch(/if \(!lead\.contact_id\) return lead;/);
+    expect(daFuncao, "contato sem conversa precisa virar `conversa: null`").toMatch(
+      /conversa:\s*conversa\s*\?\?\s*null/,
+    );
+    expect(daFuncao, "espalhar condicional deixa o campo ausente (undefined)").not.toMatch(
+      /\.\.\.\(conversa\s*\?/,
+    );
+  });
+
   it("a mais RECENTE por contato — não a primeira que o banco devolver", () => {
     const fonte = readFileSync("app/api/v1/pipelines/[id]/board/route.ts", "utf8");
     expect(fonte).toMatch(/order\("last_message_at",\s*\{\s*ascending:\s*false/);
