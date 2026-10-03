@@ -204,6 +204,8 @@ export function ProspectingClient() {
   };
   const elegiveis = canSelect ? candidates.filter(marcavel) : [];
   const allSelected = elegiveis.length > 0 && elegiveis.every((c) => c.selected !== false);
+  // Critério do #2048, medido sobre as linhas que a caixa pode alterar agora, não a fila inteira.
+  const noneSelected = elegiveis.every((c) => c.selected === false);
   const desmarcadas = candidates.filter((c) => c.selected === false);
   /**
    * O que o botão "Excluir desmarcadas" realmente apaga. Espelha o `where` do servidor: sem
@@ -918,7 +920,7 @@ export function ProspectingClient() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={busy || !allSelected}
+                            disabled={busy || noneSelected}
                             onClick={() =>
                               setSelection(
                                 elegiveis.map((c) => c.id),
