@@ -1,6 +1,6 @@
 "use client";
 import { useT } from "@/hooks/i18n/useT";
-import { MARCADOR_NAO_LIDA } from "@/lib/messaging/media/derivable";
+import { DERIVACAO_TERMINADA, MARCADOR_NAO_LIDA } from "@/lib/messaging/media/derivable";
 import type { Message } from "@/lib/types/messaging";
 
 import { AudioPlayer } from "./AudioPlayer";
@@ -25,15 +25,38 @@ export function MediaRenderer({ message }: { message: Message }) {
     case "audio": {
       const pronto = message.media_derived_status === "ready";
       const transcricao = message.media_derived_text?.trim();
+      const texto =
+        pronto && transcricao && transcricao !== MARCADOR_NAO_LIDA ? transcricao : null;
+      // O worker não grava "pending": a linha nasce com status null e só o
+      // worker muda — terminou quando o status entra em DERIVACAO_TERMINADA
+      // (ready/failed/skipped). Null portanto significa "ainda processando",
+      // e é o único sinal que o balão tem: sem ele o atendente vê o player e
+      // não sabe se vai existir texto (#2133).
+      const terminou = DERIVACAO_TERMINADA.has(message.media_derived_status ?? "");
       return (
         <div className="flex flex-col gap-2">
           <AudioPlayer messageId={message.id} isOutbound={isOutbound} />
-          {pronto && transcricao && transcricao !== MARCADOR_NAO_LIDA ? (
+          {texto ? (
+            <>
+              <span
+                data-testid="rotulo-transcricao"
+                className="text-[10px] uppercase tracking-wide opacity-70"
+              >
+                {t("Transcrição")}
+              </span>
+              <p
+                data-testid="transcricao-de-audio"
+                className="text-sm leading-relaxed opacity-80"
+              >
+                {texto}
+              </p>
+            </>
+          ) : !terminou ? (
             <p
-              data-testid="transcricao-de-audio"
-              className="text-sm leading-relaxed opacity-80"
+              data-testid="transcricao-de-audio-pendente"
+              className="text-sm leading-relaxed opacity-60"
             >
-              {transcricao}
+              {t("Transcrevendo…")}
             </p>
           ) : null}
         </div>
