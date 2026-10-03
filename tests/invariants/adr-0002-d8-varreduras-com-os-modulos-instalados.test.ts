@@ -422,6 +422,19 @@ begin
   as $f$ begin perform 1; end $f$;
 end`;
 
+/**
+ * Cria uma `security definer` com o par de revoke que se copia de função antiga
+ * (`from public, anon`) e esquece `authenticated` — que fica com o EXECUTE direto do
+ * `alter default privileges` do baseline. A regra de anon não a vê; só a de módulo.
+ */
+const CORPO_COM_FUNCAO_REVOGADA_SO_DE_ANON = `
+begin
+  create or replace function public.fn_sonda_meio_fechada()
+  returns void language plpgsql security definer set search_path = public
+  as $f$ begin perform 1; end $f$;
+  revoke execute on function public.fn_sonda_meio_fechada() from public, anon;
+end`;
+
 /** Tabela de módulo com FK para `contacts` e coluna `title` — cai no escopo da cascata. */
 const CORPO_COM_DADO_DE_PESSOA = `
 begin
@@ -454,6 +467,7 @@ function limparSondas(): void {
       end loop;
     end $limpa$;
     drop function if exists public.fn_sonda_aberta();
+    drop function if exists public.fn_sonda_meio_fechada();
     drop table if exists public.sonda_rls_sem_protecao cascade;
     drop table if exists public.sonda_definer_ok cascade;
     drop table if exists public.sonda_definer_ruim cascade;
@@ -621,6 +635,17 @@ describe("D8 — as varreduras de RLS, security definer e cascata de LGPD com os
       expect(inventarioDefiner().map((f) => f.assinatura)).toContain("fn_honorarios_provisionar()");
     });
 
+    it("com o módulo instalado, nenhuma função que a provisionadora do catálogo criou é executável por anon nem por authenticated", () => {
+      // A régua de módulo sobre o catálogo REAL, não só sobre as sondas. A regra de anon, acima,
+      // não basta: `revoke ... from public, anon` deixa o EXECUTE de authenticated (ver a sonda
+      // "revogada só de anon", abaixo), e o irmão roda sem módulo — não vê a função.
+      expect(
+        funcoesNovasExpostas(PROVISIONAMENTOS.flatMap((p) => p.funcoes)),
+        "função criada no provisionar ficou executável por anon ou authenticated — revogue de " +
+          "public, anon E authenticated; só service_role instala e opera módulo (D4)",
+      ).toEqual([]);
+    });
+
     it("CONTROLE: provisionadora que só cria tabela não deixa função nenhuma para a varredura", () => {
       const p = provisionarSonda("sondaok", CORPO_SO_TABELA);
       expect(p.funcoes, "a provisionadora de controle criou função — o corpo não era o declarado").toEqual([]);
@@ -651,6 +676,25 @@ describe("D8 — as varreduras de RLS, security definer e cascata de LGPD com os
         "a função nasceu com grant do `alter default privileges` do baseline — as DUAS origens " +
           "da D4, e as duas têm de aparecer aqui",
       ).toBe("anon EXECUTA + authenticated EXECUTA");
+    });
+
+    it("SABOTAGEM: a função revogada só de public e anon passa na regra de anon e reprova 1/1 na de módulo", () => {
+      const p = provisionarSonda("sondameia", CORPO_COM_FUNCAO_REVOGADA_SO_DE_ANON);
+      expect(p.funcoes, "a sonda não criou a função — o corpo não era o declarado").toEqual([
+        "fn_sonda_meio_fechada()",
+      ]);
+
+      // A regra de anon não a vê: é a metade que ela não cobre.
+      expect(
+        inventarioDefiner()
+          .filter((f) => f.anon)
+          .map((f) => f.assinatura),
+      ).not.toContain("fn_sonda_meio_fechada()");
+
+      expect(
+        funcoesNovasExpostas(p.funcoes),
+        "a definer que ficou com o EXECUTE de authenticated não foi anotada (1/1 previsto)",
+      ).toEqual([{ assinatura: "fn_sonda_meio_fechada()", motivo: "authenticated EXECUTA" }]);
     });
   });
 
