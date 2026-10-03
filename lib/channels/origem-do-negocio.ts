@@ -29,18 +29,20 @@ import { SOCIAL_NETWORKS } from "./social/catalog";
  * ## Por que o padrão é WhatsApp
  *
  * É o canal das conversas que não vêm do intermediário social (QR e oficial), e
- * é o valor que `garantirLeadDaConversa` já usava. Um canal que o catálogo não
- * reconhece cai no padrão em vez de gravar um `source` inventado.
+ * é o MESMO objeto que `garantirLeadDaConversa` usa quando ninguém passa
+ * origem (`ORIGEM_PADRAO` aponta para `ORIGEM_DO_WHATSAPP`): um texto só.
+ * Um canal que o catálogo não reconhece cai no padrão em vez de gravar um
+ * `source` inventado.
  */
+export const ORIGEM_DO_WHATSAPP: OrigemDoNascimento = {
+  rotulo: "WhatsApp",
+  source: "whatsapp",
+  motivo: "primeira mensagem recebida no WhatsApp",
+};
+
 export function origemDoNegocioPeloCanal(canal: string | null | undefined): OrigemDoNascimento {
   const rede = SOCIAL_NETWORKS.find((r) => r.inbox && r.id === canal);
-  if (!rede) {
-    return {
-      rotulo: "WhatsApp",
-      source: "whatsapp",
-      motivo: "primeira mensagem recebida no WhatsApp",
-    };
-  }
+  if (!rede) return ORIGEM_DO_WHATSAPP;
   return {
     rotulo: rede.label,
     source: rede.id,
