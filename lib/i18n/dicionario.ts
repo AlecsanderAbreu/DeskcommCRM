@@ -5507,8 +5507,8 @@ export const DICIONARIO: Traducoes = {
   "sem tag escolhida": { es: "sin etiqueta elegida" },
   "Tags para gravar no lead": { es: "Etiquetas para grabar en el lead" },
   "ex.: vip, orcamento-aberto": { es: "ej.: vip, presupuesto-abierto" },
-  "Separe por vírgula. Tags que o lead já tem são mantidas — o merge é idempotente.": {
-    es: "Separa por comas. Las etiquetas que el negocio ya tiene se conservan: la unión es idempotente.",
+  "Separe por vírgula. Tags que o lead já tem são mantidas e nada é apagado.": {
+    es: "Separa por comas. Las etiquetas que el lead ya tiene se conservan y no se borra nada.",
   },
   "O card vai para esta etapa do mesmo funil — trocar de funil é recusado, como no quadro.": {
     es: "La tarjeta va a esta etapa del mismo embudo: cambiar de embudo se rechaza, igual que en el tablero.",

@@ -56,7 +56,7 @@ export function EditLeadTagForm({
       />
       {erro && <p className="text-xs text-error-fg">{erro}</p>}
       <p className="text-xs text-text-muted">
-        {t("Separe por vírgula. Tags que o lead já tem são mantidas — o merge é idempotente.")}
+        {t("Separe por vírgula. Tags que o lead já tem são mantidas e nada é apagado.")}
       </p>
     </div>
   );
