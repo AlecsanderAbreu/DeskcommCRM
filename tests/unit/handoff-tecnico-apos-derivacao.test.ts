@@ -45,6 +45,12 @@ const messageRow: Record<string, unknown> = {
 const MOTIVO_FALSO = "O cliente enviou áudios duas vezes seguidas e não há transcrição de texto disponível no sistema.";
 
 let conversaRow: Record<string, unknown> = {};
+/** O que a consulta "um humano respondeu depois da marca?" devolve (`sent_via` user/external_device). */
+let respostasHumanas: { data: Array<{ id: string }> | null; error: { message: string } | null } = {
+  data: [],
+  error: null,
+};
+const filtrosDaRespostaHumana: Array<[string, unknown]> = [];
 
 vi.mock("@/lib/logger", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
@@ -63,6 +69,9 @@ vi.mock("@/lib/supabase/admin", () => ({
               : tabela === "ai_agent_versions"
                 ? { id: "v1" }
                 : messageRow;
+      // A consulta de resposta humana é a única que filtra `sent_via`: é por ela
+      // que o dublê sabe qual resposta entregar.
+      let perguntaPorRespostaHumana = false;
       const update =
         tabela === "conversations"
           ? updateConversasMock
@@ -74,6 +83,15 @@ vi.mock("@/lib/supabase/admin", () => ({
         maybeSingle: async () => ({ data: linha, error: null }),
         single: async () => ({ data: linha, error: null }),
         insert: async () => ({ error: null }),
+        in: (coluna: string, valores: unknown) => {
+          if (coluna === "sent_via") perguntaPorRespostaHumana = true;
+          filtrosDaRespostaHumana.push([`in:${coluna}`, valores]);
+          return chain;
+        },
+        gt: (coluna: string, valor: unknown) => {
+          filtrosDaRespostaHumana.push([`gt:${coluna}`, valor]);
+          return chain;
+        },
         update: (patch: Record<string, unknown>) => {
           update(patch);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,7 +108,9 @@ vi.mock("@/lib/supabase/admin", () => ({
           return chain;
         },
         then: (ok: (v: unknown) => unknown, erro?: (e: unknown) => unknown) =>
-          Promise.resolve({ data: linha ? [linha] : [], error: null }).then(ok, erro),
+          Promise.resolve(
+            perguntaPorRespostaHumana ? respostasHumanas : { data: linha ? [linha] : [], error: null },
+          ).then(ok, erro),
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const chain: any = new Proxy(terminais, {
@@ -198,6 +218,8 @@ describe("a derivação que conclui depois do handoff (#2210)", () => {
     updateConversasMock.mockReset();
     updateMensagemMock.mockReset();
     conversaRow = conversaEmHandoff({ metadata: marca() });
+    respostasHumanas = { data: [], error: null };
+    filtrosDaRespostaHumana.length = 0;
     messageRow.media_derived_status = null;
     messageRow.type = "audio";
     messageRow.media_storage_path = "org1/conv1/msg1.ogg";
@@ -255,6 +277,36 @@ describe("a derivação que conclui depois do handoff (#2210)", () => {
       expect(patch).not.toHaveProperty("force_human");
       expect(patch).not.toHaveProperty("last_handoff_at");
     }
+  });
+
+  it("atendente RESPONDEU sem clicar em 'Assumir': corrige o motivo e NÃO devolve", async () => {
+    // Responder não atribui a conversa: pelo inbox o handler só estende o
+    // silêncio, pelo celular (silêncio já `infinity`) nada é gravado. A conversa
+    // segue sem dono e com o mesmo motivo — só a mensagem enviada denuncia a pessoa.
+    respostasHumanas = { data: [{ id: "out-celular" }], error: null };
+
+    const r = await deriveMessageMedia(eventRow());
+
+    expect(r.status).toBe("ok");
+    expect(devolverMock, "o agente voltaria a falar por cima de quem está conversando").not.toHaveBeenCalled();
+    expect(dispatchesEmitidos()).toHaveLength(0);
+    const patches = updateConversasMock.mock.calls.map((chamada) => chamada[0] as Record<string, unknown>);
+    const doMotivo = patches.find((patch) => "last_handoff_reason" in patch);
+    expect(doMotivo, "o motivo segue afirmando algo que o banco desmentiu").toBeTruthy();
+    expect(doMotivo!.last_handoff_reason).not.toBe(MOTIVO_FALSO);
+
+    // A pergunta é a certa: gente (inbox ou celular), depois da marca.
+    expect(filtrosDaRespostaHumana).toContainEqual(["in:sent_via", ["user", "external_device"]]);
+    expect(filtrosDaRespostaHumana).toContainEqual(["gt:created_at", "2026-10-03T21:05:58.000Z"]);
+  });
+
+  it("não deu para saber se alguém respondeu: falha fechado — não devolve", async () => {
+    respostasHumanas = { data: null, error: { message: "timeout" } };
+
+    await deriveMessageMedia(eventRow());
+
+    expect(devolverMock).not.toHaveBeenCalled();
+    expect(dispatchesEmitidos()).toHaveLength(0);
   });
 
   it("handoff por decisão humana (sem a marca) continua permanente — controle", async () => {

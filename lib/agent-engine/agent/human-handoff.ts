@@ -209,7 +209,6 @@ export async function performHumanHandoff(
           causa: "derivacao_ausente",
           message_id: opts.derivacaoPendente.messageId,
           motivo_gravado: opts.reason,
-          marcado_em: new Date().toISOString(),
         },
       })
     : "{}";
@@ -221,7 +220,11 @@ export async function performHumanHandoff(
             bot_silenced_until = $3,
             last_handoff_at = now(),
             last_handoff_reason = $4,
-            metadata = (coalesce(metadata, '{}'::jsonb) - $5::text) || $6::jsonb,
+            -- marcado_em sai do now() do BANCO, o mesmo relógio do created_at
+            -- das mensagens com que a reação compara (handoff-tecnico.ts).
+            metadata = (coalesce(metadata, '{}'::jsonb) - $5::text)
+                       || case when $6::jsonb = '{}'::jsonb then '{}'::jsonb
+                               else jsonb_set($6::jsonb, array[$5::text, 'marcado_em'], to_jsonb(now())) end,
             active_ai_agent_id = null,
             active_intent = null,
             active_agent_set_at = null

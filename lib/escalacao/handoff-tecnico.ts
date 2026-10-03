@@ -133,8 +133,12 @@ export type ReacaoAposDerivacao =
   | { acao: "nada"; porque: string }
   /** Devolve pela MESMA função do botão e reenfileira o turno — #2210 ponto 2. */
   | { acao: "devolver" }
-  /** Humano já assumiu (ou a devolução não saiu): o motivo tem de parar de mentir. */
-  | { acao: "corrigir_motivo"; motivo: string; porque: "humano_assumiu" | "devolucao_falhou" };
+  /** Humano já assumiu ou já respondeu (ou a devolução não saiu): o motivo tem de parar de mentir. */
+  | {
+      acao: "corrigir_motivo";
+      motivo: string;
+      porque: "humano_assumiu" | "humano_respondeu" | "devolucao_falhou";
+    };
 
 /**
  * O motivo que substitui o falso. É afirmativo: diz o que ACONTECEU, não o que
@@ -157,6 +161,13 @@ export function decidirReacaoAposDerivacao(entrada: {
   conversa: ConversaEmHandoff;
   messageId: string;
   agora: Date;
+  /**
+   * Uma pessoa já RESPONDEU ao lead depois da marca — pelo inbox ou pelo
+   * celular. Responder não atribui a conversa (o inbox só estende o silêncio; o
+   * celular, com o silêncio já `infinity`, não grava nada), então
+   * `assigned_to_user_id` não enxerga esse humano.
+   */
+  humanoRespondeuDepoisDaMarca?: boolean;
 }): ReacaoAposDerivacao {
   const { conversa, messageId, agora } = entrada;
   const marca = lerMarcaDeHandoffTecnico(conversa.metadata);
@@ -172,6 +183,11 @@ export function decidirReacaoAposDerivacao(entrada: {
   // Quem já assumiu fica com a conversa: só o motivo é corrigido.
   if (conversa.assigned_to_user_id || conversa.assignee_kind === "user")
     return { acao: "corrigir_motivo", motivo: motivoResolvido(agora), porque: "humano_assumiu" };
+
+  // Quem já respondeu sem clicar em "Assumir" também está conversando: devolver
+  // poria o agente a falar por cima dele, respondendo a um áudio velho.
+  if (entrada.humanoRespondeuDepoisDaMarca)
+    return { acao: "corrigir_motivo", motivo: motivoResolvido(agora), porque: "humano_respondeu" };
 
   return { acao: "devolver" };
 }
@@ -220,7 +236,9 @@ export async function reagirAConclusaoDeDerivacao(
     if (!conversa) return { acao: "nada", porque: "conversa_inexistente" };
 
     const marca = lerMarcaDeHandoffTecnico(conversa.metadata);
-    const decisao = decidirReacaoAposDerivacao({ conversa, messageId, agora });
+    const humanoRespondeuDepoisDaMarca =
+      marca !== null && (await humanoRespondeuDepoisDe(admin, organizationId, conversationId, marca.marcado_em));
+    const decisao = decidirReacaoAposDerivacao({ conversa, messageId, agora, humanoRespondeuDepoisDaMarca });
     if (decisao.acao === "nada") return decisao;
 
     if (decisao.acao === "devolver") {
@@ -261,6 +279,41 @@ export async function reagirAConclusaoDeDerivacao(
     });
     return { acao: "nada", porque: "erro" };
   }
+}
+
+/**
+ * Saiu mensagem de GENTE para o lead depois da marca? `sent_via` `user` é o
+ * inbox; `external_device` é o celular — o mesmo sinal humano que a cron de
+ * devolução já conta (`lib/escalacao/devolucao-automatica.ts`). O aviso do
+ * handoff ao lead sai com `ai` e não conta.
+ *
+ * A comparação é no relógio do BANCO dos dois lados: `marcado_em` é o `now()`
+ * do UPDATE do handoff, `created_at` é o default da linha. Comparar com o
+ * relógio do Node deixaria uma resposta colada na marca escapar por desvio.
+ *
+ * Erro de leitura conta como "respondeu": falhar fechado na ação — no pior
+ * caso o motivo é corrigido e a conversa fica com o humano, como estava.
+ */
+async function humanoRespondeuDepoisDe(
+  admin: SupabaseClient,
+  organizationId: string,
+  conversationId: string,
+  marcadoEm: string,
+): Promise<boolean> {
+  const { data, error } = await admin
+    .from("messages")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("conversation_id", conversationId)
+    .eq("direction", "outbound")
+    .in("sent_via", ["user", "external_device"])
+    .gt("created_at", marcadoEm)
+    .limit(1);
+  if (error) {
+    logger.warn("handoff-tecnico: nao consegui saber se um humano respondeu", { error: error.message });
+    return true;
+  }
+  return (data ?? []).length > 0;
 }
 
 async function corrigirMotivo(
