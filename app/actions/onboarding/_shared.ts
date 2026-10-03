@@ -105,6 +105,15 @@ export async function patchOnboardingState(
   orgId: string,
   patch: Partial<OnboardingState>,
   extra?: { display_name?: string; timezone?: string },
+  /**
+   * `soNoWizard`: grava só se a organização ainda NÃO terminou o onboarding
+   * e recusa com `org_ja_configurada` caso contrário. Só as boas-vindas pedem
+   * isso (#2113). Os outros passos já tiveram efeito fora daqui (agente
+   * publicado, convite enviado, quadro aplicado) e precisam registrar o passo
+   * mesmo numa aba antiga — recusar ali deixaria o efeito sem estado,
+   * auditoria nem evento.
+   */
+  opcoes?: { soNoWizard?: boolean },
 ): Promise<void> {
   const admin = createAdminClient();
   const { state } = await loadOnboardingState(orgId);
@@ -112,6 +121,11 @@ export async function patchOnboardingState(
   const update: Record<string, unknown> = { onboarding_state: merged };
   if (extra?.display_name) update.display_name = extra.display_name;
   if (extra?.timezone) update.timezone = extra.timezone;
+  if (!opcoes?.soNoWizard) {
+    const { error } = await admin.from("organizations").update(update).eq("id", orgId);
+    if (error) throw new OnboardingError("db_error", error.message);
+    return;
+  }
   // #2113: a aba de boas-vindas pode ficar aberta enquanto o onboarding é
   // concluído em OUTRA aba. Sem esta condição, o submit regravava
   // `display_name` e `onboarding_state` numa organização já configurada.
