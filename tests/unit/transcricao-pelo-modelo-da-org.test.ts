@@ -224,15 +224,9 @@ describe("transcricao_de_audio — quem ouve o áudio (#2171)", () => {
     );
     expect(String(chamada.model?.modelId ?? "")).toContain("gemini");
 
-    // ...e NENHUM degrau OpenAI foi nem resolvido: o resolvedor da org nunca
-    // foi consultado com `provider: "openai"`, e o endpoint da OpenAI não foi
-    // chamado.
-    expect(resolveMock).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "org1",
-      expect.objectContaining({ provider: "openai" }),
-    );
+    // ...e o endpoint da OpenAI não foi chamado. O degrau OpenAI FOI
+    // consultado — ele vem antes (ordem de `lib/ai/embeddings/chave.ts`) — e
+    // não achou chave, que é o caso da issue.
     expect(fetchMock).not.toHaveBeenCalled();
 
     expect(updateEqMock).toHaveBeenCalledWith(
@@ -312,6 +306,30 @@ describe("transcricao_de_audio — quem ouve o áudio (#2171)", () => {
           media_derived_status: "ready",
           media_derived_text: "transcrito pelo whisper",
         }),
+      );
+    });
+
+    it("org com Gemini que TAMBÉM tem chave OpenAI segue no whisper-1 — ninguém troca de fornecedor numa atualização", async () => {
+      // A ordem da escada é a de `lib/ai/embeddings/chave.ts` (degraus 5 e 7):
+      // a chave OpenAI vem antes do modelo da organização. Quem já transcrevia
+      // pelo Whisper continua nele; o Gemini só ouve quem não tem chave OpenAI.
+      resolveMock.mockImplementation(
+        async (_pool: unknown, _cfg: unknown, _org: unknown, override?: { provider?: string }) =>
+          override?.provider === "openai"
+            ? configResolvida({ provider: "openai", apiKey: CHAVE_OPENAI, defaultModel: "gpt-5" })
+            : configResolvida(),
+      );
+
+      const r = await deriveMessageMedia(eventRow());
+
+      expect(r.status, `detail=${r.detail}`).toBe("ok");
+      expect(generateTextMock, "o áudio foi para o Gemini, trocando o fornecedor").not.toHaveBeenCalled();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0]! as [string, { headers: Record<string, string> }];
+      expect(url).toBe("https://api.openai.com/v1/audio/transcriptions");
+      expect(String(init.headers.Authorization)).toBe(`Bearer ${CHAVE_OPENAI}`);
+      expect(updateEqMock).toHaveBeenCalledWith(
+        expect.objectContaining({ media_derived_status: "ready", media_derived_text: "transcrito pelo whisper" }),
       );
     });
 

@@ -18,13 +18,17 @@
  *     falar com o modelo de conversa seria trocar o fornecedor de quem já
  *     transcreve por outro, sem avisar (a mesma cautela do degrau 5 da escada
  *     de embedding, que protege quem já pagava por um provedor).
- *  2. **Modelo de conversa da organização, quando declarar `audio`** — paga
- *     com a mesma credencial BYOK da conversa, que a organização já validou.
- *     `transcreveAudio` é o registro de capacidades (`capabilities.ts`), que
- *     só afirma o que se sabe que funciona.
- *  3. **Padrão OpenAI-compatível** — a chave OpenAI resolvida como sempre
+ *  2. **Padrão OpenAI-compatível** — a chave OpenAI resolvida como sempre
  *     (credencial da organização, senão a da instalação), com `whisper-1` ou
- *     `TRANSCRIPTION_MODEL`: o desfecho de todo mundo que não declara áudio.
+ *     `TRANSCRIPTION_MODEL`. Vem ANTES do modelo da organização pelo motivo
+ *     escrito em `lib/ai/embeddings/chave.ts` (degraus 5 e 7): quem já
+ *     transcrevia pela OpenAI não troca de fornecedor — nem de conta que paga —
+ *     numa atualização. Vale para nota de voz e para a trilha de áudio do
+ *     vídeo, que usa o mesmo transcriber.
+ *  3. **Modelo de conversa da organização, quando declarar `audio`** — paga
+ *     com a mesma credencial BYOK da conversa, que a organização já validou.
+ *     É o degrau da #2171: a organização SEM chave OpenAI passa a ouvir o
+ *     áudio. `transcreveAudio` é o registro de capacidades (`capabilities.ts`).
  *  4. **Nada** — resposta legítima, com o motivo. É o que o item 2 da issue
  *     pede: hoje "ninguém tentou" e "tentou e não deu" são o mesmo nulo.
  */
@@ -116,9 +120,8 @@ export function transcricaoPeloModelo(modelo: {
 }
 
 /**
- * A escada. `chaveOpenai` é um DEGRAU com thunk: só é consultado quando os
- * degraus de cima não valem, para uma organização que transcreve pelo próprio
- * modelo não pagar nem uma leitura de credencial OpenAI à toa.
+ * A escada. `chaveOpenai` é um DEGRAU com thunk: só é consultado quando o
+ * serviço de transcrição da instalação não vale.
  */
 export async function decidirTranscricao(entrada: {
   conversa?: ConversaDaOrganizacao | null;
@@ -143,7 +146,26 @@ export async function decidirTranscricao(entrada: {
     };
   }
 
-  // 2 · Modelo de conversa da organização que declara a capacidade `audio`.
+  // 2 · Padrão OpenAI-compatível — o degrau de sempre, antes do modelo da
+  //     organização para ninguém trocar de fornecedor numa atualização.
+  const chaveOpenai = entrada.chaveOpenai ? await entrada.chaveOpenai() : null;
+  if (chaveOpenai) {
+    return {
+      origem: "padrao_openai_compativel",
+      transcriber: apiTranscriptionProvider({
+        apiKey: chaveOpenai,
+        model: modeloDeTranscricaoEmVigor({
+          model: env.TRANSCRIPTION_MODEL,
+        apiKey: env.TRANSCRIPTION_API_KEY,
+          baseUrl: env.TRANSCRIPTION_BASE_URL,
+        }),
+        languages: idiomas,
+      }),
+      motivo: "a chave OpenAI desta organização ou instalação usa o padrão de transcrição de sempre",
+    };
+  }
+
+  // 3 · Modelo de conversa da organização que declara a capacidade `audio`.
   const conversa = entrada.conversa;
   if (
     conversa?.apiKey &&
@@ -160,24 +182,6 @@ export async function decidirTranscricao(entrada: {
         languages: idiomas,
       }),
       motivo: `o modelo de conversa ${conversa.modelId} declara a capacidade audio e transcreve com a própria chave`,
-    };
-  }
-
-  // 3 · Padrão OpenAI-compatível — o degrau de sempre.
-  const chaveOpenai = entrada.chaveOpenai ? await entrada.chaveOpenai() : null;
-  if (chaveOpenai) {
-    return {
-      origem: "padrao_openai_compativel",
-      transcriber: apiTranscriptionProvider({
-        apiKey: chaveOpenai,
-        model: modeloDeTranscricaoEmVigor({
-          model: env.TRANSCRIPTION_MODEL,
-        apiKey: env.TRANSCRIPTION_API_KEY,
-          baseUrl: env.TRANSCRIPTION_BASE_URL,
-        }),
-        languages: idiomas,
-      }),
-      motivo: "a chave OpenAI desta organização ou instalação usa o padrão de transcrição de sempre",
     };
   }
 

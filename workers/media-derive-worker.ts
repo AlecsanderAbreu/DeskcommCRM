@@ -223,8 +223,8 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
     // degrau. Aqui só se monta a entrada dela.
     //
     // O 401 de 09/2025 (chave da Anthropic indo para api.openai.com) continua
-    // tratado: a chave do provedor de chat só é lida pelo degrau 3, quando os
-    // degraus de cima não valem.
+    // tratado: o degrau OpenAI só usa a chave do chat quando o chat É OpenAI;
+    // fora disso resolve a credencial OpenAI à parte (`chaveOpenai` abaixo).
     // Só áudio e vídeo têm quem transcreva: imagem e documento não precisam
     // desta pergunta, e fazê-la à toa resolveria o padrão da organização numa
     // leitura de foto que nunca vai usar o degrau (o teste #1591 cobre justamente
@@ -232,7 +232,7 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
     const precisaTranscricao = msg.type === "audio" || msg.type === "video";
     let conversa: Awaited<ReturnType<typeof resolveOrgLlmConfig>> | null = llm;
     if (precisaTranscricao && bindingDaVisao) {
-      // O `llm` acima é o binding de VISÃO. O degrau 2 pede o modelo de
+      // O `llm` acima é o binding de VISÃO. O degrau 3 pede o modelo de
       // CONVERSA — o padrão da organização, resolvido sem override. Pode não
       // existir credencial padrão nenhuma; aí o degrau simplesmente não existe
       // e a escada devolve `nada` com o motivo, em vez de um nulo mudo.
@@ -243,9 +243,8 @@ export async function deriveMessageMedia(row: EventRow): Promise<HandlerResult> 
       }
     }
 
-    // Thunk, não valor: a credencial OpenAI só é LIDA se nenhum degrau de
-    // cima valer. Uma organização que transcreve pelo próprio modelo não paga
-    // nem uma leitura de credencial da OpenAI à toa.
+    // Thunk, não valor: a credencial OpenAI só é LIDA se o serviço de
+    // transcrição da instalação (degrau 1) não valer.
     const chaveOpenai = async (): Promise<string | null> => {
       if (llm.provider === "openai") return llm.apiKey;
       try {
