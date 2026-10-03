@@ -65,6 +65,16 @@ function linhas(consulta: string): string[] {
     .filter((l) => l !== "");
 }
 
+/**
+ * Booleano como o `psql` devolve SEM cast: `t`/`f`. Com `::text` vem `true`/`false` — os dois
+ * formatos passam por aqui, porque `has_table_privilege` sem cast devolve `t` e uma comparação
+ * com "true" transformaria toda recusa em falso verde.
+ */
+function booleano(resultado: string): boolean {
+  const t = resultado.trim().toLowerCase();
+  return t === "t" || t === "true";
+}
+
 /** Roda um script esperando FALHA; devolve o texto do erro, ou "" se passou. */
 function tentar(script: string): string {
   try {
@@ -290,12 +300,8 @@ function inventarioDefiner(): Definer[] {
 function funcoesNovasExpostas(assinaturas: readonly string[]): { assinatura: string; motivo: string }[] {
   const v: { assinatura: string; motivo: string }[] = [];
   for (const assinatura of assinaturas) {
-    const anon = sql(
-      `select has_function_privilege('anon', '${assinatura}'::regprocedure, 'EXECUTE');`,
-    ) === "true";
-    const auth = sql(
-      `select has_function_privilege('authenticated', '${assinatura}'::regprocedure, 'EXECUTE');`,
-    ) === "true";
+    const anon = booleano(sql(`select has_function_privilege('anon', '${assinatura}'::regprocedure, 'EXECUTE');`));
+    const auth = booleano(sql(`select has_function_privilege('authenticated', '${assinatura}'::regprocedure, 'EXECUTE');`));
     if (anon) v.push({ assinatura, motivo: "anon EXECUTA" });
     if (auth) v.push({ assinatura, motivo: "authenticated EXECUTA" });
   }
@@ -344,11 +350,11 @@ function tabelasNaCascata(): string[] {
 
 /** A seção que o módulo declarou para a tabela, se declarou. */
 function declarada(modulo: string, tabela: string): boolean {
-  return (
+  return booleano(
     sql(
       `select exists(select 1 from public.modulo_secoes_lgpd
                       where modulo = '${modulo}' and tabela = '${tabela}')::text;`,
-    ) === "true"
+    ),
   );
 }
 
@@ -553,7 +559,7 @@ describe("D8 — as varreduras de RLS, security definer e cascata de LGPD com os
       const comOrg = comOrganizationId(TABELAS_DE_MODULO);
       expect(comOrg.length).toBeGreaterThanOrEqual(2);
       for (const tabela of comOrg) {
-        const podeLer = sql(`select has_table_privilege('authenticated', 'public.${tabela}', 'select');`) === "true";
+        const podeLer = booleano(sql(`select has_table_privilege('authenticated', 'public.${tabela}', 'select');`));
         if (podeLer) {
           const esperado = Number(
             sql(`select count(*) from public.${tabela} where organization_id = '${GOV_ORG}';`),
@@ -610,7 +616,9 @@ describe("D8 — as varreduras de RLS, security definer e cascata de LGPD com os
       ).toEqual([]);
 
       // E o inventário ENXERGA a provisionadora do módulo — sem isso o verde acima seria cego.
-      expect(inventarioDefiner().map((f) => f.assinatura)).toContain("public.fn_honorarios_provisionar()");
+      // `oid::regprocedure::text` omite o schema que está no `search_path` — a mesma forma
+      // que o irmão guarda em INVENTARIO_PRIMITIVAS.
+      expect(inventarioDefiner().map((f) => f.assinatura)).toContain("fn_honorarios_provisionar()");
     });
 
     it("CONTROLE: provisionadora que só cria tabela não deixa função nenhuma para a varredura", () => {
@@ -629,12 +637,12 @@ describe("D8 — as varreduras de RLS, security definer e cascata de LGPD com os
 
       const p = provisionarSonda("sondaruim", CORPO_COM_FUNCAO_EXPOSTA);
       expect(p.funcoes, "a sonda não criou a função — o corpo não era o declarado").toEqual([
-        "public.fn_sonda_aberta()",
+        "fn_sonda_aberta()",
       ]);
 
       const expostas = funcoesNovasExpostas(p.funcoes);
       expect(expostas.map((e) => e.assinatura), "a função nova exposta não foi anotada (1/1 previsto)").toEqual([
-        "public.fn_sonda_aberta()",
+        "fn_sonda_aberta()",
       ]);
       const motivos = expostas.map((e) => e.motivo).sort().join(" + ");
       expect(
