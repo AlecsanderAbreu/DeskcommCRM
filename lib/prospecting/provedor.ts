@@ -30,9 +30,13 @@
  * ─── A CREDENCIAL NÃO MUDA DE LUGAR ────────────────────────────────────────
  *
  * `prospecting_settings.credential_encrypted` já é por organização e já é
- * cifrada pela mesma camada (`store.ts`, `configureCredential`). Ela passa a
- * guardar a chave DO PROVEDOR ESCOLHIDO — mesma coluna, mesmo endereçamento,
- * mesma cifra. Escolher outro provedor troca a chave gravada, não a casa.
+ * cifrada pela mesma camada (`store.ts`, `configureCredential`) — mesma
+ * coluna, mesmo endereçamento, mesma cifra. Ela NÃO está presa a um provedor:
+ * a escolha mora em `organizations.settings` e a chave em `prospecting_settings`,
+ * e nada liga uma à outra. Trocar a escolha sem regravar a chave mandaria a
+ * chave antiga ao provedor novo. Hoje só a Apify é escolhível em produção; a
+ * fatia que trouxer um provedor real precisa prender a chave ao provedor dela
+ * (#2174).
  */
 import {
   ProspectingError,
