@@ -14,7 +14,9 @@
  *   3. vê a contagem do catálogo inteiro e anda de página;
  *   4. abre uma página que não existe mais e cai na última que existe;
  *   5. busca com vírgula e parêntese — que antes iam crus para o `.or()` do
- *      PostgREST — e a tela responde, em vez de quebrar.
+ *      PostgREST — e a tela responde, em vez de quebrar;
+ *   6. a rota que o seletor de produtos da proposta lê (sem `pagina`) mantém o
+ *      formato e não devolve nada para uma letra só.
  *
  * Pré-requisito: `.e2e-creds.json` (o helper roda o seed se faltar). Sem WAHA,
  * Resend, Nuvemshop nem Redis.
@@ -102,4 +104,17 @@ test("gerente encontra produto além do 500º e anda de página", async ({ page 
   await buscar(page, `paginado, ${LOTE} (529`);
   await expect(page.getByTestId(`produto-E2E-PAG-${LOTE}-529`)).toBeVisible({ timeout: ESPERA });
   await info.attach("02-busca-com-virgula", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
+
+  // (6) o seletor de produtos da PROPOSTA lê a mesma rota, a cada tecla, sem
+  // `pagina` (`app/app/proposals/[id]/_client.tsx`). Medido com a sessão do
+  // gerente contra o servidor real: o formato de antes e o piso de 2 letras.
+  const umaLetra = await page.request.get("/api/v1/products?busca=P");
+  expect(umaLetra.status()).toBe(200);
+  expect((await umaLetra.json()).data).toEqual([]);
+  const certo = await page.request.get(
+    `/api/v1/products?busca=${encodeURIComponent(`paginado ${LOTE} 529`)}`,
+  );
+  const corpo = (await certo.json()) as { data: Array<{ codigo: string }>; meta?: unknown };
+  expect(corpo.meta).toBeUndefined();
+  expect(corpo.data.map((p) => p.codigo)).toEqual([`E2E-PAG-${LOTE}-529`]);
 });
