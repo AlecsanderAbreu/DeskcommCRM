@@ -746,27 +746,6 @@ export function StagesSection({
 }
 
 /**
- * O nome da etapa, editado no lugar.
- *
- * ⚠️ SALVA AO CONFIRMAR (Enter ou sair do campo), NUNCA A CADA TECLA: um PATCH
- * por caractere gravaria "P", "Pr", "Pro"… no banco e faria a validação de nome
- * duplicado disparar no meio da digitação. O rascunho é local; a fonte da verdade
- * continua sendo o servidor — a linha inteira é remontada quando o nome gravado
- * muda (`key` da `li`), então uma edição feita em outra aba não fica escondida
- * atrás de um rascunho velho.
- */
-/**
- * A probabilidade de ganho da etapa, editada no lugar (0–100).
- *
- * Mesmo contrato do nome: salva ao CONFIRMAR (Enter ou sair do campo), nunca a
- * cada tecla. Vazio = sem calibração — e limpar é um valor legítimo, não um
- * apagão acidental: a previsão passa a reportar a etapa no balde "sem
- * probabilidade" em vez de somar zero.
- *
- * `key` na linha de cima remonta o campo quando o valor GRAVADO muda, então uma
- * edição de outra aba não fica escondida atrás de um rascunho velho.
- */
-/**
  * A janela de "esfriando" da etapa, editada no lugar em DIAS e HORAS (#1532).
  *
  * A coluna é `crm_stages.expected_duration_hours` em HORAS, mas ninguém pensa
@@ -884,6 +863,17 @@ function JanelaDaEtapa({
   );
 }
 
+/**
+ * A probabilidade de ganho da etapa, editada no lugar (0–100).
+ *
+ * Mesmo contrato do nome: salva ao CONFIRMAR (Enter ou sair do campo), nunca a
+ * cada tecla. Vazio = sem calibração — e limpar é um valor legítimo, não um
+ * apagão acidental: a previsão passa a reportar a etapa no balde "sem
+ * probabilidade" em vez de somar zero.
+ *
+ * `key` na linha de cima remonta o campo quando o valor GRAVADO muda, então uma
+ * edição de outra aba não fica escondida atrás de um rascunho velho.
+ */
 function ProbabilidadeDaEtapa({
   etapa,
   desabilitado,
@@ -949,6 +939,16 @@ function ProbabilidadeDaEtapa({
   );
 }
 
+/**
+ * O nome da etapa, editado no lugar.
+ *
+ * ⚠️ SALVA AO CONFIRMAR (Enter ou sair do campo), NUNCA A CADA TECLA: um PATCH
+ * por caractere gravaria "P", "Pr", "Pro"… no banco e faria a validação de nome
+ * duplicado disparar no meio da digitação. O rascunho é local; a fonte da verdade
+ * continua sendo o servidor — a linha inteira é remontada quando o nome gravado
+ * muda (`key` da `li`), então uma edição feita em outra aba não fica escondida
+ * atrás de um rascunho velho.
+ */
 function NomeDaEtapa({
   etapa,
   desabilitado,
