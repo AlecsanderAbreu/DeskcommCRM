@@ -38,13 +38,19 @@ vi.mock("@/lib/env", async (importOriginal) => {
     },
   };
 });
+// O banco responde por TABELA: vazio por padrão, e o caso da #2190 preenche a
+// credencial e o padrão da organização.
+const banco = vi.hoisted(() => ({
+  lista: {} as Record<string, unknown[]>,
+  unica: {} as Record<string, unknown>,
+}));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
-    from: () => {
+    from: (tabela: string) => {
       const chain: Record<string, unknown> = {
-        maybeSingle: async () => ({ data: null, error: null }),
+        maybeSingle: async () => ({ data: banco.unica[tabela] ?? null, error: null }),
         then: (ok: (v: unknown) => unknown, erro: (e: unknown) => unknown) =>
-          Promise.resolve({ data: [], error: null }).then(ok, erro),
+          Promise.resolve({ data: banco.lista[tabela] ?? [], error: null }).then(ok, erro),
       };
       for (const m of ["select", "eq", "is", "not", "order", "limit"]) chain[m] = () => chain;
       return chain;
@@ -70,6 +76,8 @@ function modeloDo(lista: Ponto[], id: string): string | null {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  banco.lista = {};
+  banco.unica = {};
   vi.mocked(requireRole).mockResolvedValue({
     ok: true,
     user: { id: "actor", idioma: "pt-BR" },
@@ -112,5 +120,31 @@ describe("GET /api/v1/ai/providers — modelo de transcrição em vigor", () => 
   it("modelo de outro serviço (BASE_URL sem API_KEY) não é o que roda: anuncia whisper-1", async () => {
     comTranscricaoNoEnv({ model: "whisper-large-v3", baseUrl: "https://api.groq.com/openai/v1" });
     expect(modeloDo(await pontos(), "transcricao_de_audio")).toBe("whisper-1");
+  });
+});
+
+describe("GET /api/v1/ai/providers — a organização da #2190 (Gemini, sem OpenAI)", () => {
+  it("anuncia o modelo de conversa da organização, e não whisper-1", async () => {
+    // Nenhuma chave OpenAI em lugar nenhum: nem na instalação, nem na org.
+    transcricaoDoEnv.model = "";
+    transcricaoDoEnv.apiKey = "";
+    transcricaoDoEnv.baseUrl = "";
+    vi.stubEnv("OPENAI_API_KEY", "");
+    banco.lista.ai_provider_credentials = [
+      { id: "cred-g", provider: "google", validated_at: "2026-10-01T00:00:00Z", is_active: true },
+    ];
+    banco.unica.organizations = {
+      settings: { llm: { provider: "google", default_model: "gemini-3.5-flash" } },
+    };
+
+    const lista = (await (await GET()).json()) as {
+      data: { pontos: { id: string; efetivo: { provider: string; modelId: string | null } }[] };
+    };
+    const ponto = lista.data.pontos.find((p) => p.id === "transcricao_de_audio");
+    expect(ponto, "ponto transcricao_de_audio sumiu do painel").toBeDefined();
+    // É a rota que entrega o modelo de conversa à escada; se ela deixar de
+    // entregar, a escada cai em "nada" e a tela diz "—" a quem transcreve.
+    expect(ponto!.efetivo.modelId).toBe("gemini-3.5-flash");
+    expect(ponto!.efetivo.provider).toBe("google");
   });
 });
