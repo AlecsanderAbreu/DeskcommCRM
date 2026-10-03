@@ -5497,6 +5497,22 @@ export const DICIONARIO: Traducoes = {
     es: "La plataforma no informa la ubicación de cada clic en un anuncio.",
   },
   "Etapa de destino": { es: "Etapa de destino" },
+  // #2065 — nós de ação do follow-up (mover lead no funil / editar tag)
+  "Mover lead no funil": { es: "Mover lead en el embudo" },
+  "Mover card de etapa": { es: "Mover tarjeta de etapa" },
+  "Editar tag do lead": { es: "Editar etiqueta del lead" },
+  "Gravar tag no lead": { es: "Grabar etiqueta en el lead" },
+  "move o card para outra etapa do funil": { es: "mueve la tarjeta a otra etapa del embudo" },
+  "sem etapa de destino": { es: "sin etapa de destino" },
+  "sem tag escolhida": { es: "sin etiqueta elegida" },
+  "Tags para gravar no lead": { es: "Etiquetas para grabar en el lead" },
+  "ex.: vip, orcamento-aberto": { es: "ej.: vip, presupuesto-abierto" },
+  "Separe por vírgula. Tags que o lead já tem são mantidas — o merge é idempotente.": {
+    es: "Separa por comas. Las etiquetas que el negocio ya tiene se conservan: la unión es idempotente.",
+  },
+  "O card vai para esta etapa do mesmo funil — trocar de funil é recusado, como no quadro.": {
+    es: "La tarjeta va a esta etapa del mismo embudo: cambiar de embudo se rechaza, igual que en el tablero.",
+  },
   "Texto da mensagem": { es: "Texto del mensaje" },
   "Tags do contato": { es: "Etiquetas del contacto" },
   "Tag adicionada": { es: "Etiqueta agregada" },
