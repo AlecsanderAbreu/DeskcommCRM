@@ -43,7 +43,7 @@
  * confirmar a reunião. A hora que passou antes da linha existir não é atraso de
  * cron, é a ocasião que nunca houve: quem marca para daqui a 21h30 não tem
  * "vespera" para avisar. `degrausPendentes` descarta esse degrau contra
- * `created_at`; o atraso LEGÍTIMO de cron continua sando, porque ali a hora
+ * `created_at`; o atraso LEGÍTIMO de cron continua saindo, porque ali a hora
  * venceu DEPOIS de a linha existir — e é a diferença que os dois casos têm.
  *
  * **O carimbo vai ANTES do envio.** O caso medido mandou o lembrete às
@@ -249,7 +249,7 @@ export function estaNaHora(agora: Date, comeca: Date, antecedenciaMin: number): 
  * A hora deste degrau já tinha passado quando a reunião foi marcada?
  *
  * Issue #2223: reunião marcada às 18:30 para as 16h do dia seguinte tem o degrau
- * de 1440 min às 16:00 de hoje — ISTANTE QUE ANTES DA PRÓPRIA LINHA EXISTIR.
+ * de 1440 min às 16:00 de hoje — INSTANTE ANTERIOR À EXISTÊNCIA DA PRÓPRIA LINHA.
  * `estaNaHora` só olha `agora`, e ele respondia `true` na primeira varredura:
  * o lembrete de véspera saía um minuto depois de o agente confirmar a reunião,
  * e a cada nova tentativa (o carimbo que não saía) saía outra vez.
@@ -401,7 +401,8 @@ async function handle(req: NextRequest): Promise<Response> {
     const org = linha.organization_id;
 
     // Antes do contato e da conversa: org parada não abre conversa nem carimba
-    // o compromisso. Na reativação, o degrau que ainda estiver na janela sai
+    // o compromisso (a que para DEPOIS do carimbo, na corrida com a porta de
+    // saída, consome o degrau — ver o `catch` do envio). Na reativação, o degrau que ainda estiver na janela sai
     // normalmente; o que venceu parado não volta (reativação sem rajada).
     if (!ehOperante(statusDaOrgEmbutida(linha.organizations))) {
       pular("org_nao_operante");
@@ -537,7 +538,9 @@ async function handle(req: NextRequest): Promise<Response> {
       enviados += 1;
     } catch (err) {
       // A org parou entre a leitura da rodada e o envio: não é erro, é a
-      // suspensão (a porta de saída lança OrgNaoOperanteError).
+      // suspensão (a porta de saída lança OrgNaoOperanteError). Nesta corrida o
+      // degrau JÁ foi carimbado (o carimbo vem antes do envio) e fica consumido
+      // sem ter saído: na reativação ele não volta, como o que venceu parado.
       if (err instanceof OrgNaoOperanteError) {
         pular("org_nao_operante");
         continue;
