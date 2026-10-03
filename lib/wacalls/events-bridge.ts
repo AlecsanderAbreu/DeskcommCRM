@@ -340,6 +340,28 @@ async function handleCallStatus(
   }
 }
 
+/**
+ * Pedido 1 — bloqueado na ligação é recusado (WaCalls): a linha continua
+ * gravada, mas chamada de bloqueado não abre aviso na Central nem carimba a
+ * timeline. Fail-open: erro de leitura devolve `false` (segue como hoje) —
+ * nunca se suprime aviso no escuro.
+ */
+async function contatoEstaBloqueado(
+  pool: pg.Pool,
+  organizationId: string,
+  contactId: string,
+): Promise<boolean> {
+  try {
+    const { rows } = await pool.query<{ is_blocked: boolean | null }>(
+      `select is_blocked from contacts where organization_id = $1 and id = $2`,
+      [organizationId, contactId],
+    );
+    return rows[0]?.is_blocked === true;
+  } catch {
+    return false;
+  }
+}
+
 async function handleCallEnded(
   pool: pg.Pool,
   sess: WacallsSessionMap,
@@ -396,7 +418,18 @@ async function handleCallEnded(
   // mesmo clique (ver `POLITICAS_DE_AVISO` em `lib/ai/inbox-destino.ts`).
   // Chamada de número que não casou com contato nenhum entra sem referência —
   // o telefone está no título, e o aviso continua sendo aviso.
-  if (!atendida && recebida) {
+  //
+  // Pedido 1: bloqueado não abre aviso (a linha continua gravada acima).
+  // SABOTAGEM: remover o `&& !bloqueado` abaixo = teste de bloqueado vermelho.
+  const bloqueado = row.contact_id
+    ? await contatoEstaBloqueado(pool, sess.organizationId, row.contact_id)
+    : false;
+  if (bloqueado) {
+    log.info('wacalls: call-ended de bloqueado, sem aviso nem atividade', {
+      contact_id: row.contact_id,
+    });
+  }
+  if (!atendida && recebida && !bloqueado) {
     await pool.query(
       `insert into agent_inbox_items (organization_id, kind, severity, title, body, ref_kind, ref_id)
        values ($1, 'voice_call_missed', 'warn', $2, $3, $4, $5)`,
@@ -426,7 +459,9 @@ async function handleCallEnded(
     ],
   );
 
-  if (row.contact_id) {
+  // Pedido 1: bloqueado não carimba a timeline (recusar é não-interação).
+  // SABOTAGEM: remover o `&& !bloqueado` abaixo = teste de bloqueado vermelho.
+  if (row.contact_id && !bloqueado) {
     const result = await emitAgentActivityForContact({
       pool,
       organizationId: sess.organizationId,
