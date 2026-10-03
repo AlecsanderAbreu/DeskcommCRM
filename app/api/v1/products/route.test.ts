@@ -246,3 +246,45 @@ describe("GET /api/v1/products — o catálogo inteiro, não os 500 primeiros", 
     expect(corpo.meta).toEqual({ total: 0, pagina: 2, por_pagina: 50, has_more: false });
   });
 });
+
+describe("GET /api/v1/products — página além da última", () => {
+  /**
+   * O PostgREST responde 416 `PGRST103` quando o `range` começa depois do
+   * total (medido contra o Supabase local). A contagem que a rota faz em
+   * seguida é um `head` sem linhas, que resolve direto na consulta.
+   */
+  function supabaseAlemDoFim(totalAgora: number) {
+    const contagem = {
+      eq: () => contagem,
+      or: () => contagem,
+      then: (resolve: (v: unknown) => void) => resolve({ count: totalAgora, error: null }),
+    };
+    const listagem = {
+      eq: () => listagem,
+      or: () => listagem,
+      order: () => listagem,
+      range: async () => ({
+        data: null,
+        count: null,
+        error: { code: "PGRST103", message: "Requested range not satisfiable" },
+      }),
+    };
+    return {
+      from: () => ({
+        select: (_c: string, opts?: { head?: boolean }) => (opts?.head ? contagem : listagem),
+      }),
+    };
+  }
+
+  it("devolve lista vazia com o total de agora, não erro 500", async () => {
+    vi.mocked(createClient).mockResolvedValue(supabaseAlemDoFim(529) as never);
+    const { GET } = await import("./route");
+
+    const res = await GET(listar("?pagina=99"));
+    const corpo = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(corpo.data).toEqual([]);
+    expect(corpo.meta).toMatchObject({ total: 529, pagina: 99, has_more: false });
+  });
+});

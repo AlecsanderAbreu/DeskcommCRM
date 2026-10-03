@@ -4,6 +4,8 @@ import {
   filtroDaBuscaDoCatalogo,
   intervaloDaPagina,
   paginaDaUrl,
+  queryDaTela,
+  ultimaPagina,
 } from "@/lib/catalogo/busca-da-tela";
 
 /** As condições do `or=`, uma por coluna. */
@@ -60,5 +62,24 @@ describe("paginação pela URL", () => {
   it("a página N é a fatia [(N-1)*50, N*50-1]", () => {
     expect(intervaloDaPagina(1)).toEqual([0, 49]);
     expect(intervaloDaPagina(3)).toEqual([100, 149]);
+  });
+});
+
+describe("voltar a uma página que existe", () => {
+  it.each([
+    [0, 1],
+    [1, 1],
+    [50, 1],
+    [51, 2],
+    [529, 11],
+  ])("%d produtos → última página %d", (total, esperado) => {
+    expect(ultimaPagina(total)).toBe(esperado);
+  });
+
+  it("a query da tela omite busca vazia e página 1", () => {
+    expect(queryDaTela("", 1)).toBe("");
+    expect(queryDaTela("  g17 ", 1)).toBe("?busca=g17");
+    expect(queryDaTela("g17", 3)).toBe("?busca=g17&pagina=3");
+    expect(queryDaTela("", 2)).toBe("?pagina=2");
   });
 });

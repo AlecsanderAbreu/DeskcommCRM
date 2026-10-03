@@ -12,7 +12,8 @@
  *      produtos ao todo, um deles com nome que ordena DEPOIS da posição 500;
  *   2. busca esse produto pelo nome e ele aparece (na versão anterior, não);
  *   3. vê a contagem do catálogo inteiro e anda de página;
- *   4. busca com vírgula e parêntese — que antes iam crus para o `.or()` do
+ *   4. abre uma página que não existe mais e cai na última que existe;
+ *   5. busca com vírgula e parêntese — que antes iam crus para o `.or()` do
  *      PostgREST — e a tela responde, em vez de quebrar.
  *
  * Pré-requisito: `.e2e-creds.json` (o helper roda o seed se faltar). Sem WAHA,
@@ -88,6 +89,14 @@ test("gerente encontra produto além do 500º e anda de página", async ({ page 
   await page.getByTestId("pagina-anterior").click();
   await page.waitForURL((u) => !u.searchParams.has("pagina"), { timeout: ESPERA });
   await expect(page.getByTestId(`produto-E2E-PAG-${LOTE}-001`)).toBeVisible();
+
+  // (3b) página que não existe mais (link antigo, ou apagaram o último produto
+  // dela): o PostgREST responde 416 `PGRST103`, e a tela vai para a última que
+  // existe em vez de dizer "nenhum produto".
+  await page.goto(`/app/products?busca=${encodeURIComponent(`Produto paginado ${LOTE}`)}&pagina=99`);
+  await page.waitForURL((u) => u.searchParams.get("pagina") === "11", { timeout: ESPERA });
+  await expect(page.getByTestId("contagem-produtos")).toHaveText(/^501–529 de 529$/, { timeout: ESPERA });
+  await expect(page.getByTestId(`produto-E2E-PAG-${LOTE}-529`)).toBeVisible();
 
   // (4) vírgula e parêntese no termo: antes iam crus para o `.or()`.
   await buscar(page, `paginado, ${LOTE} (529`);

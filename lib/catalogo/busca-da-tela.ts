@@ -61,3 +61,27 @@ export function intervaloDaPagina(pagina: number, porPagina = PRODUTOS_POR_PAGIN
   const de = (pagina - 1) * porPagina;
   return [de, de + porPagina - 1];
 }
+
+/**
+ * Página além da última. O PostgREST NÃO devolve lista vazia quando o `range`
+ * começa depois do total: responde 416 com este código ("Requested range not
+ * satisfiable"). Medido contra o PostgREST do Supabase local (CLI 2.117.0),
+ * tabela com 3 linhas: `Range: 3-4` → 206 e `[]`; `Range: 50-99` → 416
+ * `PGRST103`. Acontece de verdade quando alguém apaga o único produto da última
+ * página, ou abre um link antigo.
+ */
+export const FAIXA_ALEM_DO_FIM = "PGRST103";
+
+/** A última página que existe para `total` produtos (1 quando não há nenhum). */
+export function ultimaPagina(total: number, porPagina = PRODUTOS_POR_PAGINA): number {
+  return Math.max(1, Math.ceil(total / porPagina));
+}
+
+/** A query string da tela: busca vazia e página 1 ficam de fora. */
+export function queryDaTela(busca: string, pagina: number): string {
+  const qs = new URLSearchParams();
+  if (busca.trim() !== "") qs.set("busca", busca.trim());
+  if (pagina > 1) qs.set("pagina", String(pagina));
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}

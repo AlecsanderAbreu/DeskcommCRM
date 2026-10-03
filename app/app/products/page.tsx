@@ -4,10 +4,13 @@ import { redirect } from "next/navigation";
 import { requireAuth, resolveActiveOrg } from "@/lib/auth/server";
 import { ROLE_RANK } from "@/lib/auth/types";
 import {
+  FAIXA_ALEM_DO_FIM,
   filtroDaBuscaDoCatalogo,
   intervaloDaPagina,
   paginaDaUrl,
   PRODUTOS_POR_PAGINA,
+  queryDaTela,
+  ultimaPagina,
 } from "@/lib/catalogo/busca-da-tela";
 import { BUCKET_DAS_FOTOS, fotoPertenceAoProduto } from "@/lib/catalogo/fotos";
 import { traduzir } from "@/lib/i18n/dicionario";
@@ -58,16 +61,28 @@ export default async function ProdutosPage({
   const filtro = filtroDaBuscaDoCatalogo(busca);
 
   const supabase = await createClient();
-  let consulta = supabase
-    .from("catalog_products")
-    .select(COLUNAS_DO_PRODUTO, { count: "exact" })
-    .eq("organization_id", activeOrg.orgId);
-  if (filtro) consulta = consulta.or(filtro);
-  const { data, count } = await consulta
+  const consultaDoCatalogo = (soContar: boolean) => {
+    const q = supabase
+      .from("catalog_products")
+      .select(soContar ? "id" : COLUNAS_DO_PRODUTO, { count: "exact", head: soContar })
+      .eq("organization_id", activeOrg.orgId);
+    return filtro ? q.or(filtro) : q;
+  };
+  const { data, count, error } = await consultaDoCatalogo(false)
     .order("ativo", { ascending: false })
     .order("nome")
     .order("id")
     .range(...intervaloDaPagina(pagina));
+
+  if (error?.code === FAIXA_ALEM_DO_FIM) {
+    // A página pedida não existe mais (apagaram o último produto dela, ou o
+    // link é antigo): vai para a última que existe, com a mesma busca.
+    const { count: agora } = await consultaDoCatalogo(true);
+    redirect(`/app/products${queryDaTela(busca, ultimaPagina(agora ?? 0))}`);
+  }
+  // Erro do banco não vira "nenhum produto cadastrado": a tela de erro do app
+  // diz que algo falhou, em vez de afirmar que o catálogo está vazio.
+  if (error) throw new Error(`Não consegui ler o catálogo: ${error.message}`);
   const produtos = (data ?? []) as unknown as Produto[];
   const total = count ?? produtos.length;
 

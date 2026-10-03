@@ -15,6 +15,7 @@ import { audit } from "@/lib/audit";
 import { fail, ok } from "@/lib/api/wrappers";
 import { requireRole } from "@/lib/auth/require-role";
 import {
+  FAIXA_ALEM_DO_FIM,
   filtroDaBuscaDoCatalogo,
   intervaloDaPagina,
   paginaDaUrl,
@@ -63,6 +64,20 @@ export async function GET(req: NextRequest): Promise<Response> {
   q = q.order("ativo", { ascending: false }).order("nome").order("id");
   const { data, error, count } = paginado ? await q.range(...intervaloDaPagina(pagina)) : await q.limit(500);
 
+  if (paginado && error?.code === FAIXA_ALEM_DO_FIM) {
+    // Página além da última: o PostgREST responde 416, não lista vazia. A
+    // resposta diz quantos há, para quem chamou voltar a uma página que existe.
+    let contagem = supabase
+      .from("catalog_products")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", authz.org.orgId);
+    if (filtro) contagem = contagem.or(filtro);
+    const { count: agora } = await contagem;
+    return ok([], {
+      requestId,
+      meta: { total: agora ?? null, pagina, por_pagina: PRODUTOS_POR_PAGINA, has_more: false },
+    });
+  }
   if (error) return fail("internal_error", "Erro ao listar os produtos.", 500, { requestId });
   if (!paginado) return ok(data ?? [], { requestId });
   const total = count ?? null;

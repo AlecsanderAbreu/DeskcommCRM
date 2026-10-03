@@ -8,6 +8,7 @@ import { showApiError } from "@/components/feedback/ApiErrorToast";
 import { useT } from "@/hooks/i18n/useT";
 import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api/client";
+import { queryDaTela } from "@/lib/catalogo/busca-da-tela";
 import { MAXIMO_DE_FOTOS } from "@/lib/catalogo/fotos";
 import { formatCents } from "@/lib/money";
 import { precoParaCentavos, type Produto } from "@/lib/schemas/produtos";
@@ -244,10 +245,7 @@ export function ProdutosClient({
   // Antes ela filtrava no navegador só os 500 que a página tinha trazido.
   const irPara = React.useCallback(
     (termo: string, novaPagina: number) => {
-      const qs = new URLSearchParams();
-      if (termo.trim() !== "") qs.set("busca", termo.trim());
-      if (novaPagina > 1) qs.set("pagina", String(novaPagina));
-      const destino = qs.toString() ? `?${qs.toString()}` : "?";
+      const destino = queryDaTela(termo, novaPagina) || "?";
       iniciarNavegacao(() => router.replace(destino, { scroll: false }));
     },
     [router],
