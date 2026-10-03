@@ -82,8 +82,16 @@ async function enviar(
   credencial: CredencialDeConversao,
   conversao: ConversaoOffline,
 ): Promise<ResultadoDeEnvio> {
-  if (conversao.evento !== "Purchase" || conversao.valorCentavos === null)
-    return { tipo: "permanente", detalhe: "Este transporte aceita apenas compras com valor." };
+  // Dois formatos e só dois: a compra, que exige valor (regra 1), e o evento de
+  // ETAPA, que sai com o nome padrão escolhido na regra e sem valor — o negócio
+  // ainda não foi vendido, e um valor ali ensinaria receita que não existiu.
+  const ehCompra = conversao.evento === "Purchase";
+  const nomeNoFio = ehCompra ? "Purchase" : conversao.eventoNaPlataforma?.trim();
+  if (ehCompra ? conversao.valorCentavos === null : !nomeNoFio)
+    return {
+      tipo: "permanente",
+      detalhe: "Este transporte aceita compras com valor ou eventos de etapa com o nome da Meta.",
+    };
   const idadeMs = Date.now() - conversao.ocorridoEm.getTime();
   if (idadeMs > IDADE_MAXIMA_MS) {
     const dias = Math.floor(idadeMs / (24 * 60 * 60 * 1000));
@@ -114,15 +122,16 @@ async function enviar(
   // string crua onde ele espera lista é aceito com aviso e ignorado no match.
   if (conversao.telefone) userData.ph = [hash(conversao.telefone)];
 
-  const customData: Record<string, unknown> = {
-    value: conversao.valorCentavos / 100,
-    currency: conversao.moeda.toUpperCase(),
-  };
+  const customData: Record<string, unknown> = {};
+  if (ehCompra && conversao.valorCentavos !== null) {
+    customData.value = conversao.valorCentavos / 100;
+    customData.currency = conversao.moeda.toUpperCase();
+  }
 
   const corpo: Record<string, unknown> = {
     data: [
       {
-        event_name: conversao.evento,
+        event_name: nomeNoFio,
         // Segundos, não milissegundos. Em ms o evento cai a ~55 mil anos no
         // futuro, e a resposta é 200 — some sem erro.
         event_time: Math.floor(conversao.ocorridoEm.getTime() / 1000),
@@ -131,7 +140,7 @@ async function enviar(
           ? { action_source: "business_messaging", messaging_channel: "whatsapp" }
           : { action_source: "system_generated" }),
         user_data: userData,
-        custom_data: customData,
+        ...(Object.keys(customData).length > 0 ? { custom_data: customData } : {}),
       },
     ],
   };
