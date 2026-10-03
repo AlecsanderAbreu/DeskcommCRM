@@ -404,6 +404,22 @@ describe("a barra do prazo das telas de detalhe lê o fim do dia, não a meia-no
     return Math.min(1, Math.max(0, total > 0 ? elapsed / total : 0));
   };
 
+  it("fimDoPrazo é a meia-noite UTC do dia seguinte ao guardado", () => {
+    // A âncora que os quatro consumidores passaram a compartilhar. Sem asserção
+    // direta, um `+ DIA_MS` trocado por outra coisa só apareceria por acidente,
+    // via algum consumidor — e este é o primitivo, então ele se testa aqui.
+    expect(fimDoPrazo(prazo)?.toISOString()).toBe("2026-10-06T00:00:00.000Z");
+    // em São Paulo isso é o FIM do dia 05 — 21:00 —, e é o eixo do motor:
+    expect(emSaoPaulo(fimDoPrazo(prazo)!)).toBe("2026-10-05");
+    // e o dia guardado é o 05, não o 06:
+    expect(diaDoPrazo(prazo)).toBe("2026-10-05");
+    // ausente ou ilegível não vira data inventada:
+    expect(fimDoPrazo(null)).toBeNull();
+    expect(fimDoPrazo(undefined)).toBeNull();
+    expect(fimDoPrazo("não-é-data")).toBeNull();
+    expect(fimDoPrazo("2026-13-45T00:00:00.000Z")).toBeNull();
+  });
+
   it("a barra não fecha 100% na VÉSPERA do prazo", () => {
     // 04/10 21:00 em São Paulo = 05/10 00:00Z: a meia-noite UTC do dia do prazo.
     const vespera = new Date("2026-10-05T00:00:00.000Z");
@@ -426,7 +442,9 @@ describe("a barra do prazo das telas de detalhe lê o fim do dia, não a meia-no
     // `differenceInDays(dueAt, now)` e a da administração `Math.floor(ms/DIA)`.
     // Medido: em 92 de 169 horas elas diziam coisas DIFERENTES.
     const manhaDoPrazo = new Date("2026-10-05T12:00:00.000Z"); // 09:00 do dia do prazo
-    const cópiaAdminAntiga = Math.floor((new Date(prazo).getTime() - manhaDoPrazo.getTime()) / DIA_MS);
+    const cópiaAdminAntiga = Math.floor(
+      (new Date(prazo).getTime() - manhaDoPrazo.getTime()) / DIA_MS,
+    );
     expect(cópiaAdminAntiga).toBe(-1); // o defeito: "1d em atraso" com o prazo vencendo HOJE
     expect(diasAtePrazo(prazo, manhaDoPrazo)).toBe(0); // "vence hoje"
     expect(computeRiskLevel(prazo, recebido, manhaDoPrazo)).toBe("at_risk");
