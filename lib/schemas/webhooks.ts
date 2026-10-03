@@ -38,6 +38,22 @@ import {
 export const ENTIDADE_ESPERADA_POR_GATILHO = {
   "lead.created": "crm_lead",
   "lead.stage_changed": "crm_lead",
+  // Os quatro do ENCAMENTO (#1528), que nascem do trigger do banco
+  // `fn_emit_event_on_lead_change`: ele reage ao UPDATE de `crm_leads.status`
+  // e de `owner_user_id`/`owner_agent_id`, então valem para TODOS os caminhos
+  // que terminam naquele UPDATE — arrastar o card, o botão Ganhou/Perdeu, o
+  // mover em lote, o `crm_close_demand` da IA e o `create_or_move_lead` — com
+  // o MESMO payload, porque há UM emissor, não um por caminho. Antes disto,
+  // arrastar disparava `lead.stage_changed` e o botão não disparava regra
+  // nenhuma: o fato era o mesmo e o webhook dependia do botão.
+  // A entidade que a REGRA enxerga é `crm_lead` (o que o `buildContext`
+  // hidrata); o `entity_kind` gravado no `event_log` é `'lead'` — o `fn_log_event`
+  // deriva do `split_part` do event_type —, e o motor aceita um como sinônimo
+  // do outro SÓ para os quatro (`GATILHOS_DO_TRIGGER_DE_LEAD` logo abaixo).
+  "lead.won": "crm_lead",
+  "lead.lost": "crm_lead",
+  "lead.reopened": "crm_lead",
+  "lead.assigned": "crm_lead",
   "message.received": "message",
   // A entrega FALHOU depois de aceita — o 131047 que a Meta recusa pelo
   // webhook de status, o timeout do transporte, o pré-voo do próprio envio.
@@ -77,6 +93,24 @@ export const ENTIDADE_ESPERADA_POR_GATILHO = {
 } as const;
 
 export type GatilhoDeAutomacao = keyof typeof ENTIDADE_ESPERADA_POR_GATILHO;
+
+/**
+ * Os gatilhos cujo `entity_kind` no `event_log` é `'lead'`: os quatro que o
+ * trigger `fn_emit_event_on_lead_change` grava via `fn_log_event`, que deriva a
+ * entidade do `split_part` do event_type.
+ *
+ * O motor trata `'lead'` como sinônimo de `'crm_lead'` SÓ para estes. É a
+ * diferença entre fazer a regra de ganho rodar e voltar a rodar em duplicata o
+ * `lead.stage_changed` legado — a linha antiga do trigger (entity_kind='lead')
+ * e a que o `moveLeadHandler` já emite com `crm_lead` são o MESMO fato para o
+ * guard, e rodar as duas entregaria o webhook duas vezes.
+ */
+export const GATILHOS_DO_TRIGGER_DE_LEAD = [
+  "lead.won",
+  "lead.lost",
+  "lead.reopened",
+  "lead.assigned",
+] as const satisfies readonly GatilhoDeAutomacao[];
 
 export const TRIGGER_EVENTS = Object.keys(ENTIDADE_ESPERADA_POR_GATILHO) as [
   GatilhoDeAutomacao,

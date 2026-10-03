@@ -5519,6 +5519,11 @@ export const DICIONARIO: Traducoes = {
   "Tag adicionada": { es: "Etiqueta agregada" },
   "Quando entrar um contato novo (webhook)": { es: "Cuando entre un contacto nuevo (webhook)" },
   "Quando um lead mudar de etapa": { es: "Cuando un lead cambie de etapa" },
+  // #1528 — os quatro gatilhos de encerramento/reabertura/atribuição.
+  "Quando um negócio for ganho": { es: "Cuando un negocio se cierre como ganado" },
+  "Quando um negócio for perdido": { es: "Cuando un negocio se cierre como perdido" },
+  "Quando um lead encerrado for reaberto": { es: "Cuando se reabra un lead cerrado" },
+  "Quando o responsável do lead mudar": { es: "Cuando cambie el responsable del lead" },
   "Quando chegar mensagem no WhatsApp": { es: "Cuando llegue un mensaje por WhatsApp" },
   "Quando uma mensagem não for entregue": { es: "Cuando un mensaje no se entregue" },
   "Código do erro": { es: "Código del error" },

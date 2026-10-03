@@ -130,6 +130,14 @@ const AGENDAMENTO_FIELDS: CuratedField[] = [
 const CURATED_FIELDS: Record<TriggerEvent, CuratedField[]> = {
   "lead.created": LEAD_FIELDS,
   "lead.stage_changed": [...LEAD_FIELDS, STAGE_FIELD],
+  // #1528 — os quatro do encerramento/reabertura/atribuição: as condições são
+  // as do NEGÓCIO (é dele o desfecho). O motivo da perda não é condição — quem
+  // filtra por motivo de perda filtra o campo livre na própria etapa/linha; o
+  // que dá para filtrar aqui é o que o lead é (funil, tags, origem).
+  "lead.won": LEAD_FIELDS,
+  "lead.lost": LEAD_FIELDS,
+  "lead.reopened": LEAD_FIELDS,
+  "lead.assigned": LEAD_FIELDS,
   "message.received": MESSAGE_FIELDS,
   // O que a regra quer filtrar numa falha é o MOTIVO (só o 131047, só o
   // timeout) e de QUEM é o contato — `event.erro.codigo` é o mesmo valor que a
