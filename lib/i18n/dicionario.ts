@@ -10685,6 +10685,20 @@ export const DICIONARIO: Traducoes = {
   "Preencha o identificador e o token para poder salvar.":
     { es: "Completa el identificador y el token para poder guardar." },
 
+  // ─── Configurações → Conversões: identidade da Meta exigida no #2098 ────
+  "Identidade salva.": { es: "Identidad guardada." },
+  "Página e conta do WhatsApp Business das vendas de clique-para-WhatsApp":
+    { es: "Página y cuenta de WhatsApp Business de las ventas de clic para WhatsApp" },
+  "Quando a venda vem de anúncio clique-para-WhatsApp, a Meta exige o ID da Página ou o ID da conta do WhatsApp Business junto do evento. Sem nenhum dos dois, ela recusa a venda e o motivo aparece na lista de pendências. Preencha o que estiver vinculado ao seu conjunto de dados.":
+    {
+      es: "Cuando la venta viene de un anuncio de clic para WhatsApp, Meta exige el ID de la página o el ID de la cuenta de WhatsApp Business junto al evento. Sin ninguno de los dos, rechaza la venta y el motivo aparece en la lista de pendientes. Completa lo que esté vinculado a tu conjunto de datos.",
+    },
+  "ID da Página": { es: "ID de la página" },
+  "Só números. É o ID da página do Facebook que abre a conversa do anúncio.":
+    { es: "Solo números. Es el ID de la página de Facebook que abre la conversación del anuncio." },
+  "Só números. Serve quando não há página a informar: a Meta aceita um ou outro, não os dois juntos.":
+    { es: "Solo números. Sirve cuando no hay página que informar: Meta acepta uno u otro, no los dos juntos." },
+
   // ─── Configurações → Conversões: card do Google Ads (migration 0307) ───
   "Google Ads": { es: "Google Ads" },
   "Autorize o acesso à conta de anúncios do Google. Depois de autorizar, você informa aqui qual conta e qual ação de conversão recebem as vendas.":
