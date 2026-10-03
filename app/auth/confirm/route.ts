@@ -72,8 +72,14 @@ import { env } from "@/lib/env";
  * Por isso o GET com `token_hash` NÃO chama o provedor: leva a
  * `/login/continuar`, que mostra um botão. Quem gasta o token é o POST desse
  * botão — verificador automático segue link, não aperta botão de formulário.
- * O formato `code` segue no GET como antes: sem o cookie verificador do PKCE a
- * troca falha sem consumir nada, então ele não tem este problema.
+ * O formato `code` segue no GET como antes, e esta proteção NÃO o alcança: no
+ * template padrão o link do e-mail aponta para o `/auth/v1/verify` do GoTrue,
+ * que gasta o OTP lá, antes de redirecionar para cá com o `code` — um
+ * verificador que abra esse link gasta o OTP fora do nosso alcance (não
+ * medido; é a leitura do caminho descrito no início deste comentário). O
+ * conserto para esse formato é o mesmo de sempre: subir os templates
+ * customizados (`hostgator-setup-kit/marca-emails.sh`), que trocam o link pelo
+ * `token_hash` e caem na proteção acima.
  */
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
