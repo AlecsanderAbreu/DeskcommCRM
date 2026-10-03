@@ -22,6 +22,11 @@ export const campaignConfigSchema = z
     daily_limit: LIMITE_DIARIO.default(10),
     interval_minutes: INTERVALO_MINUTOS.default(15),
     legal_basis_ref: z.string().trim().min(3).max(500),
+    // QUANDO a empresa entra no CRM. `on_start`: contato, negócio e conversa de TODA a fila
+    // nascem ao iniciar (o comportamento de sempre). `on_send`: cada empresa nasce só na
+    // vez de ser abordada. O padrão é `on_start` — configuração gravada antes desta chave
+    // existir segue funcionando igual, sem ninguém editar nada.
+    funnel_entry: z.enum(["on_start", "on_send"]).default("on_start"),
   })
   .strict();
 export const searchSchema = z
