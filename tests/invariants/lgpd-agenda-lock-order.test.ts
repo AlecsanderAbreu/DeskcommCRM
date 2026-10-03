@@ -202,7 +202,7 @@ it("porta legada preserva timestamp/retomada e cerca papel, tenant, suporte e MF
   }
 });
 
-it("platform admin support_readonly FORA do suporte não anonimiza — o modo de leitura não escreve (0530)", async () => {
+it("platform admin support_readonly FORA do suporte não anonimiza — o modo de leitura não escreve (0532)", async () => {
   // O buraco que faltava: o caso acima prova o platform admin `full` fora de
   // suporte e o suporte em modo leitura DENTRO de sessão; nunca o scope
   // `platform_admins.scope='support_readonly'` SEM sessão de suporte — que é o
@@ -214,7 +214,7 @@ it("platform admin support_readonly FORA do suporte não anonimiza — o modo de
   const padmin = randomUUID();
   await pool.query("insert into auth.users(id,email) values($1,$2)", [padmin, `${padmin}@invariant.test`]);
   await pool.query(
-    "insert into platform_admins(user_id,granted_by,scope,mfa_required,reason) values($1,$1,'support_readonly',false,'invariante 0530')",
+    "insert into platform_admins(user_id,granted_by,scope,mfa_required,reason) values($1,$1,'support_readonly',false,'invariante 0532')",
     [padmin],
   );
   const call = async () => {

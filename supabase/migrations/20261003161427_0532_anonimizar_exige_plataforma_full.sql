@@ -1,6 +1,6 @@
 -- manifest: **Anonimizar contato (irreversível) deixa de aceitar platform admin `support_readonly` fora de sessão de suporte — mesma classe do #2000/#2078/#2115, agora na superfície RPC.** `fn_lgpd_anonymize_contact` é `security definer` e concedida a `authenticated`; o portão aceitava `(fn_is_platform_admin() and support is null)`, e `fn_is_platform_admin()` ignora o scope do JWT. Um platform admin só-de-leitura, sem sessão de suporte, anonimizava contato de qualquer organização pelo PostgREST — e a rota da tela também passava (o `requireSupportWrite` olha a sessão de suporte, não o scope). Varredura das 269 funções do baseline: das 6 definer que citam a função pura, 2 são predicados de leitura (`fn_can_view_*`), 2 leem agenda, 1 é `service_role`-only (`fn_honorarios_provisionar`); esta é a única alcançável que escreve. Conserto: `fn_is_platform_admin_full()`. Gate: `tests/invariants/lgpd-agenda-lock-order.test.ts` — o caso que faltava (scope `support_readonly` sem sessão de suporte) e o controle positivo `full`.
 
--- 0530: o portão do botão de anonimizar exige platform admin `full`
+-- 0532: o portão do botão de anonimizar exige platform admin `full`
 -- (mesma classe do #2000, #2078 e #2115 — agora na superfície RPC).
 --
 -- `fn_lgpd_anonymize_contact` é `security definer`, concedida a `authenticated`,
