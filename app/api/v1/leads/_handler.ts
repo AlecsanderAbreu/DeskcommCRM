@@ -38,6 +38,7 @@ import {
   decideMotivoDaPerda,
   recusaDeMotivoDaPerdaPeloBanco,
 } from "@/lib/leads/motivo-da-perda";
+import { motivosDaCategoria } from "@/lib/leads/motivos-de-perda-do-funil";
 import type { CreateLeadInput, UpdateLeadInput } from "@/lib/schemas";
 import { ehCorrecaoDeMovimentoDaIa } from "@/lib/leads/correcao-humana";
 
@@ -242,6 +243,10 @@ export interface ListLeadsQuery {
   stage_id?: string;
   status?: "open" | "won" | "lost";
   owner_user_id?: string;
+  /** `lost_reason` exato (issue #1537) — o filtro de perda por motivo. */
+  lost_reason?: string;
+  /** Categoria do motivo de perda (issue #1537), resolvida no funil. */
+  lost_reason_category?: string;
   limit?: number;
   cursor?: string | null;
 }
@@ -295,6 +300,28 @@ export async function listLeadsHandler(
   if (q.stage_id) query = query.eq("stage_id", q.stage_id);
   if (q.status) query = query.eq("status", q.status);
   if (q.owner_user_id) query = query.eq("owner_user_id", q.owner_user_id);
+  // #1537 — perda por motivo e por categoria. A categoria NÃO é coluna: ela
+  // sai do `settings.lost_reasons` do funil, então o caminho é achar os rótulos
+  // da categoria e filtrar por eles. Só os PERDIDOS têm motivo que valha; um
+  // filtro de categoria sozinho não força status (quem quer "Cliente" pode
+  // querer em qualquer aba), mas `lost_reason` em lead aberto não existe.
+  if (q.lost_reason) query = query.eq("lost_reason", q.lost_reason);
+  if (q.lost_reason_category) {
+    const { data: funis, error: funisErr } = await supabase
+      .from("crm_pipelines")
+      .select("id, settings")
+      .eq("organization_id", ctx.organization_id);
+    if (funisErr) throw new ApiError(500, "internal_error", undefined, ctx.requestId, funisErr.message);
+    const escopados = q.pipeline_id
+      ? (funis ?? []).filter((f) => f.id === q.pipeline_id)
+      : (funis ?? []);
+    const permitidos = motivosDaCategoria(
+      escopados.map((f) => ({ settings: f.settings })),
+      q.lost_reason_category,
+    );
+    if (permitidos.length === 0) return { leads: [], cursor: null, has_more: false };
+    query = query.in("lost_reason", permitidos);
+  }
 
   if (q.cursor) {
     const c = decLeadCursor(q.cursor);
@@ -650,13 +677,26 @@ export async function updateLeadHandler(
     patch.expected_close_date = input.expected_close_date;
   }
   if (input.tags !== undefined) patch.tags = input.tags;
-  if (input.custom_fields !== undefined) {
-    const prev =
-      existing.custom_fields && typeof existing.custom_fields === "object" && !Array.isArray(existing.custom_fields)
-        ? (existing.custom_fields as Record<string, unknown>)
-        : {};
-    patch.custom_fields = { ...prev, ...input.custom_fields };
-  }
+  // ⛔ `custom_fields` NÃO ENTRA NO `patch`, e a ausência é o conserto.
+  //
+  // Isto era `patch.custom_fields = { ...prev, ...input.custom_fields }`, com
+  // `prev` vindo do SELECT lá de cima. Duas escritas simultâneas com chaves
+  // DIFERENTES perdiam uma: a segunda lia `prev` antes de a primeira gravar e
+  // sobrescrevia a coluna inteira com a versão velha mais a chave dela. Sem
+  // erro, sem log, o dado some.
+  //
+  // O PostgREST não sabe dizer `custom_fields = custom_fields || $1` — só sabe
+  // mandar um valor pronto, que é justamente o valor calculado da leitura
+  // velha. Então o merge foi para onde a trava de linha existe: a migration
+  // 0502 (`fn_lead_anotar_campos`), chamada LOGO APÓS o `update` abaixo.
+  //
+  // ⚠️ POR QUE DEPOIS, E NÃO ANTES: o `update` é quem prova que o lead existe e
+  // é desta organização (o 404). Anotar antes gravaria campo num lead que a
+  // requisição ainda vai recusar.
+  //
+  // O que a auditoria vai comparar (ver `camposDaAuditoria` mais abaixo) é o
+  // merge LOCAL, só para saber se esta requisição mudou algum campo. Ele nunca
+  // é gravado.
 
   // O filtro entra AQUI TAMBÉM, e não só no SELECT acima: entre ler e escrever
   // há uma janela, e defesa que depende de uma leitura anterior é defesa que
@@ -687,11 +727,46 @@ export async function updateLeadHandler(
     );
   }
 
+  // O MERGE ATÔMICO. `updated` já provou que o lead existe e é da organização,
+  // e `ctx.organization_id` vem de fonte confiável — nunca do body. A função
+  // roda com a chave de serviço (é a única a ter EXECUTE), então o filtro de
+  // organização é o argumento `p_org`.
+  if (input.custom_fields !== undefined) {
+    const { data: mesclados, error: anotarErr } = await createAdminClient().rpc(
+      "fn_lead_anotar_campos",
+      { p_org: ctx.organization_id, p_lead: leadId, p_campos: input.custom_fields },
+    );
+    if (anotarErr) {
+      throw new ApiError(500, "internal_error", undefined, ctx.requestId, anotarErr.message);
+    }
+    // A resposta é o que EXISTE no banco, não o que esta requisição mandou: sob
+    // concorrência as duas coisas diferem, e é a do banco que vale.
+    (updated as Record<string, unknown>).custom_fields =
+      (mesclados as Record<string, unknown> | null) ?? {};
+  }
+
   const a = actorAuditPayload(ctx.actor);
   // O QUE MUDOU, nao o que foi enviado: o formulario do dossie manda o form
   // inteiro a cada salvamento, entao `Object.keys(input)` acusava cinco campos
   // quando a pessoa mexeu em um. Detalhe em lib/leads/campos-alterados.ts.
-  const fields = camposAlterados(patch, existing as Record<string, unknown>);
+  //
+  // `custom_fields` entra por fora porque não passou pelo `patch`: quem mescla é
+  // o banco. Sem esta linha, anotar um campo do funil não deixaria rastro na
+  // auditoria nem na timeline — invisível é pior que errado. A pergunta é a
+  // mesma de antes ("esta requisição mudou algum campo?"), respondida contra o
+  // que ESTA requisição leu (`existing`) e não contra o que outra escrita
+  // concorrente gravou: senão a chave do vizinho apareceria como minha.
+  // ⛔ `patch` NÃO é tocado: já foi enviado ao banco, e escrever nele depois é
+  // confundir "o que pedi" com "o que ficou".
+  const camposDaAuditoria: Record<string, unknown> = { ...patch };
+  if (input.custom_fields !== undefined) {
+    const anteriores =
+      existing.custom_fields && typeof existing.custom_fields === "object" && !Array.isArray(existing.custom_fields)
+        ? (existing.custom_fields as Record<string, unknown>)
+        : {};
+    camposDaAuditoria.custom_fields = { ...anteriores, ...input.custom_fields };
+  }
+  const fields = camposAlterados(camposDaAuditoria, existing as Record<string, unknown>);
 
   // A EDIÇÃO HUMANA ENTRA NA TIMELINE (wave 6). Antes disto, mexer num campo
   // era invisível: a IA deixava rastro e o humano não — meia continuidade
@@ -720,9 +795,14 @@ export async function updateLeadHandler(
     // reason é RENDERIZADO NA TELA e vai junto em captura, exportação e ticket
     // de suporte; o §9 proíbe PII nova em log, reason ou evidence.
     //
-    // Quem precisa do valor anterior tem `api_audit_log`, que já registra a
-    // mutação SOB CONTROLE DE ACESSO. Duplicar aqui criaria um segundo lugar
-    // com o mesmo dado e menos proteção.
+    // O valor anterior NÃO é guardado em lugar nenhum — nem aqui, nem no
+    // `api_audit_log`, que registra `lead.updated` com só `{ fields }` (os
+    // NOMES dos campos, nunca o antes-e-depois). Pôr lá o valor do título ou
+    // de `custom_fields` também seria PII fora do alcance da proteção: o audit
+    // é append-only e a anonimização da LGPD (lib/lgpd/cascata.ts) não o
+    // alcança. Guardar o antes-e-depois só de campos tipados sem PII é
+    // pergunta aberta na #1755, sem decisão. Hoje, quem precisa do valor
+    // anterior não tem onde buscar.
     //
     // NÃO confunda com a atividade de autorização vencida (wave 4), que mostra
     // antes-e-depois DE PROPÓSITO: lá o texto é a proposta do PRÓPRIO AGENTE,
@@ -924,6 +1004,20 @@ export async function moveLeadHandler(
     position = maxRow?.position_in_stage ? Number(maxRow.position_in_stage) + 1000 : 1000;
   }
 
+  // ── A MESMA ETAPA É REORDENAÇÃO, NÃO ENTRADA ────────────────────────────────
+  //
+  // O negócio que já está NA etapa de destino não está ENTRANDO nela: mover para
+  // onde ele já está só troca a posição. A rota do quadro compara o destino com
+  // `lead.stage_id` antes da régua e pula a régua por isso; aqui a comparação
+  // faltava, e este handler é o escritor de etapa de tudo que NÃO é o quadro (o
+  // MCP `crm_move_lead_stage`, a ação `create_or_move_lead`) — reordenar numa
+  // coluna exigente devolvia a frase de campos faltando e a execução aparecia
+  // como failed na aba Atividade.
+  //
+  // Fora da régua, e não dentro dela: `campos-exigidos.ts` segue sem saber o que
+  // é "mesma etapa" — quem sabe é quem lê a etapa atual ao lado do destino.
+  const mesmaEtapa = stage.id === lead.stage_id;
+
   // ── OS CAMPOS OBRIGATÓRIOS (issue #1536) ────────────────────────────────────
   //
   // Este handler é o escritor de etapa de TODOS os clientes que não são o board
@@ -931,15 +1025,17 @@ export async function moveLeadHandler(
   // arrasto, decidida pela MESMA função: o que falta vira 422 com
   // `details.faltando`, e a tool do MCP devolve a frase ao modelo — que pergunta
   // ao cliente ou passa para o humano, em vez de mover calado.
-  const vereditoDeCampos = validaCamposExigidos({
-    lead: lead as Record<string, unknown>,
-    settingsDoFunil: settings,
-    destino: {
-      stageId: stage.id,
-      desfecho: stage.is_won ? "won" : stage.is_lost ? "lost" : null,
-    },
-    motivoDeGanho: input.won_reason ?? null,
-  });
+  const vereditoDeCampos = mesmaEtapa
+    ? { faltando: [] }
+    : validaCamposExigidos({
+        lead: lead as Record<string, unknown>,
+        settingsDoFunil: settings,
+        destino: {
+          stageId: stage.id,
+          desfecho: stage.is_won ? "won" : stage.is_lost ? "lost" : null,
+        },
+        motivoDeGanho: input.won_reason ?? null,
+      });
   if (vereditoDeCampos.faltando.length > 0) {
     const recusa = recusaDeCamposObrigatorios(vereditoDeCampos.faltando, ctx.idioma);
     throw new ApiError(
