@@ -76,7 +76,7 @@ function trajetoria(
 }
 
 const nao = (taxas: ReturnType<typeof calcularTaxas>, id: string) =>
-  taxas.find((t) => t.etapaId === id)!;
+  taxas.find((t) => t.etapa_id === id)!;
 
 describe("calcularTaxas — a conta que o gestor lê ao lado do campo", () => {
   it("20 encerrados passaram pela etapa, 8 ganhos → sugestão 40% com «20 negócios» à vista", () => {

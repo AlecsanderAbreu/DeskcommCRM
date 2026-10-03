@@ -819,18 +819,18 @@ describe("taxa histórica por etapa — a contagem ao lado do campo (#1753)", ()
     fim: "2026-10-03T12:00:00.000Z",
     dias: 365,
     truncado: false,
-    minimoDeCasos: 10,
+    minimo_de_casos: 10,
     taxas: [
-      { etapaId: "e1", total: 20, ganhos: 8, percentual: 40, sugestao: 40 },
-      { etapaId: "e2", total: 7, ganhos: 3, percentual: 43, sugestao: null },
-      { etapaId: "e5", total: 0, ganhos: 0, percentual: null, sugestao: null },
+      { etapa_id: "e1", total: 20, ganhos: 8, percentual: 40, sugestao: 40 },
+      { etapa_id: "e2", total: 7, ganhos: 3, percentual: 43, sugestao: null },
+      { etapa_id: "e5", total: 0, ganhos: 0, percentual: null, sugestao: null },
     ],
   };
 
-  function montarTaxa() {
+  function montarTaxa(resposta: typeof RESPOSTA = RESPOSTA) {
     vi.mocked(apiClient.get).mockImplementation((async (rota: string) =>
       rota.includes("/win-rates")
-        ? { data: RESPOSTA }
+        ? { data: resposta }
         : { data: estado({}, ETAPAS_TAXA) }) as never);
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -879,6 +879,13 @@ describe("taxa histórica por etapa — a contagem ao lado do campo (#1753)", ()
     );
     expect(semDados).not.toHaveTextContent("0%");
     expect(screen.queryByTestId("usar-taxa-e5")).not.toBeInTheDocument();
+  });
+
+  it("leitura truncada avisa que o número é amostra", async () => {
+    montarTaxa({ ...RESPOSTA, truncado: true });
+    expect(await screen.findByTestId("taxa-e1")).toHaveTextContent(
+      "Amostra limitada: este número cobre só parte do período.",
+    );
   });
 
   it("ganho e perda não recebem sugestão: lá a chance vale 100 e 0 na regra", async () => {

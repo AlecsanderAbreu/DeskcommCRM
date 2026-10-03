@@ -127,6 +127,12 @@ export interface DbOpts {
   contacts?: Array<Record<string, unknown>>;
   /** Erro do banco na n-ésima escrita (1-based), como o PostgREST devolveria. */
   writeError?: (n: number, table: string) => { code: string; message: string } | null;
+  /**
+   * O `max_rows` do PostgREST (1000 em `supabase/config.toml`): corta TODA
+   * leitura nesse tamanho, sem erro, por maior que seja o `.limit`/`.range`.
+   * Ausente = sem corte, que é o que os testes que não falam de volume querem.
+   */
+  maxRows?: number;
 }
 
 type Linha = Record<string, unknown>;
@@ -241,6 +247,7 @@ export function makeDb(opts: DbOpts = {}): Registro {
     let head = false;
     let apagar = false;
     let teto: number | null = null;
+    let desde = 0;
 
     const casam = () =>
       (tables[table] ?? [])
@@ -271,7 +278,8 @@ export function makeDb(opts: DbOpts = {}): Registro {
     const lidos = () => {
       let rows = [...casam()];
       if (ordem) rows.sort((a, b) => Number(a[ordem!]) - Number(b[ordem!]));
-      if (teto !== null) rows = rows.slice(0, teto);
+      if (teto !== null) rows = rows.slice(desde, desde + teto);
+      if (opts.maxRows !== undefined) rows = rows.slice(0, opts.maxRows);
       // `select("*")` (usado por `app/api/v1/leads/_handler.ts`) é o CURINGA do
       // PostgREST — a linha inteira, não uma coluna literal chamada "*". Sem
       // este ramo, o projetor abaixo tratava "*" como nome de coluna e devolvia
@@ -411,6 +419,12 @@ export function makeDb(opts: DbOpts = {}): Registro {
       },
       lte: (c: string, v: string) => {
         intervalos.push({ coluna: c, op: "lte", valor: v });
+        return b;
+      },
+      /** `.range(de, ate)` — inclusivo nas duas pontas, como o PostgREST. */
+      range: (de: number, ate: number) => {
+        desde = de;
+        teto = ate - de + 1;
         return b;
       },
       order: (col: string) => {

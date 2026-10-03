@@ -26,7 +26,7 @@ export interface RespostaDasTaxas {
   dias: number;
   /** A leitura bateu o teto: o número é AMOSTRA do período, não o período. */
   truncado: boolean;
-  minimoDeCasos: number;
+  minimo_de_casos: number;
   taxas: TaxaDaEtapa[];
 }
 

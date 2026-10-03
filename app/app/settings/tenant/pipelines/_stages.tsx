@@ -284,7 +284,7 @@ function SugestaoDeTaxa({
   const sugestao = taxa.sugestao;
   return (
     <div className="space-y-1">
-      <p className="text-xs leading-snug text-text-muted" data-testid={`taxa-${taxa.etapaId}`}>
+      <p className="text-xs leading-snug text-text-muted" data-testid={`taxa-${taxa.etapa_id}`}>
         {fraseDaTaxa(taxa, t)} {periodoDaTaxa(inicio, fim, t)}
         {truncado ? ` ${t("Amostra limitada: este número cobre só parte do período.")}` : ""}
       </p>
@@ -293,7 +293,7 @@ function SugestaoDeTaxa({
           variant="outline"
           size="sm"
           disabled={desabilitado}
-          data-testid={`usar-taxa-${taxa.etapaId}`}
+          data-testid={`usar-taxa-${taxa.etapa_id}`}
           onClick={() => aoAceitar(sugestao)}
         >
           {t("Usar {chance}%?").replace("{chance}", String(sugestao))}
@@ -471,7 +471,7 @@ export function StagesSection({
       <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
         {etapas.map((etapa, i) => {
           const passo = passos.get(etapa.id) ?? null;
-          const taxa = corpoDasTaxas?.taxas.find((linha) => linha.etapaId === etapa.id) ?? null;
+          const taxa = corpoDasTaxas?.taxas.find((linha) => linha.etapa_id === etapa.id) ?? null;
           const erroDaLinha = erro?.etapaId === etapa.id ? erro.texto : null;
           const confirmandoAqui = confirmacao?.etapaId === etapa.id ? confirmacao : null;
           const arquivandoAqui = arquivamento?.etapaId === etapa.id ? arquivamento : null;

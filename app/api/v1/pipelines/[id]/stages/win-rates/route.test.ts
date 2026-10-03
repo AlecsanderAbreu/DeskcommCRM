@@ -110,15 +110,15 @@ describe("GET /api/v1/pipelines/[id]/stages/win-rates", () => {
         inicio: string;
         fim: string;
         dias: number;
-        taxas: Array<{ etapaId: string; total: number; ganhos: number; percentual: number | null; sugestao: number | null }>;
+        taxas: Array<{ etapa_id: string; total: number; ganhos: number; percentual: number | null; sugestao: number | null }>;
       };
     };
     // O período viaja junto: medida sem amostra não é medida.
     expect(body.data.dias).toBe(365);
     expect(Date.parse(body.data.inicio)).toBeLessThan(Date.parse(body.data.fim));
 
-    const proposta = body.data.taxas.find((t) => t.etapaId === "e2");
-    expect(proposta).toEqual({ etapaId: "e2", total: 20, ganhos: 8, percentual: 40, sugestao: 40 });
+    const proposta = body.data.taxas.find((t) => t.etapa_id === "e2");
+    expect(proposta).toEqual({ etapa_id: "e2", total: 20, ganhos: 8, percentual: 40, sugestao: 40 });
     // Toda etapa do funil aparece, inclusive a que ninguém atravessou.
     expect(body.data.taxas).toHaveLength(4);
   });
@@ -132,9 +132,9 @@ describe("GET /api/v1/pipelines/[id]/stages/win-rates", () => {
     const { GET } = await import("./route");
     const res = await GET(reqGet(), ctx);
     const body = (await res.json()) as {
-      data: { taxas: Array<{ etapaId: string; total: number; sugestao: number | null }> };
+      data: { taxas: Array<{ etapa_id: string; total: number; sugestao: number | null }> };
     };
-    const proposta = body.data.taxas.find((t) => t.etapaId === "e2");
+    const proposta = body.data.taxas.find((t) => t.etapa_id === "e2");
     expect(proposta?.total).toBe(7);
     expect(proposta?.sugestao).toBeNull();
   });
@@ -149,9 +149,9 @@ describe("GET /api/v1/pipelines/[id]/stages/win-rates", () => {
     const { GET } = await import("./route");
     const res = await GET(reqGet(), ctx);
     const body = (await res.json()) as {
-      data: { taxas: Array<{ etapaId: string; total: number; percentual: number | null }> };
+      data: { taxas: Array<{ etapa_id: string; total: number; percentual: number | null }> };
     };
-    const vazia = body.data.taxas.find((t) => t.etapaId === "e5");
+    const vazia = body.data.taxas.find((t) => t.etapa_id === "e5");
     expect(body.data.taxas).toHaveLength(5);
     expect(vazia?.total).toBe(0);
     expect(vazia?.percentual).toBeNull();
@@ -167,9 +167,9 @@ describe("GET /api/v1/pipelines/[id]/stages/win-rates", () => {
     const { GET } = await import("./route");
     const res = await GET(reqGet(), ctx);
     const body = (await res.json()) as {
-      data: { taxas: Array<{ etapaId: string; total: number; ganhos: number }> };
+      data: { taxas: Array<{ etapa_id: string; total: number; ganhos: number }> };
     };
-    const proposta = body.data.taxas.find((t) => t.etapaId === "e2");
+    const proposta = body.data.taxas.find((t) => t.etapa_id === "e2");
     expect(proposta?.total).toBe(20);
     expect(proposta?.ganhos).toBe(20);
   });
@@ -183,6 +183,51 @@ describe("GET /api/v1/pipelines/[id]/stages/win-rates", () => {
     const res = await GET(reqGet(), ctx);
     expect(res.status).toBe(200);
     expect(db.escritas).toEqual([]);
+  });
+
+  /**
+   * O PostgREST corta toda resposta em `max_rows` sem erro. Com `.limit(10000)`
+   * a rota lia 1000 linhas e contava um recorte calado como se fosse o período.
+   * O 500 é a instalação com `max_rows` MENOR que a página: página curta ali não
+   * é fim, e o próximo `range` tem de partir do que chegou.
+   */
+  it.each([1000, 500])("max_rows de %i não corta a conta calado", async (maxRows) => {
+    authOk();
+    const db = makeDb({ stages: funil(), maxRows });
+    for (let i = 0; i < 600; i++) {
+      db.tabelas.crm_lead_activities.push(...trajetoria(`l${i}`, "e2", "e3"));
+    }
+    const { GET } = await import("./route");
+    const res = await GET(reqGet(), ctx);
+    const body = (await res.json()) as {
+      data: { truncado: boolean; taxas: Array<{ etapa_id: string; total: number }> };
+    };
+    expect(body.data.truncado).toBe(false);
+    expect(body.data.taxas.find((t) => t.etapa_id === "e2")?.total).toBe(600);
+  });
+
+  it("passou do teto de leitura → truncado, para a tela avisar que é amostra", async () => {
+    authOk();
+    const db = makeDb({ stages: funil(), maxRows: 1000 });
+    for (let i = 0; i < 5001; i++) {
+      db.tabelas.crm_lead_activities.push(...trajetoria(`l${i}`, "e2", "e3"));
+    }
+    const { GET } = await import("./route");
+    const res = await GET(reqGet(), ctx);
+    const body = (await res.json()) as { data: { truncado: boolean } };
+    expect(body.data.truncado).toBe(true);
+  });
+
+  it("funil sem etapa não lê o histórico", async () => {
+    authOk();
+    const db = makeDb({ stages: [] });
+    db.tabelas.crm_lead_activities.push(...trajetoria("l1", "e2", "e3"));
+    const from = vi.spyOn(db.client, "from");
+    const { GET } = await import("./route");
+    const res = await GET(reqGet(), ctx);
+    const body = (await res.json()) as { data: { taxas: unknown[] } };
+    expect(body.data.taxas).toEqual([]);
+    expect(from.mock.calls.map(([tabela]) => tabela)).not.toContain("crm_lead_activities");
   });
 
   it("janela pedida fora dos limites cai no padrão de 12 meses", async () => {

@@ -78,7 +78,7 @@ export interface Janela {
 
 /** A contagem de UMA etapa, com a amostra sempre à vista. */
 export interface TaxaDaEtapa {
-  etapaId: string;
+  etapa_id: string;
   /** Encerrados que passaram por aqui na janela — o DENOMINADOR visível. */
   total: number;
   /** Desses, quantos terminaram ganhos. */
@@ -178,7 +178,7 @@ export function calcularTaxas(
     const percentual =
       atual.total > 0 ? Math.round((100 * atual.ganhos) / atual.total) : null;
     return {
-      etapaId: etapa.id,
+      etapa_id: etapa.id,
       total: atual.total,
       ganhos: atual.ganhos,
       percentual,
