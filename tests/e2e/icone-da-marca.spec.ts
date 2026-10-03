@@ -39,10 +39,7 @@ test.describe("o ícone e o título carregam a marca da instalação", () => {
     page,
   }) => {
     await page.goto("/login");
-    const href = await page
-      .locator('link[rel~="icon"]')
-      .first()
-      .getAttribute("href");
+    const href = await page.locator('link[rel~="icon"]').first().getAttribute("href");
     expect(href, "nenhum <link rel=icon> no <head>").toBeTruthy();
     // `/icon` com ou sem query de cache-busting do Next.
     expect(new URL(href ?? "", "http://x").pathname).toBe("/icon");
@@ -63,11 +60,10 @@ test.describe("o ícone e o título carregam a marca da instalação", () => {
     const marcaNoTitulo = casou?.[1] ?? "";
     expect(marcaNoTitulo.length).toBeGreaterThan(0);
 
-    // Cruza DUAS resoluções independentes: o título vem de `generateMetadata`
-    // (que lê `platform_branding` no banco) e o texto sob o "Entrar" vem de
-    // `branding()` (que lê o `.env`). Divergirem é defeito de verdade — foi
-    // por não cruzar isso que "trocar o nome pela tela e a aba não acompanhar"
-    // passou despercebido antes.
+    // O título e o texto sob "Entrar" precisam refletir a mesma marca da
+    // instalação. Antes, a página lia só `APP_NAME` do `.env`, enquanto o
+    // título lia `platform_branding`; a alteração feita pela tela não chegava
+    // ao corpo do login.
     await expect(page.getByText(marcaNoTitulo, { exact: true }).first()).toBeVisible();
   });
 });

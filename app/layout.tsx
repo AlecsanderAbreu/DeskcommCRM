@@ -6,6 +6,10 @@ import { coresDaBarraDoNavegador } from "@/lib/branding/barra-do-navegador";
 import { MarcaDaInstalacaoProvider } from "@/lib/branding/contexto";
 import { cssDaMarca } from "@/lib/branding/css";
 import {
+  cssPersonalizadoDaInstalacao,
+  validarCssPersonalizado,
+} from "@/lib/branding/css-personalizado";
+import {
   marcaDaInstalacao,
   motivoDoFallback,
   registrarEstadoDaMarca,
@@ -216,6 +220,20 @@ async function EstiloDaMarca() {
   return <style id="marca-instalacao" dangerouslySetInnerHTML={{ __html: css }} />;
 }
 
+/** CSS visual, escopado e validado do administrador da instalação. */
+async function EstiloCssPersonalizado() {
+  const fonte = await cssPersonalizadoDaInstalacao();
+  const validacao = validarCssPersonalizado(fonte);
+  if (validacao.erro) {
+    logger.warn("marca da instalação: CSS personalizado recusado; folha não aplicada", {
+      codigo: "custom_css_invalid",
+    });
+    return null;
+  }
+  if (!validacao.css) return null;
+  return <style id="marca-css-personalizado" dangerouslySetInnerHTML={{ __html: validacao.css }} />;
+}
+
 /**
  * A marca que atravessa para o NAVEGADOR — a MESMA pilha da aba e do CSS.
  *
@@ -284,6 +302,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         {/* Primeiro de tudo: a cor da instalação, antes do CSS e do script de tema. */}
         <EstiloDaMarca />
+        <EstiloCssPersonalizado />
         {/* Config pública do Supabase + marca resolvida, em runtime (imagem
             genérica self-host). */}
         <MarcaNoNavegador />

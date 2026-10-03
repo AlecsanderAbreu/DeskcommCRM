@@ -676,6 +676,44 @@ test.describe("o logo subido pela tela chega à tela", () => {
    */
   test.setTimeout(180_000);
 
+  test("o CSS personalizado salvo na tela aparece no login e pode ser removido", async ({
+    page,
+    browser,
+  }) => {
+    const secret = creds.dono_totp?.secret;
+    expect(secret, "sem `dono_totp` no .e2e-creds.json — rode seed-e2e-credentials.ts").toBeTruthy();
+    await loginComTotp(page, creds.users.dono!.email, secret!);
+    await page.goto("/admin/marca");
+
+    const editor = page.locator("#custom_css");
+    await expect(editor).toBeVisible();
+    await editor.fill(".text-muted-foreground { color: rgb(1, 2, 3); }");
+    await page.getByRole("button", { name: "Salvar CSS", exact: true }).click();
+    await expect(page.getByText("CSS personalizado salvo.")).toBeVisible({ timeout: 15_000 });
+
+    const visitante = await browser.newContext();
+    try {
+      const paginaLogin = await visitante.newPage();
+      await paginaLogin.goto("/login");
+      await expect(paginaLogin.locator("#marca-css-personalizado")).toContainText(
+        ":root:root .text-muted-foreground",
+      );
+      await expect
+        .poll(() =>
+          paginaLogin.locator(".text-muted-foreground").first().evaluate((element) =>
+            getComputedStyle(element).color,
+          ),
+        )
+        .toBe("rgb(1, 2, 3)");
+    } finally {
+      await visitante.close();
+      await page.goto("/admin/marca");
+      await page.locator("#custom_css").fill("");
+      await page.getByRole("button", { name: "Salvar CSS", exact: true }).click();
+      await expect(page.getByText("CSS personalizado salvo.")).toBeVisible({ timeout: 15_000 });
+    }
+  });
+
   test("(1) o dono do servidor sobe o logo e ele aparece na barra lateral", async ({ page }) => {
     // ESTE CASO NÃO USA `subirLogoDaCamada`, de propósito: a subida é o que ele
     // MEDE, e a ordem na FONTE importa — `tests/unit/marca-logo-spec-ancora-a-rota.test.ts`
@@ -1120,6 +1158,13 @@ test.describe("o logo subido pela tela chega à tela", () => {
     try {
       const pagina = await contexto.newPage();
       await loginComTotp(pagina, creds.users.dono!.email, creds.dono_totp!.secret);
+      await pagina.goto("/admin/marca");
+      const cssPersonalizado = pagina.locator("#custom_css");
+      if ((await cssPersonalizado.inputValue()) !== "") {
+        await cssPersonalizado.fill("");
+        await pagina.getByRole("button", { name: "Salvar CSS", exact: true }).click();
+        await expect(pagina.getByText("CSS personalizado salvo.")).toBeVisible({ timeout: 15_000 });
+      }
       await removerLogoSeHouver(pagina, "/app/settings/marca", "organizacao");
       await removerLogoSeHouver(pagina, "/admin/marca", "instalacao");
     } finally {

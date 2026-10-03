@@ -1,4 +1,6 @@
-<!-- traduzido-de: docs/white-label.md@909aa4197001 -->
+<!-- traduzido-de: docs/white-label.md@16fb5469c6a9 -->
+
+<!-- traduzido-de: docs/white-label.md@SELO_A_ATUALIZAR -->
 
 [🇧🇷 Português](white-label.md) · 🇺🇸 English · [🇪🇸 Español](white-label.es.md)
 
@@ -17,6 +19,24 @@ The license is MIT: you may modify it, host it for third parties, resell it and 
 The color is **derived**, not applied raw: one hex yields eleven shades in both themes (light and dark), with a contrast floor computed per role and per surface. If the color you picked would be illegible as button text in the dark theme, the system walks the steps it needs and the screen **shows you** which shade each thing will land on, before you save. None of that "I picked yellow and the button turned white on white".
 
 **The logo too.** On the same screen you **upload the file** — PNG or JPG, up to 512 KB. It goes to your own installation's storage and takes effect right away, with no restart and without you hosting an image anywhere. Fixed height, free width, so that artwork of any proportion is not distorted; with no logo, the name shows up as text.
+
+### Custom CSS
+
+On the same **Installation Brand** page, the installation administrator can add CSS for fine visual adjustments to the login and the screens of every organization. The stylesheet applies globally without restarting the server, and can be removed by clearing the field and saving.
+
+For safety, this is not an unrestricted CSS editor: it accepts class selectors and visual color, border, shadow, and typography properties. It rejects global or ID selectors, `@` rules, URLs and remote loading, escapes, scripts, `!important`, and layout or positioning properties. The limit is 16 KB. If a saved stylesheet no longer passes validation, it is not applied and the Brand page shows the reason. Because this setting belongs to the installation, every organization it serves is affected; review the screens after saving.
+
+Example:
+
+```css
+.text-muted-foreground {
+	color: #52645a;
+}
+
+.rounded-md {
+	border-radius: 12px;
+}
+```
 
 The file is accepted **by its bytes, not by its extension**. Renaming an `.svg` to `.png` fools nothing: the system reads the content, refuses it and says why. This is not fussiness — SVG is XML and can carry script, which would run if someone opened the image directly by its address, in a bucket that is public by necessity.
 

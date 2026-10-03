@@ -1,4 +1,6 @@
-<!-- traduzido-de: docs/white-label.md@909aa4197001 -->
+<!-- traduzido-de: docs/white-label.md@16fb5469c6a9 -->
+
+<!-- traduzido-de: docs/white-label.md@SELO_A_ATUALIZAR -->
 
 [🇧🇷 Português](white-label.md) · [🇺🇸 English](white-label.en.md) · 🇪🇸 Español
 
@@ -17,6 +19,24 @@ La licencia es MIT: puedes modificarlo, alojarlo para terceros, revenderlo y cob
 El color es **derivado**, no aplicado en crudo: de un hex salen once tonos en los dos temas (claro y oscuro), con un piso de contraste calculado por papel y por superficie. Si el color que elegiste quedaría ilegible como texto de botón en el tema oscuro, el sistema recorre los peldaños necesarios y la pantalla **te muestra** en qué tono va a aterrizar cada cosa, antes de guardar. Nada de "elegí amarillo y el botón quedó blanco sobre blanco".
 
 **El logo también.** En la misma pantalla **subes el archivo** — PNG o JPG, hasta 512 KB. Va al almacenamiento de tu propia instalación y pasa a valer al instante, sin reiniciar nada y sin que tengas que alojar la imagen en ningún sitio. Altura fija y ancho libre, para no deformar un arte de cualquier proporción; sin logo, el nombre aparece como texto.
+
+### CSS personalizado
+
+En la misma página **Marca de la instalación**, el administrador de la instalación puede agregar CSS para ajustes visuales finos en el login y en las pantallas de todas las organizaciones. La hoja se aplica globalmente, sin reiniciar el servidor, y se puede quitar borrando el contenido y guardando.
+
+Por seguridad, no es un editor de CSS sin restricciones: acepta selectores de clase y propiedades visuales de color, borde, sombra y tipografía. Rechaza selectores globales o por ID, reglas `@`, URL y cargas remotas, escapes, scripts, `!important` y propiedades de diseño o posicionamiento. El límite es 16 KB. Si una hoja guardada deja de superar la validación, no se aplica y la página Marca muestra el motivo. Como esta configuración pertenece a la instalación, también afecta a todas las organizaciones que atiende; revisa las pantallas después de guardar.
+
+Ejemplo:
+
+```css
+.text-muted-foreground {
+	color: #52645a;
+}
+
+.rounded-md {
+	border-radius: 12px;
+}
+```
 
 El archivo se acepta **por sus bytes, no por su extensión**. Renombrar un `.svg` a `.png` no engaña: el sistema lee el contenido, lo rechaza y dice por qué. Esto no es quisquillosidad — SVG es XML y puede llevar script, que se ejecutaría si alguien abriera la imagen directamente por su dirección, en un bucket que es público por necesidad.
 
