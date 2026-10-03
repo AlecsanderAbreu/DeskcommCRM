@@ -75,8 +75,10 @@ function itens(carga: BuscaCodificada): Record<string, unknown>[] {
     phone: `(11) 9999${String(i % 10)}-${String(1000 + i).slice(-4)}`,
     categoryName: carga.niche,
     address: `${carga.location}, ${i + 1}`,
-    url: `https://exemplo.teste/${i + 1}`,
-    website: `https://exemplo.teste/${i + 1}`,
+    // Sem `website` nem `url`: a catraca de host de terceiro (tests/unit/branding)
+    // reprova domínio hardcoded no código que embarca, e amostra de campo de um
+    // serviço inventado é exatamente o caso #266. Os dois campos são anuláveis
+    // em `Prospect`, então sair daqui sem eles é o mesmo que sair nulos.
     totalScore: 4.5,
     reviewsCount: i,
     permanentlyClosed: false,
