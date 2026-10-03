@@ -316,9 +316,9 @@ describe("a coluna 'Vence em' conta até o FIM do dia, não até a meia-noite UT
 
   it("a última hora do dia do prazo não contradiz o selo (21:00 a 21:59 de São Paulo)", () => {
     // O defeito que o mantenedor apontou ao revisar o #2168: nesta hora a linha
-    // dizia "0h restantes" enquanto o selo já dizia "Vencido". Os dois números
-    // vêm de âncoras que empatam quase sempre e divergem exatamente aqui — a
-    // meia-noite UTC do dia guardado já é o dia civil seguinte.
+    // dizia "0h restantes" enquanto o selo já dizia "Vencido". As duas âncoras
+    // viram no mesmo instante (o fim do dia guardado); a hora de "0h" vinha do
+    // `Math.trunc`, que leva (-1h, 0] a zero.
     for (const minuto of [0, 1, 15, 30, 45, 59]) {
       const instante = new Date(Date.UTC(2026, 9, 6, 0, minuto, 30));
       expect(emSaoPaulo(instante)).toBe("2026-10-05");
@@ -332,7 +332,7 @@ describe("a coluna 'Vence em' conta até o FIM do dia, não até a meia-noite UT
 
   it("a linha e o selo nunca discordam sobre 'em atraso', hora a hora em 97 horas", () => {
     // A prova de que a hora apontada na revisão foi fechada: se alguém voltar a
-    // governar a frase por `horas < 0`, esta varredura acha o minuto.
+    // governar a frase pela contagem truncada, esta varredura acha o minuto.
     for (let h = -48; h <= 48; h += 1) {
       for (const minuto of [0, 30]) {
         const instante = new Date(new Date(prazo).getTime() + h * 3_600_000 + minuto * 60_000);
@@ -497,11 +497,6 @@ const REPASSA_O_VALOR: readonly string[] = [
  */
 const DIVIDA_CONGELADA: ReadonlyArray<{ arquivo: string; motivo: string }> = [
   {
-    arquivo: "app/app/lgpd/requests/[id]/_client.tsx",
-    motivo:
-      "Tela: `format(new Date(due_at), 'dd/MM/yyyy')` no fuso do navegador. Recorte seguinte, e é UI — DoD 12 pede prova pela tela.",
-  },
-  {
     arquivo: "app/admin/(protected)/lgpd/requests/[id]/_client.tsx",
     motivo:
       "Tela: a linha 'Vence em' JÁ foi corrigida (`prazoEmBr`). O que resta neste arquivo é o `SlaTimelineInline`, que ainda mede `dueAt.getTime()` — o mesmo defeito de família, agora no progresso e no 'Nd restantes' — e é cópia de `app/app/lgpd/requests/[id]/SlaTimeline.tsx`. Os dois pedem UM dono só, e o recorte é das telas.",
@@ -633,8 +628,8 @@ describe("nenhum consumidor de due_at nasce fora da lista", () => {
       ],
       [
         "lib/lgpd/contagem-do-prazo.ts",
-        /if\s*\(\s*horas\s*<\s*0\s*\)/,
-        "a frase 'em atraso' voltou a ser governada por `horas < 0` em vez do predicado do selo — é o que fazia a última hora do dia do prazo dizer '0h restantes' ao lado de 'Vencido'.",
+        /if\s*\(\s*(?:inteiras|horas)\s*<\s*0\s*\)/,
+        "a frase 'em atraso' voltou a ser governada pela contagem truncada (`inteiras < 0`) em vez do predicado do selo — o `Math.trunc` leva (-1h, 0] a zero, e é o que fazia a última hora do dia do prazo dizer '0h restantes' ao lado de 'Vencido'.",
       ],
       [
         "app/app/lgpd/requests/[id]/_client.tsx",

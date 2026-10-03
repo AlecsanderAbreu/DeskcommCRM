@@ -96,15 +96,15 @@ export function contagemDoPrazo(
   const horas = horasAteOFimDoPrazo(dueAt, agora);
   if (horas === null) return "—";
 
-  // A VIRADA DE "EM ATRASO" É A MESMA DO SELO, e não `horas < 0`.
+  // A VIRADA DE "EM ATRASO" É A MESMA DO SELO, e não a contagem truncada.
   //
-  // Os dois números vêm de âncoras que empatam em quase todo instante e
-  // divergem exatamente na virada: `horas` chega a zero na meia-noite UTC do dia
-  // guardado, enquanto `diasDeAtraso` — o predicado do selo — vira no dia civil,
-  // que já é o seguinte nesse mesmo instante. Governando a frase por `horas < 0`,
-  // a linha ficava uma hora dizendo "0h restantes" ao lado de um selo **Vencido**
-  // (medido: 21:00 a 21:59 de São Paulo do próprio dia do prazo). Com o predicado
-  // do selo, os dois viram no mesmo instante.
+  // As duas âncoras viram no MESMO instante: `horas` chega a zero no fim do dia
+  // guardado (a meia-noite UTC seguinte), exatamente quando `diasDeAtraso` — o
+  // predicado do selo — passa a 1. Quem abria a hora de contradição era o
+  // `Math.trunc`: ele leva todo o intervalo (-1h, 0] a zero, e a frase governada
+  // por `inteiras < 0` ficava uma hora dizendo "0h restantes" ao lado de um selo
+  // **Vencido** (medido: 21:00 a 21:59 de São Paulo do próprio dia do prazo).
+  // Com o predicado do selo, a frase vira junto com ele.
   if (diasDeAtraso(dueAt, agora) > 0) {
     // `max(1, …)` só toca a primeira hora: abaixo de 1h de atraso a frase diz
     // "1h" em vez de "0h". Fora dela o arredondamento é o de sempre
