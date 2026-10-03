@@ -271,6 +271,42 @@ describe("GET /api/v1/metrics/funil", () => {
     expect(consultas).toHaveLength(5);
   });
 
+  it("conta a passagem gravada como { de, para } (agente, handoff, agenda)", async () => {
+    vi.mocked(requireRole).mockResolvedValue({
+      ok: true,
+      user: usuario(),
+      org: { orgId: ORG_ID, name: "Org", role: "manager" },
+    } as never);
+    const fila = alegria();
+    // l3 movido pela IA: lib/leads/agent-stage-sync.ts grava `{ de, para }`.
+    fila.crm_lead_activities = [
+      {
+        data: [
+          atividade("l1", "2026-09-12T10:00:00.000Z"),
+          atividade("l2", "2026-09-13T10:00:00.000Z"),
+          {
+            lead_id: "l3",
+            payload: { passo_do_agente: "qualificou", de: "A", para: "B" },
+            performed_at: "2026-09-14T10:00:00.000Z",
+          },
+        ],
+        error: null,
+      },
+    ];
+    const { client } = fakeSupabase(fila, RPC_OK);
+    vi.mocked(createClient).mockResolvedValue(client as never);
+
+    const res = await chamar();
+    expect(res.status).toBe(200);
+    const corpo = ((await res.json()) as { data: Record<string, unknown> }).data;
+    const conversao = corpo.conversao as {
+      etapas: Array<{ etapa: { id: string }; entraram: number; passaram: number; taxa: number | null }>;
+    };
+    const a = conversao.etapas.find((l) => l.etapa.id === "A");
+    expect(a?.passaram).toBe(3);
+    expect(a?.taxa).toBe(0.75);
+  });
+
   it("sem dado nenhum: devolve vazio explicando, com números nulos e sem NaN", async () => {
     vi.mocked(requireRole).mockResolvedValue({
       ok: true,

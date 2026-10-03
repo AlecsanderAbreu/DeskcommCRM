@@ -188,19 +188,26 @@ export async function GET(req: NextRequest): Promise<Response> {
     if (res.error) return fail("internal_error", `${nome}: ${res.error.message}`, 500, { requestId });
   }
 
+  // `stage_changed` tem DUAS grafias no repositório: as rotas de movimento
+  // gravam `from_stage_id/to_stage_id`; o agente, o handoff e a agenda gravam
+  // `{ de, para }` (lib/leads/agent-stage-sync.ts, handoff-stage-move.ts,
+  // appointment-stage-move.ts). Ler só a primeira descartava em silêncio
+  // justamente os movimentos feitos pela IA.
   const atividades: AtividadeDeEtapa[] = ((atividadesRes.data ?? []) as AtividadeCrua[])
-    .map((a) => ({
-      lead_id: a.lead_id,
-      de:
-        a.payload && typeof a.payload === "object"
-          ? ((a.payload as { from_stage_id?: string | null }).from_stage_id ?? null)
-          : null,
-      para:
-        a.payload && typeof a.payload === "object"
-          ? ((a.payload as { to_stage_id?: string | null }).to_stage_id ?? "")
-          : "",
-      quando: a.performed_at,
-    }))
+    .map((a) => {
+      const p = (a.payload && typeof a.payload === "object" ? a.payload : {}) as {
+        from_stage_id?: string | null;
+        to_stage_id?: string | null;
+        de?: string | null;
+        para?: string | null;
+      };
+      return {
+        lead_id: a.lead_id,
+        de: p.from_stage_id ?? p.de ?? null,
+        para: p.to_stage_id ?? p.para ?? "",
+        quando: a.performed_at,
+      };
+    })
     .filter((a) => Boolean(a.lead_id) && Boolean(a.para));
 
   const linhasDeLead = [
