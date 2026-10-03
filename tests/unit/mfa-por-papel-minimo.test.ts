@@ -199,6 +199,20 @@ describe("avaliaPoliticaDeMfa — carência", () => {
     ).toEqual({ exige: true, bloqueia: true, prazoAte: null });
   });
 
+  it("carência sem âncora (sem mudouEm nem aceitoEm) não adia: bloqueia na hora", () => {
+    // Carência que não sabe quando começou não tem como terminar — sem
+    // âncora, a regra cai em exigir bloqueando, nunca em adiar para sempre.
+    expect(
+      avaliaPoliticaDeMfa({
+        ...BASE,
+        role: "agent",
+        papelMinimo: "agent",
+        diasDeCarencia: 7,
+        agora: AGORA,
+      }),
+    ).toEqual({ exige: true, bloqueia: true, prazoAte: null });
+  });
+
   it("CONTROLE — a carência legada não muda: mfa_required true sem min_role bloqueia já", () => {
     expect(
       avaliaPoliticaDeMfa({
