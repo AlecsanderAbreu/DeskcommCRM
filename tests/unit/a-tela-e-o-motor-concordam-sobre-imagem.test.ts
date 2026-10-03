@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { modelCapabilities } from "@/lib/agent-engine/edge/llm/capabilities";
 import { decidirBinding } from "@/lib/ai/pontos/resolver";
@@ -95,16 +95,20 @@ describe("o que o motor NÃO conhece continua vindo do catálogo", () => {
  * anunciando coisa diferente do motor, e alguém voltando a GRAVAR um provider
  * no ponto (registro) ou a decidir sozinho na rota.
  */
-beforeEach(() => {
-  // Os knobs que a escada lê são do PROCESSO (`vi.stubEnv`), não do import:
-  // sem travá-los aqui o teste mede a máquina onde roda, não o código.
-  vi.stubEnv("TRANSCRIPTION_API_KEY", "");
-  vi.stubEnv("TRANSCRIPTION_MODEL", "");
-  vi.stubEnv("TRANSCRIPTION_BASE_URL", "");
-  vi.stubEnv("OPENAI_API_KEY", "");
-});
-afterEach(() => {
-  vi.unstubAllEnvs();
+// A escada lê os TRANSCRIPTION_* pela régua `env` (`lib/env.ts`), a mesma da
+// guarda de destino do worker (#855/#964). Travá-los vazios aqui é o que faz o
+// teste medir o código, e não o `.env.local` da máquina onde roda.
+vi.mock("@/lib/env", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/env")>();
+  return {
+    env: {
+      ...real.env,
+      TRANSCRIPTION_API_KEY: "",
+      TRANSCRIPTION_MODEL: "",
+      TRANSCRIPTION_BASE_URL: "",
+      TRANSCRIPTION_LANGUAGES: "",
+    },
+  };
 });
 
 /** A organização da #2190: Gemini com chave do Google, sem conta OpenAI. */

@@ -47,15 +47,17 @@
  * UM lugar decide, os dois lados leem o mesmo lugar, e a régua em
  * `tests/unit/a-tela-e-o-motor-concordam-sobre-imagem.test.ts` compara os dois.
  *
- * Os knobs de transcrição são lidos do `process.env` NA HORA, e não do retrato
- * que `lib/env` faz no import: é a MESMA leitura no worker e na rota, e é a
- * única que `vi.stubEnv` alcança em teste — um retrato diria `whisper-1` para
- * sempre, com o valor de quando o módulo entrou.
+ * Os knobs TRANSCRIPTION_* são lidos pela régua `env` de `lib/env.ts`, nunca
+ * pelo `process.env` cru (#855/#964): a guarda de destino do worker
+ * (`workers/media-derive-worker.ts`) lê `env.TRANSCRIPTION_BASE_URL`, e duas
+ * réguas para o mesmo knob divergem caladas. Teste que precisa variar esses
+ * knobs mocka `@/lib/env` (ver `tests/unit/midia-base-url-do-binding.test.ts`).
  */
 import { generateText } from "ai";
 
 import { transcreveAudio } from "@/lib/agent-engine/edge/llm/capabilities";
 import { createDefaultRegistry } from "@/lib/agent-engine/edge/llm/providers";
+import { env } from "@/lib/env";
 
 import type { TranscriptionProvider } from "@/lib/messaging/media/transcription";
 import {
@@ -106,10 +108,6 @@ export interface DecisaoDeTranscricao {
   anuncio: AnuncioDaTranscricao;
 }
 
-/** Um knob do `.env`, lido na hora em vez do retrato do import. */
-function doAmbiente(nome: string): string {
-  return (process.env[nome] ?? "").trim();
-}
 
 /**
  * O pedido ao modelo de conversa. Um PROVEDOR DE TRANSCRIÇÃO como os outros:
@@ -170,25 +168,25 @@ export async function decidirTranscricao(entrada: {
   idiomas?: readonly string[];
   chaveOpenai?: () => Promise<string | null>;
 }): Promise<DecisaoDeTranscricao> {
-  const idiomas = entrada.idiomas ?? idiomasDaTranscricao(doAmbiente("TRANSCRIPTION_LANGUAGES"));
+  const idiomas = entrada.idiomas ?? idiomasDaTranscricao(env.TRANSCRIPTION_LANGUAGES);
 
   // 1 · Serviço de transcrição da instalação — escolha explícita.
-  const servico = doAmbiente("TRANSCRIPTION_API_KEY");
+  const servico = env.TRANSCRIPTION_API_KEY;
   if (servico) {
     // Com a chave do serviço na mão, `modeloDeTranscricaoEmVigor` devolve
     // exatamente o modelo que o transcriber abaixo vai mandar: o de
     // `TRANSCRIPTION_MODEL`, ou `whisper-1` quando vazio.
     const modelo = modeloDeTranscricaoEmVigor({
-      model: doAmbiente("TRANSCRIPTION_MODEL"),
+      model: env.TRANSCRIPTION_MODEL,
       apiKey: servico,
-      baseUrl: doAmbiente("TRANSCRIPTION_BASE_URL"),
+      baseUrl: env.TRANSCRIPTION_BASE_URL,
     });
     return {
       origem: "servico_da_instalacao",
       transcriber: apiTranscriptionProvider({
         apiKey: servico,
-        baseUrl: doAmbiente("TRANSCRIPTION_BASE_URL") || undefined,
-        model: doAmbiente("TRANSCRIPTION_MODEL") || undefined,
+        baseUrl: env.TRANSCRIPTION_BASE_URL || undefined,
+        model: env.TRANSCRIPTION_MODEL || undefined,
         languages: idiomas,
       }),
       motivo:
@@ -202,9 +200,9 @@ export async function decidirTranscricao(entrada: {
   const chaveOpenai = entrada.chaveOpenai ? await entrada.chaveOpenai() : null;
   if (chaveOpenai) {
     const modelo = modeloDeTranscricaoEmVigor({
-      model: doAmbiente("TRANSCRIPTION_MODEL"),
-      apiKey: doAmbiente("TRANSCRIPTION_API_KEY"),
-      baseUrl: doAmbiente("TRANSCRIPTION_BASE_URL"),
+      model: env.TRANSCRIPTION_MODEL,
+      apiKey: env.TRANSCRIPTION_API_KEY,
+      baseUrl: env.TRANSCRIPTION_BASE_URL,
     });
     return {
       origem: "padrao_openai_compativel",

@@ -4,8 +4,8 @@
  * O ponto fixo de transcrição declara `whisper-1`, mas `TRANSCRIPTION_MODEL` (o
  * mesmo `.env` do app e do worker) troca o modelo que o worker usa — inclusive
  * com a chave da OpenAI da organização. A tela lia só o ponto e dizia
- * `whisper-1` com outro modelo em uso. Agora ela lê pela mesma função do worker
- * (`modeloDeTranscricaoEmVigor`), e este arquivo mede as duas pontas.
+ * `whisper-1` com outro modelo em uso. Agora ela roda a mesma escada do worker
+ * (`decidirTranscricao`, #2190), e este arquivo mede a rota de ponta a ponta.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,29 @@ vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn(async () => null) }));
 vi.mock("@/lib/audit", () => ({ audit: vi.fn(async () => undefined) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
+
+// A escada lê o trio da transcrição pela régua `env` (`lib/env.ts`), como a
+// guarda de destino do worker (#855/#964) — `vi.stubEnv` não alcança esse
+// caminho. O módulo real segue inteiro; só o trio vem de um objeto do caso.
+const transcricaoDoEnv = vi.hoisted(() => ({ apiKey: "", baseUrl: "", model: "" }));
+vi.mock("@/lib/env", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/env")>();
+  return {
+    env: {
+      ...real.env,
+      get TRANSCRIPTION_API_KEY() {
+        return transcricaoDoEnv.apiKey;
+      },
+      get TRANSCRIPTION_BASE_URL() {
+        return transcricaoDoEnv.baseUrl;
+      },
+      get TRANSCRIPTION_MODEL() {
+        return transcricaoDoEnv.model;
+      },
+      TRANSCRIPTION_LANGUAGES: "",
+    },
+  };
+});
 vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({
     from: () => {
@@ -61,9 +84,9 @@ afterEach(() => {
 // As três chaves juntas, sempre: um `.env.local` com TRANSCRIPTION_BASE_URL
 // mudaria o que a tela anuncia e o caso mediria a máquina, não o código.
 function comTranscricaoNoEnv(t: { model: string; apiKey?: string; baseUrl?: string }): void {
-  vi.stubEnv("TRANSCRIPTION_MODEL", t.model);
-  vi.stubEnv("TRANSCRIPTION_API_KEY", t.apiKey ?? "");
-  vi.stubEnv("TRANSCRIPTION_BASE_URL", t.baseUrl ?? "");
+  transcricaoDoEnv.model = t.model;
+  transcricaoDoEnv.apiKey = t.apiKey ?? "";
+  transcricaoDoEnv.baseUrl = t.baseUrl ?? "";
   // A escada só entra no degrau OpenAI se EXISTIR chave OpenAI — e é essa a
   // pergunta que a tela, como o worker, precisa responder (#2190). Sem esta
   // chave os casos abaixo cairiam no degrau do modelo de conversa (a
