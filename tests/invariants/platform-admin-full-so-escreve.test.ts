@@ -227,11 +227,21 @@ describe("0529 — support_readonly não escreve na fatia 1 do #2115", () => {
     expect(writeCountAs(FULL_0529, `delete from public.messages where id = '${MSG_PROBE_0529}'`)).toBe(1);
   });
 
-  it("messages: INSERT 0 como support_readonly; 1 como full", () => {
+  it("messages: INSERT negado por RLS como support_readonly; o full passa da RLS e para na trigger", () => {
+    // Inbound é reservado (`message.received`) e o full não é membro da org: o
+    // insert dele nunca completa. O que se prova é que ele PASSA da RLS
+    // (WITH CHECK) e para na trigger AFTER INSERT `trg_messages_emit_event`.
     const linha = (id: string, body: string) =>
       `insert into public.messages (id, organization_id, conversation_id, channel_session_id, contact_id, type, direction, body) values ('${id}', '${ORG_0529}', '${CONV_0529}', '${SESSION_0529}', '${CONTACT_0529}', 'text', 'inbound', '${body}')`;
     expect(writeCountAs(READONLY_0529, linha("cccccccc-2115-4000-8000-0000000000c1", "sonda readonly"))).toBe(0);
-    expect(writeCountAs(FULL_0529, linha("cccccccc-2115-4000-8000-0000000000c2", "sonda full"))).toBe(1);
+    let erroDoFull = "";
+    try {
+      writeCountAs(FULL_0529, linha("cccccccc-2115-4000-8000-0000000000c2", "sonda full"));
+    } catch (err) {
+      erroDoFull = (err as { stderr?: string }).stderr ?? String(err);
+    }
+    // Negado por RLS, `writeCountAs` devolveria 0 sem lançar: `erroDoFull` vazio, vermelho.
+    expect(erroDoFull).toMatch(/reserved_message_received/);
   });
 
   it("conversations: UPDATE 0 como support_readonly; 1 como full", () => {
