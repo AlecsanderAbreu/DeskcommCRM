@@ -128,3 +128,21 @@ fetch('http://127.0.0.1:3000/email-templates/confirmation').then(r=>r.text()).th
     fi
     ;;
 esac
+
+step "TLS do banco (Supabase)"
+# ── Por que este passo existe (#829) ──────────────────────────────────────────
+# Instalação sem patches permanentes falhou nos diagnósticos com
+# `SELF_SIGNED_CERT_IN_CHAIN`: a cadeia do pooler não está na trust store
+# padrão, e o erro cru não diz o que fazer. Aqui o teste roda com verificação
+# TOTAL (sslmode=verify-full + sslrootcert, montado pelo pg_container) e, quando
+# a CA não está declarada, a frase vem com o NOME da variável que falta — é o
+# que a issue pede. Nada é desligado para o teste passar: sem a CA declarada
+# ele avisa; com ela, ele prova.
+if tls_dito="$(tls_do_banco 2>&1)"; then
+  c_grn "✓ TLS do banco verificado (sslmode=verify-full com a CA de SUPABASE_SSL_ROOT_CERT)"
+else
+  while IFS= read -r linha_tls; do
+    if [ -n "$linha_tls" ]; then c_ylw "$linha_tls"; fi
+  done <<< "$tls_dito"
+  c_dim "  (a verificação de certificado continua ligada — a CA só entra na confiança.)"
+fi
