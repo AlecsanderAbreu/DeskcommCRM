@@ -1,4 +1,4 @@
--- 0526: o aviso `midia_nao_lida` não abre em dobro com dois workers
+-- 0527: o aviso `midia_nao_lida` não abre em dobro com dois workers
 -- concorrentes (issue #880, o resto que o #1928 deixou de fora).
 --
 -- O dedupe deste aviso é uma PERGUNTA e uma ESCRITA separadas: `avisarMidiaNaoLida`

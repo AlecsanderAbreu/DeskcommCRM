@@ -93,10 +93,14 @@ describe("o vocabulário do banco acompanha", () => {
     ).toBeDefined();
 
     const baseline = readFileSync("supabase/baseline.sql", "utf8");
-    const check = /severity text not null default '[a-z]+' check \(severity in \(([^)]*)\)\)/.exec(baseline);
+    const check = /severity text not null default '[a-z]+' check \(severity in \(([^)]*)\)\)/.exec(
+      baseline,
+    );
     expect(check, "não achei o CHECK de severity no baseline — instrumento cego").not.toBeNull();
     const aceitos = [...(check?.[1] ?? "").matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
-    expect(aceitos.length, "a lista de severities veio vazia — instrumento cego").toBeGreaterThan(1);
+    expect(aceitos.length, "a lista de severities veio vazia — instrumento cego").toBeGreaterThan(
+      1,
+    );
     expect(
       aceitos,
       `o worker grava severity="${severityDoWorker}", que o banco recusa — o aviso nunca abre`,
@@ -110,8 +114,10 @@ describe("o vocabulário do banco acompanha", () => {
     // porque faz o próximo diagnóstico começar da premissa errada.
     const fonte = readFileSync("workers/media-derive-worker.ts", "utf8");
     const trecho = fonte.slice(fonte.indexOf('kind: "midia_nao_lida"'));
-    expect(trecho.slice(0, 2000), "o retorno do insert deixou de ser conferido").toMatch(/if \(error/);
-    // E a ÚNICA exceção é o código que o índice da 0526 levanta: o `select`
+    expect(trecho.slice(0, 2000), "o retorno do insert deixou de ser conferido").toMatch(
+      /if \(error/,
+    );
+    // E a ÚNICA exceção é o código que o índice da 0527 levanta: o `select`
     // acima pergunta sem trava, então perder a corrida para o índice quer dizer
     // exatamente o que o aviso quer (já existe um aberto). Logar isso como
     // recusa de banco seria alarme falso em cima de um alarme correto.
@@ -135,17 +141,18 @@ describe("o vocabulário do banco acompanha", () => {
     // depois), e o lote de derivação roda em paralelo: dois workers leem "não
     // existe" antes de qualquer escrita e abrem dois avisos. O índice parcial é
     // a forma atômica do que o código já queria.
-    const migracoes = readdirSync("supabase/migrations").filter((f) => /_0526_/.test(f));
-    expect(migracoes.length, "a migration da 0526 não está no lugar").toBe(1);
+    const migracoes = readdirSync("supabase/migrations").filter((f) => /_0527_/.test(f));
+    expect(migracoes.length, "a migration da 0527 não está no lugar").toBe(1);
     const migracao = readFileSync(`supabase/migrations/${migracoes[0]}`, "utf8");
     const baseline = readFileSync("supabase/baseline.sql", "utf8");
 
     // A CHAVE: (organização, kind) e NÃO o título — aqui o `select` já ignora o
     // `tipo` e quer um aviso por organização, ao contrário do `event_dead`, cujo
     // título entra na chave por causa das duas famílias que convivem abertas.
-    const indice = /create unique index if not exists (\w+)\s+on public\.agent_inbox_items \(([^)]*)\)\s+where ([^;]*);/.exec(
-      migracao,
-    );
+    const indice =
+      /create unique index if not exists (\w+)\s+on public\.agent_inbox_items \(([^)]*)\)\s+where ([^;]*);/.exec(
+        migracao,
+      );
     expect(indice, "não achei o índice parcial na migration — instrumento cego").not.toBeNull();
     expect(indice![2]!.replace(/\s+/g, " ").trim()).toBe("organization_id, kind");
     expect(indice![3]!.replace(/\s+/g, " ").trim()).toBe(

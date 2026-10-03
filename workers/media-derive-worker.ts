@@ -644,7 +644,7 @@ async function avisarMidiaNaoLida(
     // que falha em silêncio é pior que aviso nenhum — ele faz o próximo
     // diagnóstico começar da premissa errada.
     //
-    // `23505` é a EXCEÇÃO, e não é recusa: é o índice único parcial da 0526
+    // `23505` é a EXCEÇÃO, e não é recusa: é o índice único parcial da 0527
     // fazendo o trabalho dele. O `select` acima é uma pergunta sem trava, então
     // dois workers derivando mídia no mesmo instante podem os dois ler "não
     // existe"; quem chega segundo ao índice perde a corrida, e isso quer dizer

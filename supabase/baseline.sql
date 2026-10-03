@@ -46469,7 +46469,7 @@ $$;
 alter table public.prospecting_candidates
   add column if not exists selected boolean not null default true;
 
--- ---- dedupe de midia_nao_lida atômico: índice único parcial (migration 0526) ----
+-- ---- dedupe de midia_nao_lida atômico: índice único parcial (migration 0527) ----
 with repetidas as (
   select id,
          row_number() over (

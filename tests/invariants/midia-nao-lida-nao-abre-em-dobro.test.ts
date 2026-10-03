@@ -19,7 +19,7 @@ import pg from "pg";
  *   2. a trava é POR ORGANIZAÇÃO — o aviso aberto de uma não cala a vizinha;
  *   3. resolvido o aviso, o próximo abre outro — dedupe não é "nunca mais".
  *
- * O `23505` aqui é o MESMO caminho que o índice parcial da 0526 levanta em
+ * O `23505` aqui é o MESMO caminho que o índice parcial da 0527 levanta em
  * produção: o teste não simula a corrida, ele mede o que a corrida produz.
  */
 
@@ -70,18 +70,21 @@ const abertos = async (org: string): Promise<number> => {
 };
 
 beforeAll(async () => {
-  await pool.query(`insert into organizations (id, slug, legal_name, display_name) values ($1,$2,$2,$2)`, [
-    ORG_A,
-    "midia-a",
-  ]);
-  await pool.query(`insert into organizations (id, slug, legal_name, display_name) values ($1,$2,$2,$2)`, [
-    ORG_B,
-    "midia-b",
-  ]);
+  await pool.query(
+    `insert into organizations (id, slug, legal_name, display_name) values ($1,$2,$2,$2)`,
+    [ORG_A, "midia-a"],
+  );
+  await pool.query(
+    `insert into organizations (id, slug, legal_name, display_name) values ($1,$2,$2,$2)`,
+    [ORG_B, "midia-b"],
+  );
 });
 
 afterAll(async () => {
-  await pool.query(`delete from agent_inbox_items where organization_id in ($1, $2)`, [ORG_A, ORG_B]);
+  await pool.query(`delete from agent_inbox_items where organization_id in ($1, $2)`, [
+    ORG_A,
+    ORG_B,
+  ]);
   await pool.query(`delete from organizations where id in ($1, $2)`, [ORG_A, ORG_B]);
   await pool.end();
 });
@@ -93,7 +96,10 @@ describe("o aviso de mídia não lida não abre em dobro", () => {
     const primeiro = await tentarAbrir(ORG_A, "foto");
     const segundo = await tentarAbrir(ORG_A, "áudio");
 
-    expect(primeiro.code, "o primeiro aviso foi recusado — o índice está barrando o caso legítimo").toBeNull();
+    expect(
+      primeiro.code,
+      "o primeiro aviso foi recusado — o índice está barrando o caso legítimo",
+    ).toBeNull();
     expect(segundo.code, "o segundo aviso passou: a corrida do #880 continua aberta").toBe("23505");
     expect(await abertos(ORG_A)).toBe(1);
 
@@ -122,7 +128,10 @@ describe("o aviso de mídia não lida não abre em dobro", () => {
       [ORG_A],
     );
     const depois = await tentarAbrir(ORG_A, "áudio");
-    expect(depois.code, "o aviso não reabre depois de resolvido — o dedupe virou mordaça").toBeNull();
+    expect(
+      depois.code,
+      "o aviso não reabre depois de resolvido — o dedupe virou mordaça",
+    ).toBeNull();
     expect(await abertos(ORG_A)).toBe(1);
   });
 
