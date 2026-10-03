@@ -21,7 +21,7 @@ function rowFromRealtime(payload: unknown): Record<string, unknown> | null {
 }
 
 /**
- * A recusada (contato "privado") NÃO toca aviso (pedido 1): linha `ended`
+ * A recusada de bloqueado NÃO toca aviso (pedido 1): linha `ended`
  * com `end_reason === "contact_blocked"` não dispara `entregarAviso`.
  * Guarda nas DUAS (status e motivo): linha encerrada por outro motivo
  * continua avisando como hoje.

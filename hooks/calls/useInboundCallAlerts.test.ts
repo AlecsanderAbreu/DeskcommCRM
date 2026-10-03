@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 import { deveAvisarChamadaEntrante } from "./useInboundCallAlerts";
 
 /**
- * O alerta não toca para a recusada (contato "privado") — pedido 1, item 6.
+ * O alerta não toca para a recusada de bloqueado — pedido 1, item 6.
  *
  * SABOTAGEM (prova no CI, sem rodar nada local): tirar a guarda do
  * `end_reason` em `deveAvisarChamadaEntrante` = caso "recusada" vermelho
  * (1 caso cai); os demais seguem verdes.
  */
 describe("deveAvisarChamadaEntrante", () => {
-  it('recusada (contato "privado"): ended + contact_blocked não dispara', () => {
+  it('recusada de bloqueado: ended + contact_blocked não dispara', () => {
     expect(
       deveAvisarChamadaEntrante({
         provider: "sip",

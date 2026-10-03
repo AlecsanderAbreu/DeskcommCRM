@@ -102,7 +102,7 @@ export async function handleStasisStart(event: AriEvent) {
 
   // BLOQUEADO NA LIGAÇÃO É RECUSADO (pedido 1): depois do contato resolvido,
   // antes do insert, antes do dialplan e antes da IA. Grava a linha já
-  // encerrada (rastreável no histórico como recusada (contato "privado")) e
+  // encerrada (rastreável no histórico como Cancelada) e
   // desliga — sem negócio, sem IA, sem tocar, sem alerta.
   // SABOTAGEM DO FIO: remover a chamada a `deveRecusarChamada` abaixo (manter
   // a função pura existindo mas sem uso) = teste do fio vermelho.
@@ -124,7 +124,7 @@ export async function handleStasisStart(event: AriEvent) {
     if (refuseError) {
       console.error(`[voice-agent] falha ao gravar recusa de bloqueado:`, refuseError.message);
     } else {
-      console.info(`[voice-agent] chamada recusada (contato "privado")`);
+      console.info(`[voice-agent] chamada recusada de bloqueado`);
     }
     await hangupChannel(channel.id, "normal");
     return;

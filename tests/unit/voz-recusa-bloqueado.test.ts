@@ -1,5 +1,5 @@
 /**
- * A recusada (contato "privado") na tela SIP e no histórico — pedido 1, item 5.
+ * A recusada de bloqueado na tela SIP e no histórico — pedido 1, item 5.
  *
  * - `GET /api/v1/calls` lê `end_reason` mas não o expõe: a recusada
  *   (`ended` + `contact_blocked`) sai como `canceled` ("Cancelada", rótulo
@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 describe("mapStatusParaApi", () => {
-  it('caso 1 — recusada (contato "privado") vira canceled, não completed', () => {
+  it('caso 1 — recusada de bloqueado vira canceled, não completed', () => {
     expect(mapStatusParaApi("ended", "contact_blocked")).toBe("canceled");
   });
 

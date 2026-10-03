@@ -89,7 +89,7 @@ beforeEach(() => {
 });
 
 describe("fio da recusa de bloqueado", () => {
-  it('bloqueado desliga UMA vez, sem negócio, sem IA, e grava recusada (contato "privado")', async () => {
+  it('bloqueado desliga UMA vez, sem negócio, sem IA, e grava como Cancelada', async () => {
     fakes.contato = { id: "contato-bloq", is_blocked: true };
     await handleStasisStart(eventoDeEntrada("+5532984793302"));
     expect(fakes.hangup).toHaveBeenCalledTimes(1);
