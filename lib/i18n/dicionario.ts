@@ -6866,7 +6866,7 @@ export const DICIONARIO: Traducoes = {
   "Restaurar no CRM": { es: "Restaurar en el CRM" },
   "Ocultar no CRM": { es: "Ocultar en el CRM" },
   "Ocultar esta mensagem no CRM?": { es: "¿Ocultar este mensaje en el CRM?" },
-  "A mensagem continua no WhatsApp do cliente e no registro da empresa. Um gestor pode restaurá-la aqui.": { es: "El mensaje permanece en el WhatsApp del cliente y en el registro de la empresa. Un administrador puede restaurarlo aquí." },
+  "A mensagem continua na conversa do cliente e no registro da empresa. Um gestor pode restaurá-la aqui.": { es: "El mensaje permanece en la conversación del cliente y en el registro de la empresa. Un administrador puede restaurarlo aquí." },
   "Esta mensagem não pode ser ocultada.": { es: "Este mensaje no se puede ocultar." },
   "Não foi possível atualizar a mensagem.": { es: "No se pudo actualizar el mensaje." },
   "Mensagem não encontrada.": { es: "Mensaje no encontrado." },

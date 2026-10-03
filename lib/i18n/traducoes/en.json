@@ -4215,7 +4215,7 @@
   "Restaurar no CRM": "Restore in the CRM",
   "Ocultar no CRM": "Hide in the CRM",
   "Ocultar esta mensagem no CRM?": "Hide this message in the CRM?",
-  "A mensagem continua no WhatsApp do cliente e no registro da empresa. Um gestor pode restaurá-la aqui.": "The message stays in the client's WhatsApp and in the company's record. A manager can restore it here.",
+  "A mensagem continua na conversa do cliente e no registro da empresa. Um gestor pode restaurá-la aqui.": "The message stays in the client's conversation and in the company's record. A manager can restore it here.",
   "Esta mensagem não pode ser ocultada.": "This message can't be hidden.",
   "Não foi possível atualizar a mensagem.": "Couldn't update the message.",
   "Mensagem não encontrada.": "Message not found.",
