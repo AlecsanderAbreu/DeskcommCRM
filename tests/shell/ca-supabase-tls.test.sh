@@ -181,8 +181,16 @@ roda_healthcheck() {  # roda_healthcheck → stdout+stderr
 saida="$(roda_healthcheck)"
 check "sem CA, o diagnóstico cita SUPABASE_SSL_ROOT_CERT" \
   bash -c 'printf "%s" "$1" | grep -q SUPABASE_SSL_ROOT_CERT' _ "$saida"
-check "e diz de onde tirar a CA do Supabase" \
-  bash -c 'printf "%s" "$1" | grep -qi "prod-ca-2021"' _ "$saida"
+# A chave é OPCIONAL: sem ela, o passo informa e NÃO manda baixar CA nenhuma,
+# nem em amarelo — senão toda instalação existente leria um aviso de algo de
+# que não precisa. Só o trecho do passo TLS conta (os outros passos têm amarelo
+# próprio, de outros motivos).
+secao_tls() { printf '%s' "$1" | awk '/TLS do banco/{p=1} p'; }
+saida="$(roda_healthcheck FORCE_COLOR=1)"
+check "sem CA, o passo TLS não manda baixar a CA (a chave é opcional)" \
+  bash -c '! printf "%s" "$1" | grep -qiE "curl|prod-ca-2021"' _ "$(secao_tls "$saida")"
+check "sem CA, o passo TLS não sai em amarelo (é informação, não aviso)" \
+  bash -c '! printf "%s" "$1" | grep -qF "$(printf "\033[33m")"' _ "$(secao_tls "$saida")"
 
 # Com CA declarada NO .env (o caminho documentado): o teste TLS passa.
 printf 'SUPABASE_SSL_ROOT_CERT=%s\n' "$CA" >> "$PROJ/.env"
@@ -199,6 +207,13 @@ check "sem ecoar a senha do banco na tela do diagnóstico" \
 roda_healthcheck >/dev/null
 check "repetir não duplica o mount" \
   test "$(grep -c -- ':ro' "$DOCKER_LOG")" -le 1
+# Single-server: o banco é o Postgres local, e a CA da nuvem não se aplica —
+# mesmo com a chave no .env, o passo não roda verify-full contra ele.
+saida="$(roda_healthcheck SINGLE_SERVER=1)"
+check "single-server: o passo TLS não testa o Postgres local com a CA da nuvem" \
+  bash -c "! grep -q 'sslmode=verify-full' '$DOCKER_LOG'"
+check "single-server: e diz que não se aplica" \
+  bash -c 'printf "%s" "$1" | grep -q "não se aplica"' _ "$(secao_tls "$saida")"
 
 # ── 8. install.sh (gêmeo, roda antes do clone) ───────────────────────────────
 echo "── 8. install.sh acompanha _common.sh"
