@@ -42,8 +42,10 @@ export const ENTIDADE_ESPERADA_POR_GATILHO = {
   // `fn_emit_event_on_lead_change`: ele reage ao UPDATE de `crm_leads.status`
   // e de `owner_user_id`/`owner_agent_id`, então valem para TODOS os caminhos
   // que terminam naquele UPDATE — arrastar o card, o botão Ganhou/Perdeu, o
-  // mover em lote, o `crm_close_demand` da IA e o `create_or_move_lead` — com
-  // o MESMO payload, porque há UM emissor, não um por caminho. Antes disto,
+  // mover em lote, o `crm_close_demand` da IA e o mover do `create_or_move_lead`
+  // — com o MESMO payload, porque há UM emissor, não um por caminho. Criar o
+  // negócio já ganho/perdido ou já com dono NÃO emite: o trigger só reage a
+  // UPDATE (retorna cedo no INSERT). Antes disto,
   // arrastar disparava `lead.stage_changed` e o botão não disparava regra
   // nenhuma: o fato era o mesmo e o webhook dependia do botão.
   // A entidade que a REGRA enxerga é `crm_lead` (o que o `buildContext`
