@@ -104,6 +104,11 @@ export function LimiarDeSentimento({ agentId, inicial, disabled }: Props) {
       </div>
       <p className="text-xs text-muted-foreground">
         {t(
+          "Nota mais alta manda mais conversas para uma pessoa; mais baixa deixa só a hostilidade forte acionar a passagem.",
+        )}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {t(
           "Em nichos onde todo contato chega como queixa — advocacia, saúde, assistência técnica —, relatar o problema não é irritação. O que aciona a passagem é hostilidade com o atendimento, ameaça ou pedido agressivo de falar com uma pessoa.",
         )}
       </p>
