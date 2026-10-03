@@ -453,9 +453,7 @@ describe("o rótulo da lista da organização mede até o FIM do dia do prazo", 
       const agora = new Date(new Date(prazo).getTime() + h * 3_600_000);
       formas.add(distanciaDoPrazo(prazo, t, agora).label.replace(/\d+/, "N"));
     }
-    expect([...formas].sort()).toEqual(
-      ["Nd atrasado", "atrasado hoje", "em Nd", "em Nh"].sort(),
-    );
+    expect([...formas].sort()).toEqual(["Nd atrasado", "atrasado hoje", "em Nd", "em Nh"].sort());
 
     // "em 2d" às 09h de 03/10 (o antigo dizia "em 1d")
     const doisDiasAntes = new Date("2026-10-03T12:00:00.000Z");
