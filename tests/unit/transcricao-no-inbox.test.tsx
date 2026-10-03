@@ -46,8 +46,11 @@ function msg(over: Partial<Message>): Message {
   } as Message;
 }
 
-const audio = (over: Partial<Message>) =>
-  render(<MediaRenderer message={msg({ type: "audio", ...over })} />);
+// O relógio do balão é prop (o tick do MessageBubble): 30s depois de a
+// mensagem chegar, dentro do teto do aviso.
+const CHEGADA = Date.parse("2026-10-02T20:00:00.000Z");
+const audio = (over: Partial<Message>, agora = CHEGADA + 30_000) =>
+  render(<MediaRenderer message={msg({ type: "audio", ...over })} agora={agora} />);
 
 describe("Transcrição do áudio no balão do Inbox (#2133)", () => {
   it("derived pronto mostra a transcrição, identificada, abaixo do player", () => {
@@ -64,6 +67,16 @@ describe("Transcrição do áudio no balão do Inbox (#2133)", () => {
     audio({ media_derived_status: null, media_derived_text: null });
     expect(screen.getByTestId("transcricao-de-audio-pendente")).toHaveTextContent("Transcrevendo…");
     expect(screen.queryByTestId("transcricao-de-audio")).not.toBeInTheDocument();
+  });
+
+  it("áudio do composer (outbound, sent_via crm) não promete transcrição: a ingestão nunca a pede", () => {
+    audio({ direction: "outbound", sent_via: "crm", media_derived_status: null, media_derived_text: null });
+    expect(screen.queryByTestId("transcricao-de-audio-pendente")).not.toBeInTheDocument();
+  });
+
+  it("áudio recebido há 10 min ainda sem status não sustenta o aviso para sempre", () => {
+    audio({ media_derived_status: null, media_derived_text: null }, CHEGADA + 10 * 60_000);
+    expect(screen.queryByTestId("transcricao-de-audio-pendente")).not.toBeInTheDocument();
   });
 
   it("controle — status final falho não mostra nem transcrição nem carregamento", () => {
