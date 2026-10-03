@@ -334,6 +334,16 @@ $$;
 
 
 ALTER FUNCTION "public"."fn_is_platform_admin"() OWNER TO "postgres";
+CREATE OR REPLACE FUNCTION "public"."fn_is_platform_admin_full"() RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  select exists (
+    select 1 from public.platform_admins
+    where user_id = auth.uid() and revoked_at is null and scope = 'full'
+  );
+$$;
+ALTER FUNCTION "public"."fn_is_platform_admin_full"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."fn_lgpd_cascade_redact_contact"("p_organization_id" "uuid", "p_contact_id" "uuid", "p_request_id" "uuid") RETURNS "jsonb"
@@ -4033,8 +4043,9 @@ ALTER TABLE "public"."api_tokens" ENABLE ROW LEVEL SECURITY;
 
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
-                WHERE polname = 'api_tokens_admin_only' AND polrelid = '"public"."api_tokens"'::regclass) THEN
-CREATE POLICY "api_tokens_admin_only" ON "public"."api_tokens" USING (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin"())) WITH CHECK (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin"()));
+                WHERE polname = 'api_tokens_tenant_read' AND polrelid = '"public"."api_tokens"'::regclass) THEN
+CREATE POLICY "api_tokens_tenant_read" ON "public"."api_tokens" FOR SELECT USING (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "api_tokens_admin_write" ON "public"."api_tokens" FOR ALL USING (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin_full"())) WITH CHECK (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4042,7 +4053,7 @@ END IF; END $baseline_guard$;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'audit_log_insert_tenant_member' AND polrelid = '"public"."api_audit_log"'::regclass) THEN
-CREATE POLICY "audit_log_insert_tenant_member" ON "public"."api_audit_log" FOR INSERT TO "authenticated" WITH CHECK ((("organization_id" IS NULL) OR ("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "audit_log_insert_tenant_member" ON "public"."api_audit_log" FOR INSERT TO "authenticated" WITH CHECK ((("organization_id" IS NULL) OR ("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4121,7 +4132,7 @@ END IF; END $baseline_guard$;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'lgpd_requests_admin_write' AND polrelid = '"public"."lgpd_requests"'::regclass) THEN
-CREATE POLICY "lgpd_requests_admin_write" ON "public"."lgpd_requests" USING (("public"."fn_is_platform_admin"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'admin'::"text")))) WITH CHECK (("public"."fn_is_platform_admin"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'admin'::"text"))));
+CREATE POLICY "lgpd_requests_admin_write" ON "public"."lgpd_requests" USING (("public"."fn_is_platform_admin_full"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'admin'::"text")))) WITH CHECK (("public"."fn_is_platform_admin_full"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'admin'::"text"))));
 END IF; END $baseline_guard$;
 
 
@@ -4140,7 +4151,7 @@ END IF; END $baseline_guard$;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'merge_queue_manager_write' AND polrelid = '"public"."merge_queue"'::regclass) THEN
-CREATE POLICY "merge_queue_manager_write" ON "public"."merge_queue" USING (("public"."fn_is_platform_admin"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'manager'::"text")))) WITH CHECK (("public"."fn_is_platform_admin"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'manager'::"text"))));
+CREATE POLICY "merge_queue_manager_write" ON "public"."merge_queue" USING (("public"."fn_is_platform_admin_full"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'manager'::"text")))) WITH CHECK (("public"."fn_is_platform_admin_full"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'manager'::"text"))));
 END IF; END $baseline_guard$;
 
 
@@ -4153,8 +4164,9 @@ ALTER TABLE "public"."nuvemshop_products" ENABLE ROW LEVEL SECURITY;
 
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
-                WHERE polname = 'nuvemshop_products_tenant' AND polrelid = '"public"."nuvemshop_products"'::regclass) THEN
-CREATE POLICY "nuvemshop_products_tenant" ON "public"."nuvemshop_products" USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+                WHERE polname = 'nuvemshop_products_read' AND polrelid = '"public"."nuvemshop_products"'::regclass) THEN
+CREATE POLICY "nuvemshop_products_read" ON "public"."nuvemshop_products" FOR SELECT USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "nuvemshop_products_tenant_write" ON "public"."nuvemshop_products" FOR ALL USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4173,7 +4185,7 @@ END IF; END $baseline_guard$;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'orders_tenant_write' AND polrelid = '"public"."orders"'::regclass) THEN
-CREATE POLICY "orders_tenant_write" ON "public"."orders" USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "orders_tenant_write" ON "public"."orders" USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4192,15 +4204,16 @@ END IF; END $baseline_guard$;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'orgs_write_platform_admin' AND polrelid = '"public"."organizations"'::regclass) THEN
-CREATE POLICY "orgs_write_platform_admin" ON "public"."organizations" USING ("public"."fn_is_platform_admin"()) WITH CHECK ("public"."fn_is_platform_admin"());
+CREATE POLICY "orgs_write_platform_admin" ON "public"."organizations" USING ("public"."fn_is_platform_admin_full"()) WITH CHECK ("public"."fn_is_platform_admin_full"());
 END IF; END $baseline_guard$;
 
 
 
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
-                WHERE polname = 'platform_admin_only_incidents' AND polrelid = '"public"."incidents"'::regclass) THEN
-CREATE POLICY "platform_admin_only_incidents" ON "public"."incidents" USING ("public"."fn_is_platform_admin"()) WITH CHECK ("public"."fn_is_platform_admin"());
+                WHERE polname = 'incidents_tenant_read' AND polrelid = '"public"."incidents"'::regclass) THEN
+CREATE POLICY "incidents_tenant_read" ON "public"."incidents" FOR SELECT USING ("public"."fn_is_platform_admin"());
+CREATE POLICY "incidents_admin_write" ON "public"."incidents" FOR ALL USING ("public"."fn_is_platform_admin_full"()) WITH CHECK ("public"."fn_is_platform_admin_full"());
 END IF; END $baseline_guard$;
 
 
@@ -4233,7 +4246,7 @@ ALTER TABLE "public"."tenant_integrations" ENABLE ROW LEVEL SECURITY;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'tenant_integrations_admin_write' AND polrelid = '"public"."tenant_integrations"'::regclass) THEN
-CREATE POLICY "tenant_integrations_admin_write" ON "public"."tenant_integrations" USING (("public"."fn_is_platform_admin"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'manager'::"text")))) WITH CHECK (("public"."fn_is_platform_admin"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'manager'::"text"))));
+CREATE POLICY "tenant_integrations_admin_write" ON "public"."tenant_integrations" USING (("public"."fn_is_platform_admin_full"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'manager'::"text")))) WITH CHECK (("public"."fn_is_platform_admin_full"() OR (("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) AND "public"."fn_role_at_least"("organization_id", 'manager'::"text"))));
 END IF; END $baseline_guard$;
 
 
@@ -4258,8 +4271,9 @@ END IF; END $baseline_guard$;
 
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
-                WHERE polname = 'tenant_isolation_ai_invocations_all' AND polrelid = '"public"."ai_invocations"'::regclass) THEN
-CREATE POLICY "tenant_isolation_ai_invocations_all" ON "public"."ai_invocations" USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+                WHERE polname = 'tenant_isolation_ai_invocations_read' AND polrelid = '"public"."ai_invocations"'::regclass) THEN
+CREATE POLICY "tenant_isolation_ai_invocations_read" ON "public"."ai_invocations" FOR SELECT USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "tenant_isolation_ai_invocations_write" ON "public"."ai_invocations" FOR ALL USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4275,8 +4289,9 @@ END IF; END $baseline_guard$;
 
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
-                WHERE polname = 'tenant_isolation_contacts_all' AND polrelid = '"public"."contacts"'::regclass) THEN
-CREATE POLICY "tenant_isolation_contacts_all" ON "public"."contacts" USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+                WHERE polname = 'tenant_isolation_contacts_read' AND polrelid = '"public"."contacts"'::regclass) THEN
+CREATE POLICY "tenant_isolation_contacts_read" ON "public"."contacts" FOR SELECT USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "tenant_isolation_contacts_write" ON "public"."contacts" FOR ALL USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4297,7 +4312,7 @@ ALTER TABLE "public"."user_organizations" ENABLE ROW LEVEL SECURITY;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'user_orgs_delete' AND polrelid = '"public"."user_organizations"'::regclass) THEN
-CREATE POLICY "user_orgs_delete" ON "public"."user_organizations" FOR DELETE USING (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "user_orgs_delete" ON "public"."user_organizations" FOR DELETE USING (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4305,7 +4320,7 @@ END IF; END $baseline_guard$;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'user_orgs_insert' AND polrelid = '"public"."user_organizations"'::regclass) THEN
-CREATE POLICY "user_orgs_insert" ON "public"."user_organizations" FOR INSERT WITH CHECK (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "user_orgs_insert" ON "public"."user_organizations" FOR INSERT WITH CHECK (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4321,7 +4336,7 @@ END IF; END $baseline_guard$;
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
                 WHERE polname = 'user_orgs_update' AND polrelid = '"public"."user_organizations"'::regclass) THEN
-CREATE POLICY "user_orgs_update" ON "public"."user_organizations" FOR UPDATE USING (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "user_orgs_update" ON "public"."user_organizations" FOR UPDATE USING (("public"."fn_role_at_least"("organization_id", 'admin'::"text") OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -4331,8 +4346,9 @@ ALTER TABLE "public"."user_recovery_codes" ENABLE ROW LEVEL SECURITY;
 
 DO $baseline_guard$ BEGIN
 IF NOT EXISTS (SELECT 1 FROM pg_policy
-                WHERE polname = 'warmup_tenant_isolation_all' AND polrelid = '"public"."channel_session_warmup"'::regclass) THEN
-CREATE POLICY "warmup_tenant_isolation_all" ON "public"."channel_session_warmup" USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+                WHERE polname = 'warmup_tenant_isolation_read' AND polrelid = '"public"."channel_session_warmup"'::regclass) THEN
+CREATE POLICY "warmup_tenant_isolation_read" ON "public"."channel_session_warmup" FOR SELECT USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin"()));
+CREATE POLICY "warmup_tenant_isolation_write" ON "public"."channel_session_warmup" FOR ALL USING ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"())) WITH CHECK ((("organization_id" IN ( SELECT "public"."fn_user_org_ids"() AS "fn_user_org_ids")) OR "public"."fn_is_platform_admin_full"()));
 END IF; END $baseline_guard$;
 
 
@@ -27064,7 +27080,9 @@ as $$
 declare
   v_canonical text[] := array['requested_by_customer','price','no_response','product_unavailable',
                               'cancelled_by_store','cancelled_by_customer','payment_failed','other',
-                              'moved_to_another_pipeline'];
+                              'moved_to_another_pipeline',
+                              -- migration 0513 (#2049): quem respondeu PARAR. Conta como perda.
+                              'opted_out_of_messages'];
   v_pipeline_extra text[];
 begin
   if new.status = 'lost' then
@@ -28009,9 +28027,10 @@ begin
   end if;
   v_config := coalesce(p_configuration,v_link.configuration,v_manifest->'configuration');
   if v_config is null or jsonb_typeof(v_config) <> 'object'
-    or not (v_config ?& array['density','show_description']) or v_config - array['density','show_description'] <> '{}'::jsonb
+    or not (v_config ?& array['density','show_description']) or v_config - array['density','show_description','theme'] <> '{}'::jsonb
     or v_config->>'density' is null or v_config->>'density' not in ('comfortable','compact')
-    or jsonb_typeof(v_config->'show_description') is distinct from 'boolean' then
+    or jsonb_typeof(v_config->'show_description') is distinct from 'boolean'
+    or (v_config ? 'theme' and (v_config->>'theme' is null or v_config->>'theme' not in ('sage','clay','mist','plum','olive'))) then
     raise exception using errcode='P0001',message='extension_invalid_input';
   end if;
   if p_enabled and not coalesce(v_link.enabled,false) and
@@ -32003,13 +32022,14 @@ create or replace function public.fn_extensions_permissoes_validas(p_permissions
 returns boolean language sql immutable set search_path = public, pg_temp as $$
   select p_permissions is not null
     and jsonb_typeof(p_permissions) = 'array'
-    and jsonb_array_length(p_permissions) between 1 and 6
+    and jsonb_array_length(p_permissions) between 1 and 7
     and not exists (
       select 1 from jsonb_array_elements(p_permissions) e
       where jsonb_typeof(e.value) <> 'string'
          or e.value #>> '{}' not in (
               'navigation.tasks', 'navigation.inbox', 'navigation.kanban',
-              'navigation.contacts', 'navigation.agenda', 'navigation.radar')
+              'navigation.contacts', 'navigation.agenda', 'navigation.radar',
+              'theme.apply')
     )
     and (select count(distinct e.value) from jsonb_array_elements(p_permissions) e)
         = jsonb_array_length(p_permissions);
@@ -44327,6 +44347,327 @@ create trigger trg_fechar_aviso_do_jev_ao_bloquear
  execute function public.fn_fechar_aviso_do_jev_ao_bloquear();
 
 notify pgrst, 'reload schema';
+
+-- ---- a trava de imutabilidade da versão publicada cobre as duas colunas
+-- que ficaram de fora (migration 0503, issue #2003) ----
+-- A lista de `fn_ai_agent_version_content_immutable` é escrita à mão e, desde
+-- o último create or replace (que cobria knowledge_source_ids), ficaram de
+-- fora `proposal_ai_draft_enabled` (flag por-agente que a tela edita) e
+-- `inbound_debounce_ms` (janela de rajada, migration 0498 / PR #1997). A camada
+-- da app devolve 409 mas é a única cerca; esta é a segunda, defense-in-depth,
+-- aberta para a service key. O invariante
+-- `tests/unit/trigger-imutavel-cobre-todas-as-colunas-de-conteudo.test.ts`
+-- compara a ÚLTIMA definição que vale contra o conjunto de conteúdo.
+create or replace function fn_ai_agent_version_content_immutable() returns trigger
+-- search_path fixo na PRÓPRIA definição: um create or replace sem a cláusula
+-- apaga o alter function ... set search_path da 0521 (invariante
+-- tests/invariants/avisos-do-security-advisor.test.ts).
+language plpgsql set search_path = '' as $fn$
+begin
+  if old.status <> 'draft' and (
+       new.system_prompt          is distinct from old.system_prompt
+    or new.provider               is distinct from old.provider
+    or new.model                  is distinct from old.model
+    or new.credential_id          is distinct from old.credential_id
+    or new.tool_ids               is distinct from old.tool_ids
+    or new.trigger_config         is distinct from old.trigger_config
+    or new.channel_session_id     is distinct from old.channel_session_id
+    or new.max_steps              is distinct from old.max_steps
+    or new.token_budget           is distinct from old.token_budget
+    or new.cost_budget_cents      is distinct from old.cost_budget_cents
+    or new.history_message_window is distinct from old.history_message_window
+    or new.history_token_window   is distinct from old.history_token_window
+    or new.handoff_keywords       is distinct from old.handoff_keywords
+    or new.handoff_tool_enabled   is distinct from old.handoff_tool_enabled
+    or new.followup               is distinct from old.followup
+    or new.multimodal_input       is distinct from old.multimodal_input
+    or new.video_frames_enabled   is distinct from old.video_frames_enabled
+    or new.split_messages         is distinct from old.split_messages
+    or new.split_max_chars        is distinct from old.split_max_chars
+    or new.cases_enabled          is distinct from old.cases_enabled
+    or new.operator_enabled       is distinct from old.operator_enabled
+    or new.operator_model         is distinct from old.operator_model
+    or new.operator_tool_ids      is distinct from old.operator_tool_ids
+    or new.pipeline_ids           is distinct from old.pipeline_ids
+    or new.knowledge_source_ids   is distinct from old.knowledge_source_ids
+    or new.proposal_ai_draft_enabled is distinct from old.proposal_ai_draft_enabled
+    or new.inbound_debounce_ms    is distinct from old.inbound_debounce_ms
+    or new.version_number         is distinct from old.version_number
+    or new.agent_id               is distinct from old.agent_id
+    or new.organization_id        is distinct from old.organization_id
+  ) then
+    raise exception 'ai_agent_versions % é imutável (status=%): mudança de conteúdo = versão draft nova; rollback = revert (clona + publica)',
+      old.id, old.status;
+  end if;
+  return new;
+end;
+$fn$;
+
+drop trigger if exists trg_ai_agent_versions_content_immutable on public.ai_agent_versions;
+create trigger trg_ai_agent_versions_content_immutable
+  before update on public.ai_agent_versions
+  for each row execute function fn_ai_agent_version_content_immutable();
+
+-- ---- a recusa permanente do atendimento não pede repetição (migration 0514) ----
+-- `PT409` no lugar de `40001` em `service_stale` de `fn_service_status` (a
+-- revisão esperada não bate: recusa PERMANENTE). `40001` vira HTTP 500 no
+-- PostgREST, e a requisição é reexecutada sem fim — no Supabase self-hosted a
+-- guarda da 0250 não alcança, porque o `sb-request-id` só é carimbado pela
+-- nuvem. `service_contact_changed` segue `40001` (conflito real: repetir passa).
+-- Corpo idêntico ao da definição acima, com um `errcode` trocado. Idempotente.
+
+create or replace function public.fn_service_status(p_org uuid,p_conversation uuid,p_status text,p_expected bigint default null)
+returns public.conversations language plpgsql security definer set search_path=public as $$
+declare c public.conversations; terminal boolean; pre_contact uuid;
+begin
+ if p_status not in ('closed','resolved','archived','open','pending','ai_handling','claimed') then
+  raise exception 'invalid_status' using errcode='22023'; end if;
+ select * into c from public.conversations where id=p_conversation and organization_id=p_org;
+ if not found then raise exception 'service_not_found' using errcode='P0002'; end if;
+ pre_contact:=c.contact_id;
+ perform public.fn_service_lock(p_org,c.contact_id);
+ select * into c from public.conversations where id=p_conversation and organization_id=p_org for no key update;
+ if c.contact_id is distinct from pre_contact then raise exception 'service_contact_changed' using errcode='40001'; end if;
+ if p_expected is not null and c.service_revision<>p_expected then raise exception 'service_stale' using errcode='PT409'; end if;
+ if c.status=p_status then return c; end if;
+ terminal := p_status in ('closed','resolved','archived');
+ update public.conversations set status=p_status,status_changed_at=clock_timestamp(),
+   service_revision=service_revision+case when terminal or c.status in ('closed','resolved','archived') then 1 else 0 end,
+   service_closed_at=case when terminal then clock_timestamp() else service_closed_at end,
+   service_started_at=case when c.status in ('closed','resolved','archived') and not terminal then clock_timestamp() else service_started_at end,
+   bot_silenced_until=case when terminal and last_handoff_at is null then null else bot_silenced_until end,
+   current_demanda_id=case when c.status in ('closed','resolved','archived') and not terminal then null else current_demanda_id end
+  where id=c.id and organization_id=p_org returning * into c;
+ if terminal then
+   update public.demandas set proximo_passo=coalesce(proximo_passo,'Revisar atendimento e registrar o desfecho da demanda')
+    where organization_id=p_org and id=c.current_demanda_id and fechada_em is null;
+ end if;
+ return c;
+end; $$;
+
+revoke execute on function public.fn_service_status(uuid,uuid,text,bigint) from public,anon,authenticated;
+grant execute on function public.fn_service_status(uuid,uuid,text,bigint) to service_role;
+
+-- ---- a anotação simultânea não apaga a outra (migration 0502) ----
+-- 0502 — duas anotações ao mesmo tempo não apagam uma à outra.
+--
+-- ─── O defeito, medido na main de 2026-09-30 ────────────────────────────────
+--
+-- `updateLeadHandler` (`app/api/v1/leads/_handler.ts`) mesclava `custom_fields`
+-- NO APLICATIVO:
+--
+--     const prev = existing.custom_fields …        -- lido no SELECT, lá em cima
+--     patch.custom_fields = { ...prev, ...input.custom_fields };
+--
+-- `existing` vem de uma leitura anterior. Duas escritas simultâneas com chaves
+-- DIFERENTES perdem uma: a segunda leu `prev` antes de a primeira gravar, e
+-- sobrescreve a coluna inteira com a versão velha mais a chave dela. Ninguém
+-- recebe erro. O dado some.
+--
+-- ─── Quem chega a esse ponto ────────────────────────────────────────────────
+--
+-- O handler serve dois caminhos: o `PATCH /api/v1/leads/[id]` (o formulário do
+-- dossiê) e a ferramenta MCP `crm_update_lead` (o assistente, integrações). Os
+-- dois podem escrever a mesma ficha ao mesmo tempo — quem atende salvando na
+-- tela enquanto o assistente anota. A rota `move` NÃO tem este defeito: o
+-- `update` dela exige `updated_at = expected_updated_at`, então uma leitura velha
+-- vira conflito, não dado perdido. O `PATCH` do lead não tem esse controle.
+--
+-- ⚠️ Limite: o formulário do dossiê (`LeadFieldsForm`, `CRMSidePanel`) envia o
+-- objeto `custom_fields` INTEIRO que carregou ao abrir. Uma chave que a ficha
+-- não tinha ao abrir agora sobrevive à gravação dela; uma chave que a ficha já
+-- mostrava ainda volta ao valor velho do formulário. Esta função fecha a
+-- corrida no servidor, não o payload velho do cliente.
+--
+-- ─── Por que uma função, e não uma linha no handler ─────────────────────────
+--
+-- O handler grava pelo PostgREST (`supabase.update()`), e ele não sabe dizer
+-- `custom_fields = coalesce(custom_fields,'{}'::jsonb) || $1::jsonb` — só sabe
+-- mandar um VALOR pronto, que é justamente o valor calculado a partir de uma
+-- leitura velha. A conta tem de acontecer DENTRO do `UPDATE`.
+--
+-- ─── Por que isso basta (medido, não suposto) ──────────────────────────────
+--
+-- Numa ÚNICA instrução `update … set custom_fields = custom_fields || $1`, em
+-- READ COMMITTED (o padrão do PostgREST), a segunda transação ESPERA o commit
+-- da primeira e RECALCULA a expressão sobre a versão nova da linha. Por isso ela
+-- soma sobre o que a primeira gravou, em vez de sobre o que leu antes.
+--
+-- Um `select … for update` antes NÃO é necessário: o invariante
+-- `anotacao-simultanea-nao-apaga-a-outra.test.ts` passou igual com e sem ele.
+-- O que quebra o conserto é o oposto — ler o valor para uma variável e gravar
+-- depois, que reintroduz a leitura velha (o invariante fica vermelho assim).
+-- Em REPEATABLE READ ou SERIALIZABLE a segunda transação recebe 40001 em vez de
+-- sobrescrever: falha alta, nunca dado perdido em silêncio.
+--
+-- ─── O que esta função NÃO faz ──────────────────────────────────────────────
+--
+-- Ela não decide QUEM pode escrever o quê: papel e organização são de quem
+-- chama (o handler resolve a organização de fonte confiável, nunca do body).
+-- Aqui só se garante que nenhuma escrita apague a outra por acidente de relógio.
+-- Misturar as duas coisas faria uma função que ninguém consegue auditar.
+--
+-- `||` em `jsonb` é raso de propósito: campo de funil é chave→valor, sem
+-- aninhamento. Merge profundo mudaria o significado de "apagar um campo".
+--
+-- Idempotente: `create or replace` e revoke/grant reaplicáveis. Sem constraint
+-- nem dado a corrigir.
+
+create or replace function public.fn_lead_anotar_campos(
+  p_org uuid, p_lead uuid, p_campos jsonb
+) returns jsonb language plpgsql security definer set search_path = public, pg_temp as $fn$
+declare
+  resultado jsonb;
+begin
+  if p_campos is null or jsonb_typeof(p_campos) <> 'object' then
+    raise exception 'campos_precisa_ser_objeto' using errcode = '22023';
+  end if;
+
+  -- UMA instrução, sem leitura prévia: a conta `custom_fields || p_campos` é
+  -- refeita sobre a linha vigente quando há escrita concorrente (ver cabeçalho).
+  -- Sem linha (lead inexistente OU de outra organização) nada é gravado e
+  -- `resultado` fica nulo. Silêncio de propósito: quem pede um lead que não é da
+  -- organização dele não recebe confirmação de que ele existe em outro lugar.
+  update public.crm_leads
+     set custom_fields = coalesce(custom_fields, '{}'::jsonb) || p_campos
+   where organization_id = p_org and id = p_lead
+   returning custom_fields into resultado;
+
+  return resultado;
+end $fn$;
+
+-- Função nova em `public` NASCE EXPOSTA, e são DUAS origens de EXECUTE: o
+-- `ALTER DEFAULT PRIVILEGES … GRANT ALL ON FUNCTIONS` do corpo do baseline (que
+-- alcança toda função criada depois dele, para anon, authenticated E
+-- service_role) e o grant a PUBLIC que o Postgres dá a qualquer função ao
+-- criá-la. Revogar só de `public, anon` deixaria esta função — que ESCREVE —
+-- executável por qualquer usuário logado de QUALQUER organização.
+-- `tests/invariants/hardening-definer-varredura.test.ts` cobra as duas origens.
+revoke all on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) from public, anon, authenticated;
+grant execute on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) to service_role;
+
+comment on function public.fn_lead_anotar_campos(uuid, uuid, jsonb) is
+  'Mescla campos personalizados no lead DENTRO do banco, numa única instrução atômica. '
+  'Existe porque o merge no aplicativo perdia escrita concorrente em silêncio. '
+  'Não decide papel nem organização — isso é de quem chama.';
+
+notify pgrst, 'reload schema';
+
+-- ---- conversão da Meta por etapa do funil (migration 0524) ----
+--
+-- Racional inteiro na migration 0524. Cria função, então fica ANTES da varredura de anon.
+create table if not exists public.meta_ads_conversion_rules (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  stage_id uuid not null,
+  event_name text not null,
+  meta_event text not null,
+  enabled boolean not null default true,
+  configured_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid,
+  constraint meta_ads_conversion_rules_evento_do_livro
+    check (event_name ~ '^MetaEtapa:[0-9a-f-]{36}$'),
+  constraint meta_ads_conversion_rules_evento_conhecido
+    check (meta_event in (
+      'LeadSubmitted', 'QualifiedLead', 'InitiateCheckout', 'AddToCart', 'ViewContent'
+    ))
+);
+
+alter table public.meta_ads_conversion_rules
+  drop constraint if exists meta_ads_conversion_rules_stage_org_fk;
+alter table public.meta_ads_conversion_rules
+  add constraint meta_ads_conversion_rules_stage_org_fk
+  foreign key (organization_id, stage_id)
+  references public.crm_stages (organization_id, id)
+  on delete cascade;
+
+create unique index if not exists meta_ads_conversion_rules_org_stage_uk
+  on public.meta_ads_conversion_rules (organization_id, stage_id);
+create unique index if not exists meta_ads_conversion_rules_org_event_uk
+  on public.meta_ads_conversion_rules (organization_id, event_name);
+
+comment on table public.meta_ads_conversion_rules is
+  'Qual evento padrão da Meta cada etapa do funil envia quando um negócio entra nela. event_name (MetaEtapa:<uuid>) é a chave do livro-razão ad_conversion_dispatches. Server-side only: RLS sem policy e grants revogados de anon/authenticated.';
+comment on column public.meta_ads_conversion_rules.configured_at is
+  'Trava de retroatividade: só movimentos de etapa posteriores enviam. Regravada pelo gatilho quando a etapa ou o evento mudam, ou quando a regra é religada.';
+
+alter table public.meta_ads_conversion_rules enable row level security;
+revoke all on public.meta_ads_conversion_rules from anon, authenticated;
+grant select, insert, update, delete on public.meta_ads_conversion_rules to service_role;
+
+drop trigger if exists trg_meta_ads_conversion_rules_updated_at on public.meta_ads_conversion_rules;
+create trigger trg_meta_ads_conversion_rules_updated_at
+  before update on public.meta_ads_conversion_rules
+  for each row execute function public.fn_set_updated_at();
+
+create or replace function public.fn_marcar_configuracao_regra_meta()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    new.configured_at := coalesce(new.configured_at, now());
+  elsif new.stage_id is distinct from old.stage_id
+     or new.meta_event is distinct from old.meta_event
+     or (new.enabled and not old.enabled) then
+    new.configured_at := now();
+  else
+    new.configured_at := old.configured_at;
+  end if;
+  return new;
+end;
+$$;
+revoke execute on function public.fn_marcar_configuracao_regra_meta() from public, anon, authenticated;
+grant execute on function public.fn_marcar_configuracao_regra_meta() to service_role;
+
+drop trigger if exists trg_marcar_configuracao_regra_meta on public.meta_ads_conversion_rules;
+create trigger trg_marcar_configuracao_regra_meta
+  before insert or update on public.meta_ads_conversion_rules
+  for each row execute function public.fn_marcar_configuracao_regra_meta();
+
+alter table public.ad_conversion_dispatches
+  add column if not exists meta_event_name text;
+
+comment on column public.ad_conversion_dispatches.meta_event_name is
+  'Retrato do evento de etapa da Meta (0524): o nome que saiu no fio. Reenviar usa este, nunca a regra de agora.';
+
+-- O reenvio passa a aceitar os eventos de etapa da Meta, com a mesma exigência
+-- dos do Google: só reenvia o que tem o retrato (quando + qual evento) gravado.
+create or replace function public.fn_solicitar_reenvio_conversao(p_org uuid, p_lead uuid, p_event text)
+returns boolean language plpgsql set search_path = public as $$
+declare v_linha public.ad_conversion_dispatches%rowtype;
+begin
+  if p_event is null or not (
+    p_event in ('Purchase', 'QualifiedLead')
+    or p_event ~ '^Etapa:[0-9a-f-]{36}$'
+    or p_event ~ '^MetaEtapa:[0-9a-f-]{36}$'
+  ) then
+    return false;
+  end if;
+  select * into v_linha from public.ad_conversion_dispatches
+    where organization_id = p_org and lead_id = p_lead and event_name = p_event for update;
+  if not found or v_linha.status = 'sent' then return false; end if;
+  if p_event ~ '^MetaEtapa:' then
+    if v_linha.event_occurred_at is null or v_linha.meta_event_name is null then return false; end if;
+  elsif p_event <> 'Purchase' and (v_linha.event_occurred_at is null or v_linha.google_action_id is null) then
+    return false;
+  end if;
+  if p_event = 'Purchase' and v_linha.remote_request_id is null and not exists (
+    select 1 from public.crm_leads where id = p_lead and organization_id = p_org and status = 'won'
+  ) then return false; end if;
+  if exists (select 1 from public.event_log where organization_id = p_org and entity_id = p_lead
+    and event_type = 'ad_conversion.retry_requested' and status in ('pending', 'processing')
+    and coalesce(payload->>'event_name', 'Purchase') = p_event) then return false; end if;
+  perform public.emit_event('ad_conversion.retry_requested', 'crm_lead', p_lead,
+    jsonb_build_object('event_name', p_event), '{}'::jsonb, p_org);
+  update public.ad_conversion_dispatches set reason = 'reprocessamento_solicitado', attempted_at = now()
+    where id = v_linha.id and organization_id = p_org;
+  return true;
+end;
+$$;
+revoke execute on function public.fn_solicitar_reenvio_conversao(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.fn_solicitar_reenvio_conversao(uuid, uuid, text) to service_role;
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria
@@ -45116,6 +45457,90 @@ do $f$ begin perform public.fn_reaplicar_modulos_instalados(); end $f$;
 -- tabela já com RLS e isolamento.
 do $f$ begin perform public.fn_proteger_tabelas_de_organizacao(); end $f$;
 
+-- ---- fix(2000): platform admin `support_readonly` não escreve (migration 0508) ----
+-- `fn_is_platform_admin()` ignora o scope, então uma policy de ESCRITA montada com
+-- ela deixava um platform admin `support_readonly` alterar organizations/settings
+-- pelo PostgREST. O corpo já nasce com `fn_is_platform_admin_full()` (que exige
+-- `scope = 'full'`); este apêndice é o self-heal idempotente para bancos que já têm
+-- as policies na forma antiga. Leitura (`for select`) CONTINUA com `fn_is_platform_admin()`
+-- — support_readonly segue lendo, só não escreve mais.
+
+drop policy if exists "api_tokens_admin_only" on "public"."api_tokens";
+drop policy if exists "api_tokens_tenant_read" on "public"."api_tokens";
+create policy "api_tokens_tenant_read" on "public"."api_tokens" for select using (public.fn_role_at_least("organization_id",'admin') or public.fn_is_platform_admin());
+drop policy if exists "api_tokens_admin_write" on "public"."api_tokens";
+create policy "api_tokens_admin_write" on "public"."api_tokens" for all using (public.fn_role_at_least("organization_id",'admin') or public.fn_is_platform_admin_full()) with check (public.fn_role_at_least("organization_id",'admin') or public.fn_is_platform_admin_full());
+
+drop policy if exists "nuvemshop_products_tenant" on "public"."nuvemshop_products";
+drop policy if exists "nuvemshop_products_read" on "public"."nuvemshop_products";
+create policy "nuvemshop_products_read" on "public"."nuvemshop_products" for select using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin());
+drop policy if exists "nuvemshop_products_tenant_write" on "public"."nuvemshop_products";
+create policy "nuvemshop_products_tenant_write" on "public"."nuvemshop_products" for all using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full()) with check ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
+
+drop policy if exists "platform_admin_only_incidents" on "public"."incidents";
+drop policy if exists "incidents_tenant_read" on "public"."incidents";
+create policy "incidents_tenant_read" on "public"."incidents" for select using (public.fn_is_platform_admin());
+drop policy if exists "incidents_admin_write" on "public"."incidents";
+create policy "incidents_admin_write" on "public"."incidents" for all using (public.fn_is_platform_admin_full()) with check (public.fn_is_platform_admin_full());
+
+drop policy if exists "tenant_isolation_ai_invocations_all" on "public"."ai_invocations";
+drop policy if exists "tenant_isolation_ai_invocations_read" on "public"."ai_invocations";
+create policy "tenant_isolation_ai_invocations_read" on "public"."ai_invocations" for select using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin());
+drop policy if exists "tenant_isolation_ai_invocations_write" on "public"."ai_invocations";
+create policy "tenant_isolation_ai_invocations_write" on "public"."ai_invocations" for all using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full()) with check ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
+
+drop policy if exists "tenant_isolation_contacts_all" on "public"."contacts";
+drop policy if exists "tenant_isolation_contacts_read" on "public"."contacts";
+create policy "tenant_isolation_contacts_read" on "public"."contacts" for select using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin());
+drop policy if exists "tenant_isolation_contacts_write" on "public"."contacts";
+create policy "tenant_isolation_contacts_write" on "public"."contacts" for all using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full()) with check ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
+
+drop policy if exists "warmup_tenant_isolation_all" on "public"."channel_session_warmup";
+drop policy if exists "warmup_tenant_isolation_read" on "public"."channel_session_warmup";
+create policy "warmup_tenant_isolation_read" on "public"."channel_session_warmup" for select using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin());
+drop policy if exists "warmup_tenant_isolation_write" on "public"."channel_session_warmup";
+create policy "warmup_tenant_isolation_write" on "public"."channel_session_warmup" for all using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full()) with check ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
+
+drop policy if exists "orgs_write_platform_admin" on "public"."organizations";
+drop policy if exists "orgs_write_platform_admin" on "public"."organizations";
+create policy "orgs_write_platform_admin" on "public"."organizations" for all using (public.fn_is_platform_admin_full()) with check (public.fn_is_platform_admin_full());
+
+drop policy if exists "audit_log_insert_tenant_member" on "public"."api_audit_log";
+drop policy if exists "audit_log_insert_tenant_member" on "public"."api_audit_log";
+create policy "audit_log_insert_tenant_member" on "public"."api_audit_log" for insert to authenticated with check ((("organization_id" is null) or ("organization_id" in (select public.fn_user_org_ids())) or public.fn_is_platform_admin_full()));
+
+drop policy if exists "lgpd_requests_admin_write" on "public"."lgpd_requests";
+drop policy if exists "lgpd_requests_admin_write" on "public"."lgpd_requests";
+create policy "lgpd_requests_admin_write" on "public"."lgpd_requests" for all using (public.fn_is_platform_admin_full() or ("organization_id" in (select public.fn_user_org_ids()) and public.fn_role_at_least("organization_id",'admin'))) with check (public.fn_is_platform_admin_full() or ("organization_id" in (select public.fn_user_org_ids()) and public.fn_role_at_least("organization_id",'admin')));
+
+drop policy if exists "merge_queue_manager_write" on "public"."merge_queue";
+drop policy if exists "merge_queue_manager_write" on "public"."merge_queue";
+create policy "merge_queue_manager_write" on "public"."merge_queue" for all using (public.fn_is_platform_admin_full() or ("organization_id" in (select public.fn_user_org_ids()) and public.fn_role_at_least("organization_id",'manager'))) with check (public.fn_is_platform_admin_full() or ("organization_id" in (select public.fn_user_org_ids()) and public.fn_role_at_least("organization_id",'manager')));
+
+drop policy if exists "tenant_integrations_admin_write" on "public"."tenant_integrations";
+drop policy if exists "tenant_integrations_admin_write" on "public"."tenant_integrations";
+create policy "tenant_integrations_admin_write" on "public"."tenant_integrations" for all using (public.fn_is_platform_admin_full() or ("organization_id" in (select public.fn_user_org_ids()) and public.fn_role_at_least("organization_id",'manager'))) with check (public.fn_is_platform_admin_full() or ("organization_id" in (select public.fn_user_org_ids()) and public.fn_role_at_least("organization_id",'manager')));
+
+drop policy if exists "orders_tenant_write" on "public"."orders";
+drop policy if exists "orders_tenant_write" on "public"."orders";
+create policy "orders_tenant_write" on "public"."orders" for all using ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full()) with check ("organization_id" in (select public.fn_user_org_ids()) or public.fn_is_platform_admin_full());
+
+drop policy if exists "user_orgs_delete" on "public"."user_organizations";
+drop policy if exists "user_orgs_delete" on "public"."user_organizations";
+create policy "user_orgs_delete" on "public"."user_organizations" for delete using (public.fn_role_at_least("organization_id",'admin') or public.fn_is_platform_admin_full());
+
+drop policy if exists "user_orgs_insert" on "public"."user_organizations";
+drop policy if exists "user_orgs_insert" on "public"."user_organizations";
+create policy "user_orgs_insert" on "public"."user_organizations" for insert with check (public.fn_role_at_least("organization_id",'admin') or public.fn_is_platform_admin_full());
+
+drop policy if exists "user_orgs_update" on "public"."user_organizations";
+drop policy if exists "user_orgs_update" on "public"."user_organizations";
+create policy "user_orgs_update" on "public"."user_organizations" for update using (public.fn_role_at_least("organization_id",'admin') or public.fn_is_platform_admin_full());
+
+-- ---- grants da função nova (espelha o bloco da fn_is_platform_admin) ----
+revoke execute on function public.fn_is_platform_admin_full() from public, anon;
+grant execute on function public.fn_is_platform_admin_full() to authenticated, service_role;
+
 -- ---- travas do modo somente leitura do suporte, depois de toda tabela (migration 0274) ----
 --
 -- ⚠️ ESTA CHAMADA É O ÚLTIMO BLOCO DO ARQUIVO. Tabela nova, coluna
@@ -45504,15 +45929,39 @@ create policy "conversation_notes_select" on public.conversation_notes
     )
   );
 
--- ⚠️ A política de ESCRITA precisa da MESMA condição: policies são OR e
--- `conversation_notes_write` é `for all`, que concede SELECT junto — sem isto
--- a policy nova de SELECT é anulada. O teste `F2: ... não lê a nota` pegou
--- exatamente isso (devolveu 1 em vez de 0) antes do conserto.
+-- ⚠️ A política de ESCRITA precisa da MESMA condição de visibilidade: policies
+-- são OR e `for all` concede SELECT junto — sem isto a policy nova de SELECT é
+-- anulada. O teste `F2: ... não lê a nota` pegou exatamente isso (devolveu 1 em
+-- vez de 0) antes do conserto (0478).
+--
+-- Desde a 0509 a escrita é por OPERAÇÃO (formato 0464/0489/0490, issue #1870):
+-- entre quem VÊ a conversa, editar e apagar são só do AUTOR (`created_by_user_id`)
+-- ou de manager+ da organização — a policy `for all` não distinguia o autor e
+-- qualquer agent podia mexer na nota de um colega pelo PostgREST. Molde da
+-- rota DELETE, que já era autor+/manager+ no app.
 drop policy if exists "conversation_notes_write" on public.conversation_notes;
-create policy "conversation_notes_write" on public.conversation_notes
-  for all using (
+drop policy if exists "conversation_notes_insert" on public.conversation_notes;
+create policy "conversation_notes_insert" on public.conversation_notes
+  for insert
+  with check (
     organization_id in (select public.fn_user_org_ids())
     and public.fn_role_at_least(organization_id, 'agent')
+    and created_by_user_id = auth.uid()
+    and exists (
+      select 1 from public.conversations c
+      where c.organization_id = conversation_notes.organization_id
+        and c.id = conversation_notes.conversation_id
+        and public.fn_can_view_conversation(c.organization_id, c.assigned_to_user_id)
+    )
+  );
+
+drop policy if exists "conversation_notes_update" on public.conversation_notes;
+create policy "conversation_notes_update" on public.conversation_notes
+  for update
+  using (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'agent')
+    and (created_by_user_id = auth.uid() or public.fn_role_at_least(organization_id, 'manager'))
     and exists (
       select 1 from public.conversations c
       where c.organization_id = conversation_notes.organization_id
@@ -45523,6 +45972,22 @@ create policy "conversation_notes_write" on public.conversation_notes
   with check (
     organization_id in (select public.fn_user_org_ids())
     and public.fn_role_at_least(organization_id, 'agent')
+    and (created_by_user_id = auth.uid() or public.fn_role_at_least(organization_id, 'manager'))
+    and exists (
+      select 1 from public.conversations c
+      where c.organization_id = conversation_notes.organization_id
+        and c.id = conversation_notes.conversation_id
+        and public.fn_can_view_conversation(c.organization_id, c.assigned_to_user_id)
+    )
+  );
+
+drop policy if exists "conversation_notes_delete" on public.conversation_notes;
+create policy "conversation_notes_delete" on public.conversation_notes
+  for delete
+  using (
+    organization_id in (select public.fn_user_org_ids())
+    and public.fn_role_at_least(organization_id, 'agent')
+    and (created_by_user_id = auth.uid() or public.fn_role_at_least(organization_id, 'manager'))
     and exists (
       select 1 from public.conversations c
       where c.organization_id = conversation_notes.organization_id
@@ -45871,3 +46336,135 @@ comment on column public.ai_agent_versions.inbound_debounce_ms is
 alter table public.ai_agent_versions
   add constraint ai_agent_versions_inbound_debounce_ms_check
   check (inbound_debounce_ms is null or (inbound_debounce_ms >= 0 and inbound_debounce_ms <= 60000));
+
+-- ---- a chave de mapas da organização (migration 0504) ----
+-- Pino do WhatsApp → rua/cidade/região aproximados (lib/mapas/). Server-side only.
+create table if not exists public.map_provider_credentials (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  provider text not null default 'google_maps',
+  api_key_encrypted bytea not null,
+  -- Para a tela reconhecer QUAL chave está gravada sem ver a chave.
+  api_key_last4 text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid,
+  constraint map_provider_credentials_provider_conhecido
+    check (provider in ('google_maps'))
+);
+
+-- Uma chave por provedor por organização: trocar é gravar de novo (upsert).
+create unique index if not exists map_provider_credentials_org_provider_uk
+  on public.map_provider_credentials (organization_id, provider);
+
+comment on table public.map_provider_credentials is
+  'Chave de mapas da organização (hoje: Google Geocoding API), usada para transformar o pino de localização do WhatsApp em rua/cidade/região aproximados. Opcional. Server-side only: RLS ligada sem policies e grants revogados de anon/authenticated. A chave nunca volta ao browser.';
+comment on column public.map_provider_credentials.api_key_encrypted is
+  'Cifrado por fn_encrypt_oauth (pgp_sym/aes256), a mesma cifra de channel_sessions e ad_platform_connections.';
+
+alter table public.map_provider_credentials enable row level security;
+revoke all on public.map_provider_credentials from anon, authenticated;
+grant select, insert, update, delete on public.map_provider_credentials to service_role;
+
+drop trigger if exists trg_map_provider_credentials_updated_at on public.map_provider_credentials;
+create trigger trg_map_provider_credentials_updated_at
+  before update on public.map_provider_credentials
+  for each row execute function public.fn_set_updated_at();
+
+-- ---- avisos do Security Advisor: search_path fixo e definer só do servidor (migration 0521) ----
+-- Cópia das instruções da migration 0521 (o porquê está no cabeçalho dela). Só ALTER/REVOKE:
+-- não cria função, então pode ficar depois da VARREDURA anon.
+alter function public.fn_agent_versions_immutable() set search_path = '';
+alter function public.fn_ai_agent_version_content_immutable() set search_path = '';
+alter function public.fn_contato_anonimizado_limpa_campos_personalizados() set search_path = '';
+alter function public.fn_degraus_de_lembrete_validos(integer[]) set search_path = '';
+alter function public.fn_corpos_de_lembrete_validos(jsonb) set search_path = '';
+alter function public.fn_lancamento_pago_e_imutavel() set search_path = '';
+alter function public.fn_resolve_inbound_number(text) set search_path = '';
+
+revoke execute on function public.fn_resolve_inbound_number(text) from public, anon, authenticated;
+grant execute on function public.fn_resolve_inbound_number(text) to service_role;
+
+do $$
+declare
+  f regprocedure;
+begin
+  for f in
+    select p.oid::regprocedure
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'rls_auto_enable'
+  loop
+    execute format('revoke execute on function %s from public, anon, authenticated', f);
+  end loop;
+end
+$$;
+
+-- 0520 (#1095, de @webtecnica): o gancho de TEMA. A permissão `theme.apply`
+-- entra no conjunto fechado (`fn_extensions_permissoes_validas`, bloco acima) e
+-- a configuração do vínculo passa a admitir UMA chave opcional `theme` = a
+-- paleta escolhida pela organização. Par drop/add da CHECK para o `update.sh`
+-- reaplicar sem 'already exists' — quem aplica SÓ o baseline é justamente quem
+-- mais precisa desta definição, porque ali a cadeia de migrations não roda.
+alter table public.organization_extensions
+  drop constraint if exists organization_extensions_configuration_check;
+
+alter table public.organization_extensions
+  add constraint organization_extensions_configuration_check
+  check (
+    jsonb_typeof(configuration) = 'object'
+    and configuration ?& array['density','show_description']
+    and configuration - array['density','show_description','theme'] = '{}'::jsonb
+    and configuration->>'density' is not null
+    and configuration->>'density' in ('comfortable','compact')
+    and jsonb_typeof(configuration->'show_description') = 'boolean'
+    and (
+      not (configuration ? 'theme')
+      or configuration->>'theme' in ('sage','clay','mist','plum','olive')
+    )
+  );
+
+-- ---- o audit log é só-inclusão para TODO papel que não seja o dono (migration 0525) ----
+--
+-- A 0258 tirou UPDATE, DELETE e TRUNCATE de `api_audit_log` numa lista FIXA de
+-- papéis: public, anon, authenticated e service_role. Papel criado pelo
+-- operador ficava de fora — e o README do self-host manda criar um, o
+-- `agent_worker`, com `grant select, insert, update, delete on all tables`.
+-- O `update.sh` re-aplicava a 0258 sem alcançar esse papel.
+--
+-- Este bloco troca a lista por uma regra: todo papel com grant DIRETO de
+-- UPDATE, DELETE ou TRUNCATE em `api_audit_log`, exceto o dono da tabela,
+-- perde os três. Com o nome que o operador tiver dado ao papel. INSERT e
+-- SELECT ficam — o worker grava auditoria e a lê.
+--
+-- O dono fica de fora porque o privilégio dele é implícito (revogar não o
+-- alcança) e porque o expurgo legítimo, `fn_expurgar_auditoria_vencida`
+-- (0167), é `security definer` dele, assim como as FKs `on delete set null`.
+--
+-- Idempotente: na segunda passada o laço não acha ninguém. Roda a cada
+-- `update.sh`, então uma instalação que já seguiu a receita antiga se cura na
+-- próxima atualização. Sem função nova (nada a revogar de anon).
+
+do $$
+declare
+  v_papel text;
+begin
+  for v_papel in
+    select distinct case when a.grantee = 0 then 'public' else quote_ident(r.rolname) end
+      from pg_class c
+      cross join lateral aclexplode(c.relacl) a
+      left join pg_roles r on r.oid = a.grantee
+     where c.oid = 'public.api_audit_log'::regclass
+       and a.grantee <> c.relowner
+       and a.privilege_type in ('UPDATE', 'DELETE', 'TRUNCATE')
+  loop
+    execute format('revoke update, delete, truncate on table public.api_audit_log from %s', v_papel);
+  end loop;
+end
+$$;
+
+-- ---- seleção de empresas na prospecção, issue #1896 (migration 0506) ----
+-- O operador escolhe quais empresas da busca entram na fila. Padrão TUDO
+-- marcado: quem só atualiza continua com a mesma fila de antes.
+alter table public.prospecting_candidates
+  add column if not exists selected boolean not null default true;
