@@ -254,6 +254,7 @@ export function TriggerEditor({ value, onChange, disabled, organizationTimezone 
               <Textarea
                 id="bh_notice"
                 rows={3}
+                maxLength={1000}
                 value={bh.notice ?? ""}
                 onChange={(e) => patchBh({ notice: e.target.value })}
                 disabled={disabled}

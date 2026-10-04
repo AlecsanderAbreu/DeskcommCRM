@@ -31,6 +31,7 @@ import {
   inicioDoPeriodoFechado,
   type JanelaDeAtendimento,
 } from '@/lib/agent-engine/agent/janela-de-atendimento';
+import { versionPatchSchema } from '@/lib/ai/agents/validation';
 
 /** Segunda a sexta, 8h–18h em São Paulo (BRT = UTC-3). */
 const JANELA: JanelaDeAtendimento = {
@@ -313,6 +314,28 @@ describe('texto configurável pela organização', () => {
         filters: { business_hours: { notice: `  ${TEXTO}  ` } },
       }),
     ).toBe(TEXTO);
+  });
+
+  it('a API que salva a versão PRESERVA o texto (o Zod não o descarta)', () => {
+    // É o schema da rota PATCH /versions/[vid], por onde a tela salva. Sem o
+    // campo declarado, o parse devolvia business_hours sem `notice` e o aviso
+    // nunca ligava pela tela.
+    const parsed = versionPatchSchema.safeParse({
+      trigger_config: {
+        filters: {
+          business_hours: {
+            timezone: 'America/Sao_Paulo',
+            start: '08:00',
+            end: '18:00',
+            weekdays: [1, 2, 3, 4, 5],
+            notice: TEXTO,
+          },
+        },
+      },
+    });
+
+    expect(parsed.success).toBe(true);
+    expect(lerTextoDoAvisoForaDoHorario(parsed.data?.trigger_config)).toBe(TEXTO);
   });
 
   it('vazio, ausente ou com shape torto ⇒ null (não avisa, não inventa)', () => {
