@@ -118,7 +118,9 @@ export function paraLinhaDeExecucao(c: LlmCallRow): Record<string, unknown> {
     // zero seria uma afirmação falsa sobre o turno.
     steps_count: null,
     tool_calls: null,
-    is_dry_run: false,
+    // A prévia usa `purpose='agent_preview'`; o turno de produção usa
+    // `agent_turn`. Versão e run do teste não estão em `llm_calls`.
+    is_dry_run: c.purpose === "agent_preview",
     started_at: c.created_at,
     completed_at: c.created_at,
     created_at: c.created_at,
