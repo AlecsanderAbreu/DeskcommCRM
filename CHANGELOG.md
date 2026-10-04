@@ -8,6 +8,193 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ## [Não lançado]
 
+## [1.72.0] — 2026-10-04
+
+### Adicionado
+
+- **Quem escreve fora do horário de atendimento pode receber um aviso configurável — uma vez por contato por período fechado** O turno de quem chega fora da janela do agente era adiado para a abertura sem nenhuma resposta: no sábado à noite, silêncio até segunda de manhã, e a pessoa sem saber se a mensagem chegou. Agora a tela de gatilho do agente (em "Só atender em horário de funcionamento") aceita um texto de aviso, e esse texto é enviado quando a mensagem chega fora da janela, registrado na conversa como Automação. Vale só para quem preencher o texto: o padrão é não enviar nada, e quem não mexer na tela não vê mudança nenhuma.
+
+  O aviso só sai DENTRO da janela de envio do número (por padrão 7h–22h, ajustável por canal). Quem escreve entre o fechamento dessa janela e a abertura seguinte (por padrão, das 22h às 7h) não recebe o aviso na hora: o turno fica em silêncio até a janela de envio abrir, e só então o aviso sai, se o horário de atendimento ainda estiver fechado.
+
+  Vale no máximo um aviso por contato por período fechado: o período começa quando a janela fecha e só volta a valer quando ela abre e fecha de novo: um segundo contato na mesma noite não recebe de novo, e o contato bloqueado (opt-out/`is_blocked`), o titular anonimizado e o número interno da própria organização não recebem nunca. O aviso é RESPOSTA a quem escreveu primeiro, não disparo ativo: ele respeita a janela de resposta do número, o warm-up, o teto diário e o espaçamento, e entra na contagem de envios como qualquer outro. Quando o horário de atendimento abre, a IA responde normalmente sobre a conversa que já tem o aviso.
+
+  Contribuição de @webtecnica (#2284, refs #1926).
+
+- **Em coexistência, o que a equipe cadastra no endereço do app WhatsApp Business vira cadastro no CRM** Num número em coexistência (o mesmo número no app WhatsApp Business e na Cloud API), a empresa também cadastra e renomeia contato no **endereço** do app — o da agenda do celular. A Meta entrega isso no webhook `smb_app_state_sync`, que o canal oficial descartava: o CRM ficava sem o nome que a equipe usa no celular, e o contato só nascia na primeira mensagem, muitas vezes sem nome nenhum.
+
+  Agora esse webhook entra: o contato passa a existir no CRM com o nome do app (o mesmo que a Meta manda para o `display_name`, pela mesma resolução de número da mensagem recebida e do eco). A aba "API Oficial (Meta)" passa a listar `smb_app_state_sync` entre os campos a assinar no dashboard da Meta — sem coexistência a Meta não envia esse evento, então assinar é inofensivo para quem não usa.
+
+  O que este passo **não** faz, de propósito: não cria conversa nem mensagem (nada mudou na caixa de entrada, em `last_inbound_at`, no contador de não lidas nem no agente — ninguém trocou mensagem), não sobrescreve um nome que já existe no CRM (o `coalesce` da `fn_upsert_wa_contact` preenche quando vazio e nunca sobrescreve), e não apaga cadastro quando o app remove o contato do endereço (a Meta manda `remove` sem nome, e apagar histórico do CRM por causa da agenda do celular não está provado em lugar nenhum).
+
+  A importação do histórico de conversas (`history`, até 180 dias) e o botão de Embedded Signup com coexistência continuam fora deste passo — ver a #1632.
+
+  Contribuição de @webtecnica (#2283, refs #1632).
+
+- **Relatórios ganham a aba Por etiqueta** Em Relatórios (Atividades) há agora a aba **Por etiqueta**: para cada etiqueta em uso, quantas conversas ela teve no período (7, 30 ou 90 dias), quantas estão abertas e quantas foram resolvidas, a espera média e a fatia do total. Espera que não foi medida aparece como "—", nunca como zero, e período sem conversa etiquetada diz o motivo em vez de mostrar uma tabela de zeros. A aba abre direto por `/app/activities?aba=etiquetas`.
+
+  Cada etiqueta leva à caixa de entrada na aba Todas, já filtrada por ela. O número da linha e a lista podem não bater: a lista também traz as conversas em que a etiqueta está no contato, e não se limita ao período.
+
+  Nada a fazer na VPS.
+
+  Contribuição de @webtecnica (#2285, refs #1891).
+
+- **Empresas ganham consulta de CNPJ antes de criar, edição e exclusão na tela, e o CNPJ mantém a máscara quando o enriquecimento falha** No cadastro de uma empresa nova, o botão "Consultar CNPJ" busca os dados públicos na BrasilAPI e preenche o formulário para revisão antes de criar. Nada é gravado na consulta, e a tela avisa quando o CNPJ já existe na organização. Quando a BrasilAPI recusa a consulta (403) ou está fora do ar, a tela diz que é indisponibilidade e sugere tentar de novo, em vez de dizer que o CNPJ não existe. A consulta exige o papel de gestor, o mesmo da criação.
+
+  A tela de detalhe da empresa passa a permitir editar o cadastro e excluir a empresa. Excluir exige o papel de gestor e fica registrado na auditoria. Se houver pessoas vinculadas à empresa, a exclusão é recusada e a tela mostra quantas são.
+
+  O CNPJ deixa de perder a máscara (aparecia `33547054000120` no lugar de `33.547.054/0001-20`) quando o enriquecimento automático falha.
+
+  Nada é preciso fazer na instalação.
+
+  Contribuição de @webtecnica (#2273), a partir da issue #1937 de @Fabricio-Point-Machine.
+
+- **A ficha do negócio lê as pessoas relacionadas ao negócio** A ficha do negócio passa a listar, abaixo do contato principal, as outras pessoas ligadas àquele negócio, com o papel de cada uma e a marca de anonimizado quando for o caso. Nesta versão nenhuma tela grava esse vínculo ainda (é a próxima etapa da #1506), então quem opera não vê diferença. Nenhuma ação do operador.
+
+  Contribuição de @webtecnica (#2272, refs #1506, proposta de @Alencaf).
+
+### Corrigido
+
+- **O cron do scheduler que falha deixa de falhar em silêncio — o log do scheduler diz qual rota errou e o que conferir** Quando uma rodada de cron do `scheduler` falha (o caso clássico é o `sync-model-catalog` tomando 401 porque o segredo que o agendador manda não é o que o app enxerga, o defeito da #1109), a linha do crontab descartava a saída E o erro do `curl` (`>/dev/null 2>&1`), e o crond ignora o status de saída. O resultado era um cron quebrado sem sintoma nenhum em lugar nenhum: o catálogo ficava vazio e ninguém via um log.
+
+  Agora o `>/dev/null` fica só no corpo da resposta. O status continua no STDERR do `curl -fsS` (é o `-S` que o imprime) e, quando o comando falha, a linha imprime no STDERR qual rota falhou e o que conferir — os dois chegam ao `docker logs` do scheduler. Em rodada saudável nada muda: o `||` só dispara em falha.
+
+  Nada a fazer na instalação.
+
+  Contribuição de @webtecnica (#2279, refs #1109).
+
+- **Com o Jev medindo o clima, relatar o problema deixa de passar a conversa para uma pessoa, e a concordância do Jev usa o limiar de cada agente** Quando o Jev decide o clima da conversa (Jev decidindo, ou sem IA de linguagem configurada), a escala dele passa a separar o relato do problema, que fica no neutro e não aciona a passagem, da insatisfação com o atendimento e da hostilidade aberta, que acionam. É a mesma separação que a IA de linguagem ganhou na 1.71.0. Vale para toda organização com o Jev decidindo, sem ajuste nenhum. Quem atende e-commerce deve ver menos passagens para uma pessoa por decepção com produto; para passar mais, suba o limiar do agente.
+
+  O cartão do Jev passa a medir a concordância e os clientes irritados pelo limiar de cada agente, gravado em cada mensagem. Mensagens anteriores seguem medidas pelo padrão 0,3 até saírem da janela. Nenhuma ação do operador.
+
+  Contribuição de @webtecnica (#2248, refs #2219, #2209).
+
+- **As ações do assistente numa conversa passam a valer só para o cliente dessa conversa** Durante uma conversa, toda ação do assistente que aponta um registro pelo identificador (contato, conversa, compromisso, retorno, chamado, marcador) só é aceita quando o registro é do cliente com quem a conversa está. Fora disso, a ação é recusada com uma explicação para o assistente seguir a conversa, e nada é alterado. Integrações e pessoas usando o sistema continuam com o mesmo alcance de antes.
+
+  Nada a fazer na instalação.
+
+- **Com as propostas desligadas, Configurações › Propostas esconde o link de modelos, e a tela de modelos explica como ligar em vez de travar em Carregando** Com as propostas comerciais desligadas na organização, a tela Configurações › Propostas deixa de mostrar o link Modelos de proposta, que levava a uma tela que travava em Carregando…. O link segue o valor salvo, então virar a chave sem salvar não o mostra. Quem chega à tela de modelos pela URL vê uma explicação e o atalho para Configurações › Propostas, em vez do aviso cru Not found e de Carregando para sempre. Nenhuma ação do operador.
+
+  Contribuição de @webtecnica (#2270, refs #1889).
+
+- **A atualização não devolve mais INSERT/UPDATE/DELETE em orçamentos de IA nem TRUNCATE do log de auditoria às chaves anon e authenticated** O `baseline.sql` é reaplicado inteiro em toda atualização. Duas concessões do snapshot ao papel `anon` eram revogadas só no fim do arquivo: `INSERT/UPDATE/DELETE` em `ai_budgets` e `TRUNCATE` em `api_audit_log` (o privilégio que a RLS não alcança). Entre as duas pontas, e até a próxima atualização completa se a passada morresse no meio, a chave anônima carregava o privilégio.
+
+  Agora as revogações acompanham as concessões, e o estado final não muda: o `anon` segue sem o que era revogado e com o resto — a leitura escopada por política em `ai_budgets` e `SELECT`/`INSERT` no log de auditoria. Nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2257).
+
+- **A atualização para de devolver o TRUNCATE do log de auditoria ao papel de serviço, e anon/authenticated perdem o TRUNCATE em orçamentos de IA** O `baseline.sql` é reaplicado inteiro em toda atualização. Três pontas da mesma família ficaram de fora do #2257: o `service_role` recuperava `TRUNCATE` no log de auditoria entre a concessão do snapshot e o bloco da 0258 (mais de 20 mil linhas de janela, de pé até a próxima atualização completa se a passada morresse no meio); e `anon`/`authenticated` mantinham `TRUNCATE` em `ai_budgets` no estado final, porque a 0160 revogou só INSERT/UPDATE/DELETE.
+
+  Agora a revogação acompanha as concessões nos três casos, e o `TRUNCATE` de `ai_budgets` sai também do estado final para as duas chaves — ele não passa pela RLS e nenhum consumidor o usa (toda escrita da tabela é service role). Leitura e escrita legítimas seguem como estavam. Nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2259).
+
+- **A atualização interrompida não deixa mais de pé a versão antiga do portão de anonimização** O `baseline.sql` reaplica a história da função de anonimizar contato em duas definições. A intermediária, anterior à correção do #2196, ainda usava a checagem de plataforma que ignora o `scope` do JWT: se uma atualização morresse entre as duas, era essa versão que ficava no banco até a próxima passada completa, e um platform admin `support_readonly` fora de sessão de suporte voltava a poder anonimizar contato.
+
+  A definição intermediária passou a usar a guarda completa (`fn_is_platform_admin_full`, que já existe no snapshot), então o furo não fica de pé em nenhuma passada. O estado final não muda e nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2256).
+
+- **A atualização não devolve mais o privilégio de TRUNCATE ao papel anônimo em idempotency_keys** O `baseline.sql` é reaplicado inteiro em toda atualização. A concessão de `ALL` ao `anon` em `idempotency_keys` vinha do snapshot e a revogação de `TRUNCATE` — um privilégio que a RLS não alcança — ficava no apêndice: entre as duas pontas, e até a próxima atualização completa se a passada morresse no meio, o papel anônimo carregava o privilégio.
+
+  Agora a revogação acompanha a concessão, e o estado final não muda: o `anon` continua sem `TRUNCATE` e com os demais privilégios da concessão. Nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2253).
+
+- **A atualização da VPS deixa de reabrir o gatilho velho da demanda e a permissão anônima das tabelas de conhecimento** O `baseline.sql` é reaplicado inteiro em toda atualização. Dois trechos eram reconstruídos no começo do arquivo e desfeitos no fim, e cada passada reabria a janela: o gatilho `trg_demanda_fecha_com_conversa` (substituído pelo modelo de atendimento na migration 0222) voltava a valer até ser derrubado, e quatro tabelas de conhecimento (fontes, versões, chunks e FAQ da IA) recebiam `ALL` para o papel `anon` — a chave pública do navegador — até serem revogadas adiante. Se a atualização morresse no meio, o gatilho antigo e a permissão anônima ficavam de pé até a próxima tentativa.
+
+  Agora as duas recriações saíram do texto: o gatilho não é mais reinstalado, e as quatro tabelas não são mais concedidas ao `anon` de passagem. O estado final é o mesmo de antes — nenhuma tela, nenhuma regra e nenhum dado mudam, e nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2250).
+
+- **A Central para de abrir em dobro os avisos de orçamento de IA (limite atingido e aviso de gasto)** Os dois avisos de orçamento — "o orçamento de IA foi atingido" e "o gasto passou do aviso" — deduplicam por organização e tipo, mas a pergunta "já existe um aberto?" e a escrita não eram atômicas, e dois turnos podem avaliar o gasto no mesmo instante (o worker roda tarefas em paralelo, e o worker de respostas é outro processo). Dois avisos idênticos apareciam para o mesmo problema.
+
+  Agora o banco é quem segura: um índice único parcial em `agent_inbox_items` (organização e tipo, só enquanto o aviso está aberto) recusa a segunda linha. A decisão do orçamento continua chegando inteira — os dois caminhos do motor tratam a recusa como "já havia aviso", sem trocar o bloqueio por um erro. E a escrita do aviso não depende de o índice já existir: para quem atualiza, tanto faz se o código novo sobe antes ou depois do banco — o portão de orçamento segue fechando, e a deduplicação vale a partir do momento em que o índice chega. Os dois tipos convivem abertos, como sempre: um relata que a IA parou, o outro que o gasto passou do aviso e ela segue.
+
+  Nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2265, com o refinamento do #2266).
+
+- **A Central para de abrir em dobro os avisos de IA por título (Jev parado, saldo, endereço sem chave)** Quatro avisos da Central deduplicam pelo TÍTULO — o "O Jev parou de funcionar", o de IA sem saldo, a recusa por endereço sem chave da empresa e o aviso de laço do processamento de eventos. A pergunta "já existe um aberto?" e a escrita não eram atômicas, e os escritores rodam concorrentes: o worker roda tarefas em paralelo e o aviso do Jev chega por dois drenos. Dois avisos idênticos apareciam para o mesmo problema.
+
+  Agora o banco é quem segura: um índice único parcial em `agent_inbox_items` (organização, kind e título, só enquanto o aviso está aberto) recusa a segunda linha, e os quatro escritores tratam a recusa como "já havia aviso" — nenhum deles para de avisar. Avisos que abrem UM POR NEGÓCIO (o espelho de estágio e o de etapa) continuam abrindo um por negócio, mesmo com o título repetido.
+
+  Nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2263).
+
+- **A Central para de abrir em dobro o aviso de resposta a caso obsoleto quando a rota e o worker escrevem no mesmo instante** A resposta de um humano a um caso que já mudou de atendimento abre um aviso na Central ("Resposta registrada; atendimento mudou"), deduplicado por conversa. Dois escritores podiam chegar juntos — a rota que registra a resposta e o worker que percebe a fronteira de serviço velha — e os dois inseriam, porque a pergunta "já existe um aviso aberto?" e a escrita não eram atômicas.
+
+  Agora o banco é quem segura: um índice único parcial em `agent_inbox_items` (organização, kind e conversa, só enquanto o aviso está aberto) recusa a segunda linha. A resposta do humano continua sendo registrada mesmo quando o aviso já existia — o caminho transacional isola o aviso num savepoint, para que a recusa do banco não derrube a resolução do caso. Avisos `job_dead` de tarefa e de cron seguem como sempre foram, um por ocorrência.
+
+  Nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2260).
+
+- **Numa conversa de atendimento, preencher resposta pronta e abrir conversa ficam no contato da conversa** Numa conversa de atendimento, `crm_render_message_template` passa a preencher a resposta
+  pronta apenas com os dados do contato daquela conversa: um `contact_id` ou um `lead_id` de
+  outro contato é recusado, e sem nenhum dos dois o contato da conversa é usado. Em
+  `crm_get_conversation`, toda conversa que não é do contato da conversa recebe a mesma
+  recusa. Fora de uma conversa de atendimento (integração, MCP externo, rota HTTP), nada muda.
+
+- **Numa conversa de atendimento, as consultas do agente a negócios, agenda, retornos e casos ficam no contato da conversa** Numa conversa de atendimento, as consultas do agente a negócios, compromissos, retornos,
+  radar de risco e casos humanos passam a considerar apenas o contato daquela conversa. Um
+  pedido sobre outro cliente recebe a mesma recusa que um identificador inexistente. A
+  busca de contatos encontra o contato da conversa mesmo quando outros nomes parecidos vêm
+  antes na lista.
+
+  Fora de uma conversa de atendimento (integração, MCP externo, rota HTTP), nada muda.
+
+- **A mensagem de um fluxo de follow-up apagado não sai mais depois da exclusão** Apagar um fluxo de follow-up pela tela encerra a inscrição, mas o turno que já estava na fila (ou adiado para a janela de envio, via cron) continuava valendo: o worker enviava a mensagem e só depois conferia se a inscrição ainda existia — o cliente recebia um passo de um fluxo que não existe mais, e o item terminava como concluído, sem aviso.
+
+  Agora o turno confere a inscrição antes de qualquer efeito: se ela foi apagada, cancelada, pausada ou já saiu do nó, o envio é descartado em silêncio — a mesma regra que o caminho sem worker já aplicava. Nada muda para quem tem a inscrição viva no nó certo, e nada é preciso fazer na instalação.
+
+  Contribuição de @Tong-bit-art (#2261).
+
+- **Os pedidos de privacidade, os honorários e a lista de conversas de uma conversa de atendimento também ficam do lado do contato do turno** O #2182 escopou ao contato da conversa as quatro leituras do Atender, mas deixou três
+  ferramentas e um conserto de página de fora. Um pedido de EXCLUSÃO de outro cliente
+  (`crm_list_privacy_requests`) continuava chegando ao modelo como instrução de "não insista
+  com esta pessoa", e o contrato e as parcelas de honorários de um caso que não é desta
+  conversa (`crm_get_honorarios_contrato`, `crm_list_honorarios_parcelas`) continuavam
+  trazendo valor, percentual e repasse para o lado de cá. As três agora leem
+  `ctx.contatoDoTurno`: a lista de privacidade filtra a própria consulta pelo contato do
+  turno, e o contrato e as parcelas são recusados — antes da consulta — quando o caso não
+  é deste cliente, com a mesma resposta para caso que não existe, caso de outra organização
+  e caso de outro cliente.
+
+  `crm_list_conversations` também passa a filtrar o contato NA CONSULTA, e não mais na
+  página que o handler já tinha truncado: com a conversa mais antiga do mesmo cliente fora
+  da primeira página, o agente ouvia que não havia mais nada. No predicado, cursor e
+  `has_more` voltam a valer, porque a página já é do contato. O `404` de um uuid
+  inexistente em `crm_get_conversation_history` passa a ser a MESMA recusa de uma conversa
+  de outro cliente, em vez de dois estados distintos para o mesmo "não é seu para ler".
+
+  Fora de uma conversa de atendimento — rota HTTP, MCP externo, agente sem conversa —, os
+  pedidos de privacidade, os honorários e o histórico seguem como antes. A lista de conversas
+  muda num ponto: `GET /api/v1/conversations` passa a aceitar `?contact_id=` (antes o parâmetro
+  era ignorado e a resposta era a lista da organização inteira), e `crm_list_conversations` com
+  `contact_id` explícito passa a filtrar no banco, então cursor e `has_more` descrevem as
+  conversas daquele contato. O filtro só estreita a lista, nunca a amplia.
+
+  Contribuição de @webtecnica (#2271, refs #2184).
+
+- **A reunião remarcada para mais longe volta a receber o lembrete da data nova** Quando um lembrete já tinha saído e a reunião era remarcada para uma data mais distante, a data nova ficava sem esse lembrete, porque o sistema guardava apenas que ele já tinha sido enviado, sem dizer para qual data. Agora o lembrete volta a valer para a data nova e sai uma única vez, na hora certa.
+
+  Para não mandar duas mensagens em sequência, o lembrete só volta quando a hora dele na data nova fica a pelo menos metade do seu intervalo depois do último envio. Para o lembrete da véspera, isso quer dizer 12 horas: a reunião empurrada para o mesmo horário do dia seguinte recebe a véspera nova, e a reunião empurrada em 30 minutos logo depois de a véspera sair não recebe uma segunda. Remarcar para mais perto não reenvia nada, e o lembrete cuja hora já tinha passado no momento da remarcação continua não saindo. Reuniões remarcadas antes da atualização para a 1.71.0, quando o sistema ainda não registrava a hora da remarcação, seguem como antes.
+
+  Contribuição de @webtecnica (#2249, refs #2243).
+
+- **O Testar do agente mostra a resposta mesmo fora do horário de envio, com um aviso** Fora do horário de envio configurado, o botão Testar do agente escondia a resposta: a regra de ritmo de envio (horário, aquecimento do número e limite diário) barrava o candidato também no teste, onde nada é enviado. Agora o Testar mostra a resposta com o aviso de que, em produção, ela não sairia naquele momento, e o registro da verificação diz que essa regra não foi aplicada ao teste, em vez de dizer que passou. O envio real não muda: fora do horário ele continua barrado. Só essa regra é afrouxada, e só no Testar; a janela de 24 horas do WhatsApp, o descadastro e as regras de conteúdo seguem na mesma cadeia de antes, e o rascunho do modo assistido continua barrado fora do horário.
+
+  Na aba Execuções, as rodadas do Testar passam a aparecer como teste. Os rascunhos do modo assistido, que atendem conversas reais, continuam aparecendo como produção. E um teste que não produziu resposta deixa de aparecer como aprovado.
+
+  Contribuição de @leadframeassessoria-lab (#2254, substitui #2252).
+
+- **O follow-up pausado volta a andar quando o atendimento humano termina** Um follow-up que estava no passo de enviar mensagem e ficava pausado porque uma pessoa assumiu o atendimento perdia o envio em silêncio: o turno rodava durante a pausa, era descartado, e nada ficava registrado. Quando o atendimento era retomado, o motor continuava achando que aquele turno estava em voo — só conferia de novo, nunca mandava outro — e o fluxo ficava parado no mesmo passo até o sistema marcá-lo como morto por tempo esgotado, com um motivo que não era o verdadeiro.
+
+  Agora o descarte durante a pausa deixa o mesmo rastro que a suspensão da conta já deixava: na retomada, o passo é reenfileirado e a mensagem sai normalmente. Follow-ups encerrados, passos que já andaram e fluxos apagados continuam descartados em silêncio, como antes — e nada precisa ser feito na instalação.
+
+  Contribuição de @webtecnica (#2277, refs #2262).
+
 ## [1.71.0] — 2026-10-04
 
 ### Adicionado
@@ -10079,7 +10266,8 @@ Primeira versão marcada do DeskcommCRM. O projeto vinha sendo desenvolvido publ
 
 - **Node 22 é obrigatório para desenvolvimento.** A suíte de invariantes instancia o cliente do Supabase, que exige o `WebSocket` global — nativo apenas a partir do Node 22. Isso não afeta quem apenas hospeda: a VPS roda a imagem pronta.
 
-[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v1.71.0...HEAD
+[Não lançado]: https://github.com/melgarafael/DeskcommCRM/compare/v1.72.0...HEAD
+[1.72.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.71.0...v1.72.0
 [1.71.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.70.0...v1.71.0
 [1.70.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.69.0...v1.70.0
 [1.69.0]: https://github.com/melgarafael/DeskcommCRM/compare/v1.68.0...v1.69.0
