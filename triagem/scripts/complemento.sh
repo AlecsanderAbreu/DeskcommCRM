@@ -69,7 +69,12 @@ MIG=$(f -c '^supabase/migrations/[0-9].*\.sql$')
 if [ "$MIG" -gt 0 ]; then
   BL=$(f -c '^supabase/baseline.sql$')
   MF=$(f -c '^supabase/migrations/MANIFEST.md$')
-  p migration_tripla "migrations=$MIG baseline=$BL manifest=$MF $([ "$BL" -ge 1 ] && [ "$MF" -ge 1 ] && echo COMPLETA || echo INCOMPLETA)"
+  # Desde o #2149 a descrição pode morar no cabeçalho `-- manifest:` do próprio
+  # .sql em vez de numa linha do MANIFEST.md; contar só o MANIFEST dava
+  # "INCOMPLETA" falso em toda migration do formato novo (#2259, #2260, #2263).
+  HM=$(grep -cE '^\+-- manifest:' <<<"$DIFF")
+  [ "$HM" -ge "$MIG" ] && MF=$((MF + HM))
+  p migration_tripla "migrations=$MIG baseline=$BL manifest=$MF (cabecalho=$HM) $([ "$BL" -ge 1 ] && [ "$MF" -ge 1 ] && echo COMPLETA || echo INCOMPLETA)"
   # A população é a da pergunta (#1273): a main do PRODUTO mais as outras refs do
   # clone, com a âncora do nome canônico. A versão anterior media `git ls-tree
   # origin/main` e contava com `grep -c "_${NUM}_"` — a main de um fork em vez da
