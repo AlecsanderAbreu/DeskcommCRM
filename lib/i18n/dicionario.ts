@@ -4945,6 +4945,58 @@ export const DICIONARIO: Traducoes = {
   "O nome e a cor que este sistema mostra para todo mundo que usa esta instalação.": {
     es: "El nombre y el color que este sistema muestra a todas las personas que usan esta instalación.",
   },
+  "CSS personalizado": { es: "CSS personalizado" },
+  "Informe CSS como texto de até 16 KB.": { es: "Indica el CSS como texto de hasta 16 KB." },
+  "Esta ação exige acesso completo à instalação.": {
+    es: "Esta acción requiere acceso completo a la instalación.",
+  },
+  "Saia do acompanhamento administrativo antes de mudar a marca.": {
+    es: "Sal del acompañamiento administrativo antes de cambiar la marca.",
+  },
+  "Não foi possível gravar o CSS no banco da instalação.": {
+    es: "No se pudo guardar el CSS en la base de datos de la instalación.",
+  },
+  "CSS personalizado salvo.": { es: "CSS personalizado guardado." },
+  "Ajustes visuais globais: afetam o login e todas as telas, em todas as organizações desta instalação.": {
+    es: "Ajustes visuales globales: afectan el inicio de sesión y todas las pantallas de todas las organizaciones de esta instalación.",
+  },
+  "O CSS salvo não foi aplicado porque contém uma regra inválida.": {
+    es: "No se aplicó el CSS guardado porque contiene una regla no válida.",
+  },
+  "Regras CSS": { es: "Reglas CSS" },
+  "Use seletores de classe e propriedades visuais (cores, bordas, sombras e tipografia). Sem seletores globais ou por ID, @rules, URLs, scripts, !important ou propriedades de layout e posicionamento. Até 16 KB. Deixe vazio e salve para remover.": {
+    es: "Usa selectores de clase y propiedades visuales (colores, bordes, sombras y tipografía). Sin selectores globales o por ID, reglas @, URL, scripts, !important ni propiedades de diseño o posicionamiento. Hasta 16 KB. Déjalo vacío y guarda para quitarlo.",
+  },
+  "Ver exemplo": { es: "Ver ejemplo" },
+  "Salvar CSS": { es: "Guardar CSS" },
+  "O CSS passou do limite de 16 KB.": { es: "El CSS supera el límite de 16 KB." },
+  "Remova escapes, caracteres de controle e sinais de HTML (< ou >).": {
+    es: "Quita los escapes, los caracteres de control y los signos HTML (< o >).",
+  },
+  "O CSS tem sintaxe inválida. Confira chaves, seletores e declarações.": {
+    es: "El CSS tiene una sintaxis no válida. Revisa las llaves, los selectores y las declaraciones.",
+  },
+  "Use apenas regras CSS simples; comentários e diretivas @ não são aceitos.": {
+    es: "Usa solo reglas CSS simples; no se aceptan comentarios ni directivas @.",
+  },
+  "O CSS pode ter no máximo 100 regras.": { es: "El CSS puede tener un máximo de 100 reglas." },
+  "Use seletores formados por classes, como .text-muted-foreground ou .rounded-md:hover.": {
+    es: "Usa selectores formados por clases, como .text-muted-foreground o .rounded-md:hover.",
+  },
+  "Cada regra precisa ter ao menos uma declaração visual.": {
+    es: "Cada regla debe tener al menos una declaración visual.",
+  },
+  "O CSS pode ter no máximo 500 declarações.": { es: "El CSS puede tener un máximo de 500 declaraciones." },
+  "Essa propriedade não é permitida; use apenas propriedades visuais.": {
+    es: "Esta propiedad no está permitida; usa solo propiedades visuales.",
+  },
+  "Valor CSS recusado. URLs, funções dinâmicas e !important não são permitidos.": {
+    es: "Valor CSS rechazado. No se permiten URL, funciones dinámicas ni !important.",
+  },
+  "Cada valor CSS pode ter no máximo 256 caracteres.": {
+    es: "Cada valor CSS puede tener un máximo de 256 caracteres.",
+  },
+  "Informe ao menos uma regra CSS.": { es: "Indica al menos una regla CSS." },
   "Sua cor": { es: "Tu color" },
   "fora da escala — fica só no logo": { es: "fuera de la escala: solo se usa en el logo" },
   "Botões no modo claro": { es: "Botones en el modo claro" },
@@ -4954,8 +5006,8 @@ export const DICIONARIO: Traducoes = {
   },
   "Marca salva.": { es: "Marca guardada." },
   "Nome do sistema": { es: "Nombre del sistema" },
-  "Deixe em branco para voltar ao nome padrão. Este nome já aparece no título da aba do navegador, nos menus laterais, nos e-mails que o sistema envia (para as empresas que não definiram um nome próprio), no aplicativo de verificação em duas etapas e no arquivo de códigos de recuperação que o usuário baixa. Ainda NÃO chega às telas de entrada e cadastro nem às da configuração inicial: essas continuam com o nome gravado no arquivo de instalação do servidor até a próxima atualização da stack.": {
-    es: "Déjalo en blanco para volver al nombre predeterminado. Este nombre ya aparece en el título de la pestaña del navegador, en los menús laterales, en los correos que envía el sistema (para las empresas que no definieron un nombre propio), en la app de verificación en dos pasos y en el archivo de códigos de recuperación que descarga el usuario. Todavía NO llega a las pantallas de inicio de sesión y registro ni a las de configuración inicial: esas siguen con el nombre escrito en el archivo de instalación del servidor hasta la próxima actualización del stack.",
+  "Deixe em branco para voltar ao nome padrão. Este nome já aparece no título da aba do navegador, na tela de login, nos menus laterais, nos e-mails que o sistema envia (para as empresas que não definiram um nome próprio), no aplicativo de verificação em duas etapas e no arquivo de códigos de recuperação que o usuário baixa. Ainda NÃO chega às telas de cadastro nem às da configuração inicial: essas continuam com o nome gravado no arquivo de instalação do servidor até a próxima atualização da stack.": {
+    es: "Déjalo en blanco para volver al nombre predeterminado. Este nombre ya aparece en el título de la pestaña del navegador, en la pantalla de inicio de sesión, en los menús laterales, en los correos que envía el sistema (para las empresas que no definieron un nombre propio), en la app de verificación en dos pasos y en el archivo de códigos de recuperación que descarga el usuario. Todavía NO llega a las pantallas de registro ni a las de configuración inicial: esas siguen con el nombre escrito en el archivo de instalación del servidor hasta la próxima actualización del stack.",
   },
   "Cor da marca": { es: "Color de la marca" },
   "Escolher a cor visualmente": { es: "Elegir el color visualmente" },
