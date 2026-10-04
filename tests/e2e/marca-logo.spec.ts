@@ -756,9 +756,14 @@ test.describe("o logo subido pela tela chega à tela", () => {
     try {
       const paginaLogin = await visitante.newPage();
       await paginaLogin.goto("/login");
-      await expect(paginaLogin.locator("#marca-css-personalizado")).toContainText(
-        ":root:root .text-muted-foreground",
-      );
+      // `toContainText` lê o texto VISÍVEL, e o Playwright ignora o conteúdo de
+      // <style>: o elemento estava lá com a folha inteira e a asserção recebia "".
+      // O texto da folha se lê pelo DOM; o efeito, pela cor computada abaixo.
+      await expect
+        .poll(() =>
+          paginaLogin.locator("#marca-css-personalizado").evaluate((element) => element.textContent ?? ""),
+        )
+        .toContain(":root:root .text-muted-foreground");
       await expect
         .poll(() =>
           paginaLogin.locator(".text-muted-foreground").first().evaluate((element) =>
