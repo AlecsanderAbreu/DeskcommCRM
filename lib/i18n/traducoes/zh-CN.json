@@ -5275,6 +5275,7 @@
   "O que foi feito": "操作内容",
   "Linha do tempo da operação": "运营时间线",
   "A lista mostra só os mais recentes.": "列表仅显示最近的事件。",
+  "O período passou do limite de leitura: os números contam só as conversas mais recentes.": "该时段超出读取上限：数字只统计最近的对话。",
   "No período houve": "该时段内有",
   "acontecimentos.": "个事件。",
   "Carregando organização…": "正在加载组织…",

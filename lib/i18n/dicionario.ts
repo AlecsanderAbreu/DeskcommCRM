@@ -14226,6 +14226,19 @@ export const DICIONARIO: Traducoes = {
   "Excluir tira essas empresas da lista. Em outra busca, elas podem aparecer de novo como novas.": { es: "Eliminar quita estas empresas de la lista. En otra búsqueda pueden aparecer de nuevo como nuevas." },
   "Empresas desmarcadas excluídas.": { es: "Empresas desmarcadas eliminadas." },
   "Esta campanha já criou o contato e o negócio dessas empresas ao iniciar. Desmarcar só impede o envio: elas continuam no funil.": { es: "Esta campaña ya creó el contacto y el negocio de estas empresas al iniciar. Desmarcar solo impide el envío: siguen en el embudo." },
+  // ─── RELATÓRIOS: A ABA "POR ETIQUETA" (#1891) ───
+  "Por etiqueta": { es: "Por etiqueta" },
+  "Abertas": { es: "Abiertas" },
+  "Resolvidas": { es: "Resueltas" },
+  "Espera média": { es: "Espera media" },
+  "Fatia": { es: "Proporción" },
+  "etiquetagem": { es: "etiquetado" },
+  "etiquetagens": { es: "etiquetados" },
+  "Nenhuma etiqueta em uso": { es: "Ninguna etiqueta en uso" },
+  "Nenhuma conversa com etiqueta neste período": { es: "Ninguna conversación con etiqueta en este período" },
+  "Aplique etiquetas às conversas ou aumente o período — é por etiqueta que se vê qual assunto ocupa a operação.": { es: "Aplica etiquetas a las conversaciones o amplía el período: es por etiqueta cómo se ve qué asunto ocupa la operación." },
+  "O que mais ocupou a operação": { es: "Lo que más ocupó la operación" },
+  "O período passou do limite de leitura: os números contam só as conversas mais recentes.": { es: "El período superó el límite de lectura: los números cuentan solo las conversaciones más recientes." },
 };
 
 /**
