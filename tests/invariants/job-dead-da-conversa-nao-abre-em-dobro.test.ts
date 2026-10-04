@@ -78,7 +78,7 @@ const abertos = async (org: string, refId?: string): Promise<number> => {
   const { rows } = await pool.query<{ n: number }>(
     `select count(*)::int as n from agent_inbox_items
       where organization_id = $1 and kind = 'job_dead' and ref_kind = 'conversation'
-        and ($2::text is null or ref_id = $2) and status = 'open'`,
+        and ($2::uuid is null or ref_id = $2::uuid) and status = 'open'`,
     [org, refId ?? null],
   );
   return rows[0]!.n;
