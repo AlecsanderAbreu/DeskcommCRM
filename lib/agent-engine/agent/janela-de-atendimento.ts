@@ -189,7 +189,11 @@ export function inicioDoPeriodoFechado(janela: JanelaDeAtendimento, agora: Date)
     if (!janela.weekdays.includes(dia)) continue;
     const minutosDesdeOFechamento = local.minutos - fim + voltas * 24 * 60;
     if (minutosDesdeOFechamento < 0) continue;
-    return new Date(agora.getTime() - minutosDesdeOFechamento * 60_000);
+    // Base no MINUTO cheio: `relogioLocal` conta minutos inteiros, e somar isso
+    // a um `agora` com segundos fazia o início herdar os segundos — a chave do
+    // aviso mudava a cada mensagem e o "uma vez por período" nunca casava.
+    const agoraNoMinuto = Math.floor(agora.getTime() / 60_000) * 60_000;
+    return new Date(agoraNoMinuto - minutosDesdeOFechamento * 60_000);
   }
 
   return null;

@@ -277,6 +277,24 @@ describe('período fechado — a régua de "uma vez por período"', () => {
     );
   });
 
+  it('dois instantes do MESMO período, com segundos diferentes, dão a MESMA chave', async () => {
+    // Quarta 22:03:17.412 e 22:40:42.900 BRT. Se o início do período herdar os
+    // segundos de `agora`, a chave muda a cada mensagem e o dedupe nunca casa:
+    // com debounce 0 (ou job em hold) cada mensagem viraria um aviso novo.
+    const primeiro = new Date('2026-10-08T01:03:17.412Z');
+    const segundo = new Date('2026-10-08T01:40:42.900Z');
+
+    expect(inicioDoPeriodoFechado(JANELA, primeiro)).toEqual(new Date('2026-10-07T21:00:00Z'));
+    expect(inicioDoPeriodoFechado(JANELA, segundo)).toEqual(new Date('2026-10-07T21:00:00Z'));
+
+    const { deps, enviadas } = portasFalsas();
+    await enviaAvisoForaDoHorario(deps, entrada(primeiro));
+    const repetida = await enviaAvisoForaDoHorario(deps, entrada(segundo));
+
+    expect(repetida).toEqual({ enviar: false, motivo: 'ja_avisado_no_periodo' });
+    expect(enviadas).toHaveLength(1);
+  });
+
   it('cada período gera chave própria', () => {
     const um = chaveDoAviso('lead-1', new Date('2026-10-07T21:00:00Z'));
     const dois = chaveDoAviso('lead-1', new Date('2026-10-08T21:00:00Z'));
