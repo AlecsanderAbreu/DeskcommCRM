@@ -187,7 +187,6 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
           request_id: requestId,
           status: r.status,
           reason: r.status === "failed" ? r.reason : undefined,
-          phone: e.phone,
           phone_number_id: e.phoneNumberId,
         });
       }

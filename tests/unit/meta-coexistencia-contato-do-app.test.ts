@@ -317,3 +317,110 @@ describe("a rota do webhook oficial entrega o contato do app à ingestão", () =
     vi.unstubAllEnvs();
   });
 });
+
+describe("contato do app sem assinatura válida não chega à ingestão", () => {
+  const segredo = "app-secret-de-teste";
+  const cru = JSON.stringify(
+    envelopeDeSync([
+      { type: "contact", contact: { full_name: "Ana Souza", phone_number: "5519999999999" }, action: "add" },
+    ]),
+  );
+  const casos: Array<[string, Record<string, string>]> = [
+    ["sem header", {}],
+    ["sha256 de zeros", { "x-hub-signature-256": `sha256=${"0".repeat(64)}` }],
+    [
+      "assinado com outro segredo",
+      { "x-hub-signature-256": `sha256=${createHmac("sha256", "outro-segredo").update(cru, "utf8").digest("hex")}` },
+    ],
+  ];
+
+  for (const [nome, headers] of casos) {
+    it(`${nome}: 401 e nenhuma chamada a ingestMetaAppContactSync`, async () => {
+      vi.resetModules();
+      vi.stubEnv("META_APP_SECRET", segredo);
+      const sincronizados: unknown[] = [];
+      vi.doMock("@/lib/channels/meta/session", () => ({
+        metaSessionByWebhookToken: async () => ({ id: "sess-1", organizationId: "org-1", wabaId: "waba-1" }),
+      }));
+      vi.doMock("@/lib/channels/meta/app", () => ({
+        appDaMeta: async () => ({ appSecret: segredo, verifyToken: null }),
+      }));
+      vi.doMock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
+      vi.doMock("@/lib/channels/meta/ingest", () => ({
+        ingestMetaInbound: async () => ({ status: "ingested" }),
+        ingestMetaEcho: async () => ({ status: "ingested" }),
+        ingestMetaAppContactSync: async (_a: unknown, e: unknown) => {
+          sincronizados.push(e);
+          return { status: "synced", contactId: "contact-1" };
+        },
+      }));
+
+      const { POST } = await import("@/app/api/v1/webhooks/meta/[token]/route");
+      const res = await POST(
+        { text: async () => cru, headers: new Headers(headers) } as never,
+        { params: Promise.resolve({ token: "t" }) } as never,
+      );
+
+      expect(res.status).toBe(401);
+      expect(sincronizados).toEqual([]);
+      vi.unstubAllEnvs();
+    });
+  }
+});
+
+describe("canal parceiro: contato do app de OUTRO número não vaza", () => {
+  const SEGREDO = "whsec_segredo_do_painel_123";
+  const TS = "1700000000";
+  const assinado = (corpo: string) =>
+    new Headers({
+      "x-datafy-signature-256": `sha256=${createHmac("sha256", SEGREDO).update(`${TS}.${corpo}`).digest("hex")}`,
+      "x-datafy-timestamp": TS,
+    });
+
+  async function entregar(phoneNumberIdDoPayload: string) {
+    vi.resetModules();
+    vi.stubEnv("DATAFY_ENABLED", "true");
+    const sincronizados: unknown[] = [];
+    vi.doMock("@/lib/channels/graph-parceiro/session", () => ({
+      graphPartnerRefsDaSessao: async () => ({ phoneNumberId: "phone-1", wabaId: "waba-1" }),
+    }));
+    vi.doMock("@/lib/channels/meta/ingest", () => ({
+      ingestMetaInbound: async () => ({ status: "ingested" }),
+      ingestMetaEcho: async () => ({ status: "ingested" }),
+      ingestMetaAppContactSync: async (_a: unknown, e: unknown) => {
+        sincronizados.push(e);
+        return { status: "synced", contactId: "contact-1" };
+      },
+    }));
+    const { handleInboundWebhook } = await import("@/lib/channels/inbound");
+    const { CHANNEL_PROVIDER_DATAFY } = await import("@/lib/channels/capabilities");
+    const corpo = JSON.stringify(
+      envelopeDeSync(
+        [{ type: "contact", contact: { full_name: "Ana Souza", phone_number: "5519999999999" }, action: "add" }],
+        phoneNumberIdDoPayload,
+      ),
+    );
+    const r = await handleInboundWebhook({} as never, {
+      session: { id: "sess-1", organization_id: "org-1", provider: CHANNEL_PROVIDER_DATAFY },
+      rawBody: corpo,
+      headers: assinado(corpo),
+      secret: SEGREDO,
+    });
+    vi.unstubAllEnvs();
+    return { r, sincronizados };
+  }
+
+  it("payload de outro `phone_number_id` da mesma conta: `outro_numero` e nenhuma ingestão", async () => {
+    const { r, sincronizados } = await entregar("phone-OUTRO");
+
+    expect(r).toEqual({ ok: true, body: { received: 1, outcomes: ["outro_numero"] } });
+    expect(sincronizados).toEqual([]);
+  });
+
+  it("controle: o número DESTA sessão é ingerido", async () => {
+    const { r, sincronizados } = await entregar("phone-1");
+
+    expect(r).toEqual({ ok: true, body: { received: 1, outcomes: ["contato:synced"] } });
+    expect(sincronizados).toHaveLength(1);
+  });
+});
