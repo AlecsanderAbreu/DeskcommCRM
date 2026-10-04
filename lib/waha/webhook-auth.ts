@@ -18,7 +18,8 @@
  *     Fica desligado por padrão porque sem a variável certa o WAHA não assina:
  *     medido nesta VPS (2026.7.2), os eventos reais chegavam sem header algum
  *     porque o compose entregava `WHATSAPP_HOOK_HMAC` — nome que não existe na
- *     doc dele; o certo é `WHATSAPP_HOOK_HMAC_KEY`. Ligar isso por default
+ *     doc dele; o certo é `WHATSAPP_HOOK_HMAC_KEY`. Ligue quando o WAHA estiver
+ *     assinando ou houver um proxy que assine. Ligar isso por default
  *     derrubaria a ingestão de mensagens de todo mundo — remédio pior que a
  *     doença. Quem roda WAHA Plus (ou um proxy que assina) liga e ganha a
  *     verificação forte.

@@ -1,7 +1,7 @@
 ---
 impacto: nada_mudou
 secao: corrigido
-titulo: O WAHA passa a assinar as entregas de webhook e a exigência de assinatura volta a funcionar
+titulo: O WAHA passa a assinar as entregas de webhook e a exigência de assinatura passa a funcionar
 ---
 
 O compose entregava o segredo ao contêiner do WAHA numa variável que não existe na documentação dele (`WHATSAPP_HOOK_HMAC` em vez de `WHATSAPP_HOOK_HMAC_KEY`), então o WAHA ignorava e nunca assinava nada — e ligar "Exigir assinatura nas entregas do canal" cortava a entrada de mensagens com `401 signature_required`.
