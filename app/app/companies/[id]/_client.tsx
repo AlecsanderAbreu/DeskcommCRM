@@ -418,7 +418,7 @@ export function CompanyDetailClient({ id }: Props) {
           <div className="space-y-3 py-2 text-sm">
             <p>
               {t(
-                "A exclusão apaga o cadastro da empresa. Vínculos com pessoas, contatos e negócios podem impedi-la: nesse caso a tela mostra o motivo e nada é apagado.",
+                "A exclusão apaga o cadastro da empresa. Se houver pessoas vinculadas, a exclusão é recusada e a tela mostra o motivo; nada é apagado.",
               )}
             </p>
             <p className="font-medium">

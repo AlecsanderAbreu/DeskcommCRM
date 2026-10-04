@@ -11,7 +11,9 @@
  *   3. lookup antes da criação devolve dados públicos SEM gravar, marca
  *      `already_registered` e mapeia 403 da BrasilAPI como 502 com dica de retry.
  *   4. exclusão segura: soma audit, devolve o que foi apagado, 404 quando a
- *      empresa não existe e 409 quando a FK depende (23503).
+ *      empresa não existe, 409 com a contagem quando há pessoas vinculadas
+ *      (company_people é ON DELETE CASCADE, então o 23503 não vem do banco)
+ *      e 409 se uma FK sem cascade recusar (23503).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -221,35 +223,53 @@ describe("lookup de CNPJ antes da criação", () => {
   });
 });
 
+/**
+ * Banco falso para exclusão: `company_people` responde a contagem pedida e
+ * `companies` lê a empresa e registra se o DELETE foi chamado. Igual ao
+ * builder do Supabase, `.delete()` é síncrono e a cadeia de `.eq()` só
+ * resolve quando a promise é awaited.
+ */
+function bancoDeExclusao(opts: { vinculos: number; erroDoDelete?: unknown }) {
+  const deletes: string[] = [];
+  const banco = {
+    from: (tabela: string) => {
+      if (tabela === "company_people") {
+        const contagem = {
+          eq: () => contagem,
+          then: (resolve: (v: unknown) => unknown) =>
+            resolve({ count: opts.vinculos, error: null }),
+        };
+        return { select: () => contagem };
+      }
+      if (tabela !== "companies") throw new Error(`tabela inesperada: ${tabela}`);
+      const leitura = {
+        eq: () => leitura,
+        maybeSingle: async () => ({
+          data: { id: EMPRESA, trade_name: "Acme", legal_name: "ACME LTDA" },
+          error: null,
+        }),
+      };
+      return {
+        select: () => leitura,
+        delete: () => {
+          deletes.push(tabela);
+          return { eq: () => ({ eq: async () => ({ error: opts.erroDoDelete ?? null }) }) };
+        },
+      };
+    },
+  };
+  return { banco: banco as never, deletes };
+}
+
 describe("exclusão segura de empresa", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("apaga, soma audit e devolve o que foi removido", async () => {
-    const chamadas: string[] = [];
-    const escrita = {
-      eq: () => escrita,
-    };
-    const banco = {
-      from: (tabela: string) => {
-        chamadas.push(tabela);
-        if (tabela !== "companies") throw new Error(`tabela inesperada: ${tabela}`);
-        const leitura = {
-          eq: () => leitura,
-          maybeSingle: async () => ({
-            data: { id: EMPRESA, trade_name: "Acme", legal_name: "ACME LTDA" },
-            error: null,
-          }),
-        };
-        return {
-          select: () => leitura,
-          delete: () => ({ eq: () => ({ eq: () => ({ error: null }) }) }),
-        };
-      },
-    };
-
-    const r = await deleteCompanyHandler(banco as never, CTX, "u-1", EMPRESA);
+    const { banco, deletes } = bancoDeExclusao({ vinculos: 0 });
+    const r = await deleteCompanyHandler(banco, CTX, "u-1", EMPRESA);
     expect(r.deleted).toBe(true);
     expect(r.legal_name).toBe("ACME LTDA");
+    expect(deletes).toEqual(["companies"]);
     expect(audit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "companies.deleted", resourceId: EMPRESA }),
     );
@@ -261,27 +281,26 @@ describe("exclusão segura de empresa", () => {
     ).rejects.toMatchObject({ status: 404 });
   });
 
-  it("409 quando a FK depende (23503) — não apaga parcial", async () => {
-    const banco = {
-      from: () => {
-        const leitura = {
-          eq: () => leitura,
-          maybeSingle: async () => ({ data: { id: EMPRESA, trade_name: "Acme" }, error: null }),
-        };
-        return {
-          select: () => leitura,
-          // igual ao builder do Supabase: .delete() é síncrono e a cadeia de
-          // .eq() só resolve quando a promise é awaited — tornar `delete`
-          // async quebrava a corrente com "eq is not a function".
-          delete: () => ({
-            eq: () => ({
-              eq: async () => ({ error: { code: "23503", message: "violates FK" } }),
-            }),
-          }),
-        };
-      },
-    };
-    await expect(deleteCompanyHandler(banco as never, CTX, "u-1", EMPRESA)).rejects.toMatchObject({
+  // company_people tem ON DELETE CASCADE para companies: no banco real o
+  // DELETE nunca devolve 23503, ele apaga os vínculos. A recusa tem de vir
+  // da contagem, ANTES do delete.
+  it("409 com a contagem quando há pessoas vinculadas — e o DELETE não é chamado", async () => {
+    const { banco, deletes } = bancoDeExclusao({ vinculos: 2 });
+    await expect(deleteCompanyHandler(banco, CTX, "u-1", EMPRESA)).rejects.toMatchObject({
+      status: 409,
+      code: "conflict",
+      message: expect.stringContaining("2 pessoa(s)"),
+    });
+    expect(deletes).toEqual([]);
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it("409 quando uma FK sem cascade recusa (23503) — rede", async () => {
+    const { banco } = bancoDeExclusao({
+      vinculos: 0,
+      erroDoDelete: { code: "23503", message: "violates FK" },
+    });
+    await expect(deleteCompanyHandler(banco, CTX, "u-1", EMPRESA)).rejects.toMatchObject({
       status: 409,
       code: "conflict",
     });

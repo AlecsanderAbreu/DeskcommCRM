@@ -17,13 +17,15 @@ export const dynamic = "force-dynamic";
  * GET /api/v1/companies/lookup?cnpj=...
  *
  * Consulta um CNPJ na BrasilAPI antes de criar — devolve os dados públicos
- * para a tela preencher e revisar. Não grava nada (leitura). Viewer+.
+ * para a tela preencher e revisar. Não grava nada (leitura). Manager+, o
+ * mesmo piso da criação e do reenriquecimento: cada clique sai para um
+ * serviço de terceiro, e quem não pode criar não precisa consultar.
  */
 export async function GET(req: NextRequest): Promise<Response> {
   const requestId = requestIdOf(req);
   const desligado = await seModuloB2bDesligado(requestId);
   if (desligado) return desligado;
-  const authz = await requireRole("viewer", { requestId, resource: "companies" });
+  const authz = await requireRole("manager", { requestId, resource: "companies" });
   if (!authz.ok) return authz.response;
 
   try {

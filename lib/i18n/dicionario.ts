@@ -12708,8 +12708,8 @@ export const DICIONARIO: Traducoes = {
   Complemento: { es: "Complemento" },
   "Excluir empresa": { es: "Eliminar empresa" },
   "Não foi possível excluir.": { es: "No fue posible eliminar." },
-  "A exclusão apaga o cadastro da empresa. Vínculos com pessoas, contatos e negócios podem impedi-la: nesse caso a tela mostra o motivo e nada é apagado.": {
-    es: "La eliminación borra el registro de la empresa. Los vínculos con personas, contactos y negocios pueden impedirla: en ese caso la pantalla muestra el motivo y no se borra nada.",
+  "A exclusão apaga o cadastro da empresa. Se houver pessoas vinculadas, a exclusão é recusada e a tela mostra o motivo; nada é apagado.": {
+    es: "La eliminación borra el registro de la empresa. Si hay personas vinculadas, la eliminación se rechaza y la pantalla muestra el motivo; no se borra nada.",
   },
   "Buscar por nome, fantasia ou CNPJ…": { es: "Buscar por nombre, fantasía o CNPJ…" },
   "Erro ao carregar empresas.": { es: "Error al cargar empresas." },

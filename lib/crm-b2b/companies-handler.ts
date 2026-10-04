@@ -289,13 +289,31 @@ export async function deleteCompanyHandler(
   if (loadErr) err(ctx, 500, "internal_error", loadErr.message);
   if (!existing) err(ctx, 404, "not_found", "Empresa não encontrada.");
 
+  // company_people aponta para companies com ON DELETE CASCADE: o banco nunca
+  // devolve 23503 aqui, ele apaga os vínculos (cargo, decisor) em silêncio.
+  // Contar antes é o que recusa a exclusão quando há pessoas vinculadas.
+  const { count: vinculos, error: countErr } = await supabase
+    .from("company_people")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", ctx.organization_id)
+    .eq("company_id", id);
+  if (countErr) err(ctx, 500, "internal_error", countErr.message);
+  if (vinculos && vinculos > 0)
+    err(
+      ctx,
+      409,
+      "conflict",
+      `Não é possível excluir: ${vinculos} pessoa(s) vinculada(s) a esta empresa. Remova os vínculos antes.`,
+      { linked_people: vinculos },
+    );
+
   const { error } = await supabase
     .from("companies")
     .delete()
     .eq("organization_id", ctx.organization_id)
     .eq("id", id);
   if (error) {
-    // FK ainda dependente (23503) impede exclusão parcial: informar o motivo.
+    // Rede para FK futura sem cascade (23503): informar o motivo.
     if (error.code === "23503")
       err(ctx, 409, "conflict", "Não é possível excluir: há vínculos ativos com esta empresa.");
     err(ctx, 500, "internal_error", error.message);
