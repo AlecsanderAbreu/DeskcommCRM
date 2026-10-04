@@ -14228,8 +14228,8 @@ export const DICIONARIO: Traducoes = {
   "etiquetagem": { es: "etiquetado" },
   "etiquetagens": { es: "etiquetados" },
   "Nenhuma etiqueta em uso": { es: "Ninguna etiqueta en uso" },
-  "Nenhuma conversa com etiqueta neste período": { es: "Ninguna conversa con etiqueta en este período" },
-  "Aplique etiquetas às conversas ou aumente o período — é por etiqueta que se vê qual assunto ocupa a operação.": { es: "Aplica etiquetas a las conversas o amplía el período: es por etiqueta cómo se ve qué asunto ocupa la operación." },
+  "Nenhuma conversa com etiqueta neste período": { es: "Ninguna conversación con etiqueta en este período" },
+  "Aplique etiquetas às conversas ou aumente o período — é por etiqueta que se vê qual assunto ocupa a operação.": { es: "Aplica etiquetas a las conversaciones o amplía el período: es por etiqueta cómo se ve qué asunto ocupa la operación." },
   "O que mais ocupou a operação": { es: "Lo que más ocupó la operación" },
 };
 
