@@ -14231,6 +14231,7 @@ export const DICIONARIO: Traducoes = {
   "Nenhuma conversa com etiqueta neste período": { es: "Ninguna conversación con etiqueta en este período" },
   "Aplique etiquetas às conversas ou aumente o período — é por etiqueta que se vê qual assunto ocupa a operação.": { es: "Aplica etiquetas a las conversaciones o amplía el período: es por etiqueta cómo se ve qué asunto ocupa la operación." },
   "O que mais ocupou a operação": { es: "Lo que más ocupó la operación" },
+  "O período passou do limite de leitura: os números contam só as conversas mais recentes.": { es: "El período superó el límite de lectura: los números cuentan solo las conversaciones más recientes." },
 };
 
 /**

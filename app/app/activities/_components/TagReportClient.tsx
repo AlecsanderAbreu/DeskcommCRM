@@ -173,7 +173,10 @@ export function TagReportClient() {
           </Table>
           {truncado && (
             <p className="mt-3 text-xs text-muted-foreground" data-testid="aviso-de-corte">
-              {t("A lista mostra só os mais recentes.")}
+              {/* A tabela é AGREGADA: o corte não encurta uma lista, ele
+                  deixa de fora as conversas mais antigas da conta (a rota
+                  lê por service_started_at desc até o teto de páginas). */}
+              {t("O período passou do limite de leitura: os números contam só as conversas mais recentes.")}
             </p>
           )}
         </CardContent>

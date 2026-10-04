@@ -151,6 +151,17 @@ describe("relatório por etiqueta na tela", () => {
     expect(await screen.findByText("Nenhuma etiqueta em uso")).toBeTruthy();
   });
 
+  it("corte da rota avisa que os NÚMEROS contam só as conversas mais recentes", async () => {
+    responder({ ...COM_DADOS, truncado: true });
+    montar();
+
+    // A tabela é agregada: não há "lista" que mostre só os recentes. O que o
+    // corte faz é deixar de fora da CONTA as conversas mais antigas do período.
+    expect(await screen.findByTestId("aviso-de-corte")).toHaveTextContent(
+      "O período passou do limite de leitura: os números contam só as conversas mais recentes.",
+    );
+  });
+
   it("erro da rota não vaza número nenhum: a tela diz que falhou", async () => {
     vi.mocked(apiClient.get).mockRejectedValue(new Error("boom"));
     montar();
