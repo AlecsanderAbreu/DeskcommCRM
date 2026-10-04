@@ -89,9 +89,11 @@ test.describe("o ícone e o título carregam a marca da instalação", () => {
     expect(marcaNoTitulo.length).toBeGreaterThan(0);
 
     // O título e o texto sob "Entrar" precisam refletir a mesma marca da
-    // instalação. Antes, a página lia só `APP_NAME` do `.env`, enquanto o
-    // título lia `platform_branding`; a alteração feita pela tela não chegava
-    // ao corpo do login.
+    // instalação. ATENÇÃO: os dois leem hoje a MESMA pilha (`marcaDaSaida(null)`
+    // e `generateMetadata` → `marcaDaInstalacao()`), então esta asserção só
+    // prova que concordam entre si — um resolvedor quebrado deixa as duas
+    // erradas e iguais. A verdade independente (o nome digitado na tela chega
+    // ao login) está em `marca-logo.spec.ts`, "o nome trocado em /admin/marca…".
     await expect(page.getByText(marcaNoTitulo, { exact: true }).first()).toBeVisible();
   });
 });

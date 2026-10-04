@@ -775,6 +775,52 @@ test.describe("o logo subido pela tela chega à tela", () => {
     }
   });
 
+  /**
+   * O cruzamento com verdade INDEPENDENTE. O texto sob "Entrar" e o título da
+   * aba passaram a ler a MESMA pilha (`marcaDaSaida(null)` → `marcaDaInstalacao()`),
+   * então `icone-da-marca.spec.ts`, que compara um com o outro, fica verde com o
+   * resolvedor compartilhado quebrado. Aqui a verdade é o literal que ESTE caso
+   * digita na tela de marca, e o login de quem não entrou tem de mostrá-lo.
+   */
+  test("o nome trocado em /admin/marca chega ao login e à aba de quem não entrou", async ({
+    page,
+    browser,
+  }) => {
+    const secret = creds.dono_totp?.secret;
+    expect(secret, "sem `dono_totp` no .e2e-creds.json — rode seed-e2e-credentials.ts").toBeTruthy();
+    const nome = `Marca E2E ${Date.now().toString(36)}`;
+    const hidratado = page.locator("[data-campo-de-logo='instalacao'][data-hidratado]");
+
+    await loginComTotp(page, creds.users.dono!.email, secret!);
+    await page.goto("/admin/marca");
+    await expect(hidratado, "o formulário de marca não hidratou").toBeVisible({ timeout: 15_000 });
+    const anterior = await page.locator("#app_name").inputValue();
+
+    try {
+      await page.locator("#app_name").fill(nome);
+      await page.getByRole("button", { name: "Salvar", exact: true }).click();
+      await expect(page.getByText("Marca salva.")).toBeVisible({ timeout: 15_000 });
+
+      const visitante = await browser.newContext();
+      try {
+        const login = await visitante.newPage();
+        await login.goto("/login");
+        await expect(login).toHaveTitle(`Entrar · ${nome}`);
+        await expect(login.getByText(nome, { exact: true }).first()).toBeVisible();
+      } finally {
+        await visitante.close();
+      }
+    } finally {
+      // O nome volta pela TELA, nunca por SQL: quem invalida o memo da marca é
+      // o código do produto (`invalidarMarcaDaInstalacao`).
+      await page.goto("/admin/marca");
+      await expect(hidratado).toBeVisible({ timeout: 15_000 });
+      await page.locator("#app_name").fill(anterior);
+      await page.getByRole("button", { name: "Salvar", exact: true }).click();
+      await expect(page.getByText("Marca salva.")).toBeVisible({ timeout: 15_000 });
+    }
+  });
+
   test("(1) o dono do servidor sobe o logo e ele aparece na barra lateral", async ({ page }) => {
     // ESTE CASO NÃO USA `subirLogoDaCamada`, de propósito: a subida é o que ele
     // MEDE, e a ordem na FONTE importa — `tests/unit/marca-logo-spec-ancora-a-rota.test.ts`
