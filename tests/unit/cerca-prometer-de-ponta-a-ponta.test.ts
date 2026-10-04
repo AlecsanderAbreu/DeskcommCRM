@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import fs from "node:fs";
+import path from "node:path";
+
 import {
   casePromiseGate,
   type GateContext,
 } from "@/lib/agent-engine/guardrails/before-send";
+import { parsePromiseClassification } from "@/lib/agent-engine/guardrails/promise/semantic";
 
 /**
  * CERCA C — nenhuma promessa ao cliente sai sem destino.
@@ -85,6 +89,7 @@ function comCtxSemantico(body: string, extra: Partial<GateContext> = {}) {
       isPromise: false,
       suspectPhrase: null,
       prometeuRetornoHumano: true,
+      retornoSoDoAssistente: false,
     },
     ...extra,
   } as never;
@@ -188,5 +193,114 @@ describe("cerca prometer de ponta a ponta", () => {
 
     const verdictPassa = casePromiseGate.evaluate(comCtx(fraseQueOLexicoNaoPega));
     expect(verdictPassa.pass).toBe(true);
+  });
+});
+
+/**
+ * #1873, opção (a), decidida pelo autor em 02/10: o `schedule_followup` executado no
+ * turno é destino válido SÓ para a promessa do próprio assistente ("te retorno amanhã
+ * de manhã"). Quando a frase diz que alguém da empresa vai agir (equipe, análise,
+ * responsável, setor), o caso continua exigido — um lembrete para o assistente voltar
+ * a falar não põe ninguém para trabalhar.
+ */
+describe("cerca prometer — follow-up agendado como destino (opção a)", () => {
+  const AGENDADO = { followup: { disponivel: true, agendadoNesteTurno: true } };
+  const SEM_AGENDAR = { followup: { disponivel: true, agendadoNesteTurno: false } };
+  const veredito = (prometeu: boolean, soDoAssistente: boolean) => ({
+    semanticPromise: {
+      isPromise: false,
+      suspectPhrase: null,
+      prometeuRetornoHumano: prometeu,
+      retornoSoDoAssistente: soDoAssistente,
+    },
+  });
+  const ctx = (body: string, extra: Partial<GateContext>) =>
+    ({ body, casesEnabled: true, hasOpenCase: false, openedCaseThisTurn: false, ...extra }) as never;
+
+  it.each([
+    "Vou encaminhar as informações para a equipe e te retorno com a proposta.",
+    "Vou encaminhar as informações do site imobiliário para análise e te retorno com a proposta.",
+  ])("(i) promessa da EMPRESA + follow-up agendado continua VETADA, sem citar follow-up: %s", (frase) => {
+    const v = casePromiseGate.evaluate(ctx(frase, { ...veredito(true, false), ...AGENDADO }));
+    expect(v.pass).toBe(false);
+    if (!v.pass) {
+      expect(v.code).toBe("case_promise_without_case");
+      expect(v.reason).toContain("open_human_case");
+      expect(v.reason).not.toContain("schedule_followup");
+    }
+  });
+
+  const FRASE_DO_ASSISTENTE = "Combinado! Te retorno amanhã de manhã.";
+
+  it("(ii) promessa do ASSISTENTE + follow-up agendado PASSA", () => {
+    const v = casePromiseGate.evaluate(ctx(FRASE_DO_ASSISTENTE, { ...veredito(true, true), ...AGENDADO }));
+    expect(v.pass).toBe(true);
+  });
+
+  it("(iii) a mesma frase SEM follow-up é vetada e oferece as duas saídas", () => {
+    const v = casePromiseGate.evaluate(ctx(FRASE_DO_ASSISTENTE, { ...veredito(true, true), ...SEM_AGENDAR }));
+    expect(v.pass).toBe(false);
+    if (!v.pass) {
+      expect(v.reason).toContain("schedule_followup");
+      expect(v.reason).toContain("open_human_case");
+    }
+  });
+
+  it("(iii-b) agente SEM a tool de follow-up: o veto não ensina uma tool que ele não tem", () => {
+    const v = casePromiseGate.evaluate(
+      ctx(FRASE_DO_ASSISTENTE, {
+        ...veredito(true, true),
+        followup: { disponivel: false, agendadoNesteTurno: false },
+      }),
+    );
+    expect(v.pass).toBe(false);
+    if (!v.pass) expect(v.reason).not.toContain("schedule_followup");
+  });
+
+  it.each([
+    ["sem o campo novo", '{"isPromise": false, "suspectPhrase": null, "prometeuRetornoHumano": true}'],
+    [
+      "campo com tipo trocado",
+      '{"isPromise": false, "suspectPhrase": null, "prometeuRetornoHumano": true, "retornoSoDoAssistente": "true"}',
+    ],
+  ])("(iv) classificador %s + follow-up agendado: o veto se mantém", (_rotulo, saida) => {
+    const semanticPromise = parsePromiseClassification(saida, FRASE_DO_ASSISTENTE);
+    const v = casePromiseGate.evaluate(ctx(FRASE_DO_ASSISTENTE, { semanticPromise, ...AGENDADO }));
+    expect(v.pass).toBe(false);
+  });
+
+  it("(iv) parse falho: o follow-up agendado não muda o veredito de nenhuma das sete frases", () => {
+    // Com o parse falho, o retorno humano degrada ao léxico (o desenho do autor) e
+    // `retornoSoDoAssistente` vai a `false`. O follow-up, então, nunca é o que decide:
+    // o veredito com ele é idêntico ao veredito sem ele, frase a frase.
+    for (const frase of [...frasesQuePrometemRetorno, FRASE_DO_ASSISTENTE]) {
+      const semanticPromise = parsePromiseClassification("desculpe, não consegui", frase);
+      const com = casePromiseGate.evaluate(ctx(frase, { semanticPromise, ...AGENDADO }));
+      const sem = casePromiseGate.evaluate(ctx(frase, { semanticPromise, ...SEM_AGENDAR }));
+      expect(com.pass, frase).toBe(sem.pass);
+    }
+    // E a frase que o léxico pega segue vetada, com o follow-up agendado.
+    const lexico = frasesQuePrometemRetorno[2]!;
+    const semanticPromise = parsePromiseClassification("desculpe, não consegui", lexico);
+    expect(casePromiseGate.evaluate(ctx(lexico, { semanticPromise, ...AGENDADO })).pass).toBe(false);
+  });
+
+  it("(v) frase que o LÉXICO pega + follow-up agendado continua vetada, mesmo se o modelo errar", () => {
+    // O classificador diz "só o assistente" — e erra: a frase nomeia o responsável.
+    // O léxico só casa alvo humano explícito, então ele vence o modelo aqui.
+    const frase = frasesQuePrometemRetorno[2]!;
+    const v = casePromiseGate.evaluate(ctx(frase, { ...veredito(true, true), ...AGENDADO }));
+    expect(v.pass).toBe(false);
+    if (!v.pass) expect(v.reason).not.toContain("schedule_followup");
+  });
+
+  it("fiação: o turno marca o follow-up só DEPOIS de o agendamento dar certo, e o passa ao gate", () => {
+    const fonte = fs.readFileSync(path.join(process.cwd(), "lib/agent-engine/agent/inbound-turn.ts"), "utf8");
+    const bloco = fonte.slice(fonte.indexOf("rawTools.schedule_followup = tool("));
+    const falha = bloco.indexOf("if (!res.ok)");
+    const marca = bloco.indexOf("followupAgendadoNesteTurno = true");
+    expect(falha).toBeGreaterThan(-1);
+    expect(marca).toBeGreaterThan(falha);
+    expect(fonte).toMatch(/agendadoNesteTurno:\s*followupAgendadoNesteTurno/);
   });
 });

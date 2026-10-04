@@ -271,6 +271,21 @@ export interface GateContext {
    * site, que é quem monta as tools).
    */
   agenda?: { active: boolean; ferramentas: readonly string[]; toolCalledThisTurn: boolean };
+  /**
+   * Retorno marcado pelo próprio assistente, para o `casePromiseGate` (#1873). Ausente =
+   * nenhum alívio: o gate exige caso como sempre, e o veto não cita follow-up.
+   *
+   * `disponivel` é o agente ter a tool `schedule_followup` neste turno — o veto só a ensina
+   * quando ela existe (ensinar ferramenta que o agente não tem é o segundo defeito que o
+   * `agenda.ferramentas` já evita). `agendadoNesteTurno` é ela ter EXECUTADO com sucesso
+   * neste turno, marcado no call site como o `agenda.toolCalledThisTurn`.
+   *
+   * O alívio só vale para promessa em que quem volta é o próprio assistente
+   * (`semanticPromise.retornoSoDoAssistente`). Promessa de que uma pessoa, setor ou análise
+   * interna vai agir continua exigindo caso: um lembrete para o assistente voltar a falar
+   * não põe ninguém da empresa para trabalhar.
+   */
+  followup?: { disponivel: boolean; agendadoNesteTurno: boolean };
 }
 
 /**
@@ -432,12 +447,24 @@ export const casePromiseGate: Gate = {
     const lexico = detectHumanPromise(ctx.body, ctx.humanPromiseExtraTargets);
     const semantico = ctx.semanticPromise?.prometeuRetornoHumano === true;
     if (!lexico && !semantico) return { pass: true };
+    // #1873, opção (a): o follow-up agendado é destino SÓ para a promessa do próprio
+    // assistente ("te retorno amanhã de manhã"). O léxico só casa alvo humano explícito
+    // (equipe, setor, responsável…), então o que ele acusa exige caso sempre. E o
+    // `=== true` é fechado de propósito: o parser degrada `retornoSoDoAssistente` para
+    // `false` em qualquer falha, e falha nunca libera.
+    const promessaDoAssistente =
+      !lexico && ctx.semanticPromise?.retornoSoDoAssistente === true;
+    if (promessaDoAssistente && ctx.followup?.agendadoNesteTurno === true) return { pass: true };
     return {
       pass: false,
       code: 'case_promise_without_case',
       reason:
-        'Você prometeu envolver um humano mas não abriu um caso. Chame a tool ' +
-        'open_human_case (descrevendo o que precisa) OU reformule a mensagem sem prometer humano.',
+        promessaDoAssistente && ctx.followup?.disponivel === true
+          ? 'Você prometeu voltar a falar com o cliente, mas não deixou o retorno marcado. ' +
+            'Chame a tool schedule_followup (agendando o retorno) OU open_human_case ' +
+            '(descrevendo o que precisa) OU reformule a mensagem sem prometer retorno.'
+          : 'Você prometeu envolver um humano mas não abriu um caso. Chame a tool ' +
+            'open_human_case (descrevendo o que precisa) OU reformule a mensagem sem prometer humano.',
     };
   },
 };
@@ -991,6 +1018,8 @@ export interface RunBeforeSendArgs {
    * no-op (retrocompatível com todo caller que não conhece agenda, ex.: `followup-turn.ts`).
    */
   agenda?: GateContext['agenda'];
+  /** Ver `GateContext.followup`. Ausente = o `casePromiseGate` não alivia nada. */
+  followup?: GateContext['followup'];
   /**
    * Pausa humana do turno, paga ANTES de o guardrail tomar conexão/transação
    * (issue #654) — o porquê está no corpo de `runBeforeSend`. Ausente (default)
@@ -1265,6 +1294,7 @@ export async function runBeforeSend(args: RunBeforeSendArgs): Promise<BeforeSend
         : {}),
       internalVocabularyEnforced: args.enforceInternalVocabulary ?? false,
       ...(args.agenda !== undefined ? { agenda: args.agenda } : {}),
+      ...(args.followup !== undefined ? { followup: args.followup } : {}),
     };
 
     const { body: evaluatedBody, trace: traceDaCadeia, veto, throttleWaitMs } = evaluateBeforeSend(ctx, gates);
