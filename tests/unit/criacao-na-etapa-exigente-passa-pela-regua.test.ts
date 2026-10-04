@@ -229,44 +229,48 @@ describe("crm_create_lead (MCP) — o mesmo escritor", () => {
   });
 });
 
+function transferencia() {
+  return supabaseFake((tabela, metodo, ordem) => {
+    // 1) as etapas do funil de destino (query de LISTA, `await` do `q`).
+    if (tabela === "crm_stages" && metodo === "lista" && ordem === 1) {
+      return {
+        data: [
+          {
+            id: ETAPA_DESTINO,
+            pipeline_id: FUNIL_B,
+            position: 1000,
+            is_won: false,
+            is_lost: false,
+            is_archived: false,
+          },
+        ],
+        error: null,
+      };
+    }
+    // 2) a etapa de PERDA da origem (a que o encerramento usaria).
+    if (tabela === "crm_stages" && metodo === "maybeSingle" && ordem === 1) {
+      return { data: { id: ETAPA_PERDA_A }, error: null };
+    }
+    // 3) a etapa que o `createLeadHandler` valida.
+    if (tabela === "crm_stages" && metodo === "maybeSingle" && ordem === 2) {
+      return {
+        data: { id: ETAPA_DESTINO, pipeline_id: FUNIL_B, organization_id: ORG },
+        error: null,
+      };
+    }
+    if (tabela === "crm_pipelines" && metodo === "maybeSingle") {
+      return { data: { settings: EXIGENTE_NO_DESTINO }, error: null };
+    }
+    if (tabela === "organizations" && metodo === "maybeSingle") {
+      return { data: { currency: "BRL" }, error: null };
+    }
+    return { data: null, error: null };
+  });
+}
+
 describe("transfereParaOFunil — a troca de funil da automação (create_or_move_lead)", () => {
   it("recusa o clone na etapa exigente e NÃO encerra a origem", async () => {
-    const { cliente, inseridos, atualizacoes } = supabaseFake((tabela, metodo, ordem) => {
-      // 1) as etapas do funil de destino (query de LISTA, `await` do `q`).
-      if (tabela === "crm_stages" && metodo === "lista" && ordem === 1) {
-        return {
-          data: [
-            {
-              id: ETAPA_DESTINO,
-              pipeline_id: FUNIL_B,
-              position: 1000,
-              is_won: false,
-              is_lost: false,
-              is_archived: false,
-            },
-          ],
-          error: null,
-        };
-      }
-      // 2) a etapa de PERDA da origem (a que o encerramento usaria).
-      if (tabela === "crm_stages" && metodo === "maybeSingle" && ordem === 1) {
-        return { data: { id: ETAPA_PERDA_A }, error: null };
-      }
-      // 3) a etapa que o `createLeadHandler` valida.
-      if (tabela === "crm_stages" && metodo === "maybeSingle" && ordem === 2) {
-        return {
-          data: { id: ETAPA_DESTINO, pipeline_id: FUNIL_B, organization_id: ORG },
-          error: null,
-        };
-      }
-      if (tabela === "crm_pipelines" && metodo === "maybeSingle") {
-        return { data: { settings: EXIGENTE_NO_DESTINO }, error: null };
-      }
-      if (tabela === "organizations" && metodo === "maybeSingle") {
-        return { data: { currency: "BRL" }, error: null };
-      }
-      return { data: null, error: null };
-    });
+    const { cliente, inseridos, atualizacoes } = transferencia();
 
     const origem = {
       id: LEAD_ORIGEM,
@@ -292,5 +296,70 @@ describe("transfereParaOFunil — a troca de funil da automação (create_or_mov
     expect(inseridos).toHaveLength(0);
     // …nem a origem foi encerrada: a recusa vem ANTES das duas escritas.
     expect(atualizacoes).toHaveLength(0);
+  });
+});
+
+// ─── #2295: QUEM fica fora da régua é a ROTA de captação, não o ATOR ────────
+//
+// `webhook_source` é o ator do webhook de captação, mas também da automação
+// `create_or_move_lead` (criação e transferência) e da prospecção. A isenção é
+// a opção `exigirCamposDaEtapa: false`, que só a rota de captação passa.
+// Sabotagens que separam os desenhos: isentar por `ctx.actor.type` deixa os
+// dois primeiros vermelhos; ignorar a opção deixa o terceiro vermelho.
+
+const ctxDaAutomacao = {
+  organization_id: ORG,
+  actor: { type: "webhook_source" as const, id: "rule-1" },
+  requestId: "req-1",
+};
+
+describe("ator `webhook_source` da automação continua na régua (#2295)", () => {
+  it("createLeadHandler com ator webhook_source recusa com 422", async () => {
+    const { cliente, inseridos } = criacao(EXIGENTE);
+
+    const erro = await createLeadHandler(cliente, ctxDaAutomacao, payloadBase).catch((e: unknown) => e);
+
+    expect(erro).toMatchObject({ status: 422, code: "required_fields_missing" });
+    expect(inseridos).toHaveLength(0);
+  });
+
+  it("transfereParaOFunil com ator webhook_source recusa com 422 e não encerra a origem", async () => {
+    const { cliente, inseridos, atualizacoes } = transferencia();
+
+    const erro = await transfereParaOFunil(
+      cliente,
+      ORG,
+      ctxDaAutomacao,
+      {
+        id: LEAD_ORIGEM,
+        pipeline_id: FUNIL_A,
+        status: "open",
+        title: "Negócio no funil A",
+        tags: [],
+        custom_fields: {},
+      },
+      FUNIL_B,
+      ETAPA_DESTINO,
+      "Levado para outro funil pela automação",
+    ).catch((e: unknown) => e);
+
+    expect(erro).toMatchObject({ status: 422, code: "required_fields_missing" });
+    expect(inseridos).toHaveLength(0);
+    expect(atualizacoes).toHaveLength(0);
+  });
+});
+
+describe("opção `exigirCamposDaEtapa: false` — só a captação passa (#2295)", () => {
+  it("cria na etapa exigente sem o campo, como antes", async () => {
+    const { cliente, inseridos } = criacao(EXIGENTE);
+
+    await createLeadHandler(
+      cliente,
+      { ...ctxDaAutomacao, actor: { type: "webhook_source" as const, id: "fonte-1" } },
+      payloadBase,
+      { exigirCamposDaEtapa: false },
+    );
+
+    expect(inseridos).toHaveLength(1);
   });
 });
