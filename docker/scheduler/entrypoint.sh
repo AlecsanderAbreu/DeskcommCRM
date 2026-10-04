@@ -151,7 +151,7 @@ echo "$CRONS" | while IFS='|' read -r quando timeout rota; do
   # uma linha a mais: o `||` só dispara em falha.
   # % é proibido aqui (crontab de vixie trata como início de stdin) e `$`/crase
   # seriam reavaliados pelo sh do crond — nenhum dos dois aparece na mensagem.
-  printf '%s curl -fsS -m%s -H '"'"'Authorization: Bearer %s'"'"' "%s/%s" >/dev/null || echo "deskcomm-cron: FALHOU %s — veja o erro do curl logo acima; se for 401, o segredo que este scheduler manda não é o que o app enxerga: confira INTERNAL_SECRET/INTERNAL_CRON_SECRET no .env e rode docker compose up -d --force-recreate app scheduler" >&2\n' \
+  printf '%s curl -fsS -m%s -H '"'"'Authorization: Bearer %s'"'"' "%s/%s" >/dev/null || echo "deskcomm-cron: FALHOU %s — veja o erro do curl logo acima; se for 401 ou 403, o segredo que este scheduler manda não é o que o app enxerga: confira INTERNAL_SECRET/INTERNAL_CRON_SECRET no .env e rode docker compose up -d --force-recreate app scheduler" >&2\n' \
     "$quando" "$timeout" "$SEGREDO_SEGURO" "$APP_ORIGIN" "$rota" "$rota" >> "$DESTINO"
 done
 

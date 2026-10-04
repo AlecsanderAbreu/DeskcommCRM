@@ -117,7 +117,7 @@ fi
 check "o STDOUT continua descartado (o corpo da resposta não vaza pro log)" \
   test ! -s "$TMP/falha.out"
 check "o status do 401 chega ao STDERR (era isto que o 2>&1 engolia)" \
-  grep -q '401' "$TMP/falha.err"
+  grep -q 'returned error: 401' "$TMP/falha.err"
 check "a mensagem nomeia a rota que falhou" \
   grep -q 'sync-model-catalog' "$TMP/falha.err"
 check "a mensagem diz o que o operador deve conferir" \
