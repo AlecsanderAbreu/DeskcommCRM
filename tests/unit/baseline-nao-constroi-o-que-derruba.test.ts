@@ -416,8 +416,8 @@ function concessoesTransitorias(sql: string): ConcessaoTransitoria[] {
 const CONCESSOES_ACEITAS = new Map<string, string>([
   [
     "idempotency_keys :: anon",
-    "O snapshot concede ALL e o hardening revoga TRUNCATE (que ignora RLS); o resto do grant é o que a " +
-      "criação de tenant pela chave anônima usa. Estreitar a concessão mudaria o ACL FINAL " +
+    "O snapshot concede ALL e o hardening revoga TRUNCATE (que a RLS não alcança). Estreitar a concessão " +
+      "mudaria o ACL FINAL " +
       "(REFERENCES/TRIGGER nas duas majors, MAINTAIN no pg17), e o invariante " +
       "organizacoes-recibo-confiavel prova o contrato final com TRUNCATE negado. A revogação passou a " +
       "acompanhar a concessão (issue #2251): a forma fica, com esta justificativa, e a janela some.",
@@ -746,6 +746,12 @@ describe("baseline.sql não reconstrói o que ele mesmo derruba ou substitui", (
       [...CONCESSOES_ACEITAS.keys()].filter((k) => !chaves.includes(k)),
       "a concessão declarada sumiu do arquivo: remova de CONCESSOES_ACEITAS",
     ).toEqual([]);
+    // Declarar não basta: a declaração só vale com o revoke AO LADO do grant. Sem
+    // esta régua, devolver o revoke ao apêndice reabre a janela com a cerca verde.
+    const largas = concessoesTransitorias(SQL)
+      .filter((c) => c.linhaDoRevoke - c.linhaDoGrant > 20)
+      .map((c) => `${c.chave}: grant ${c.linhaDoGrant} → revoke ${c.linhaDoRevoke}`);
+    expect(largas, "concessão aceita só vale com a revogação ao lado do grant (issue #2251)\n").toEqual([]);
   });
 
   it("nenhuma policy é reinstalada numa versão intermediária diferente da final", () => {
