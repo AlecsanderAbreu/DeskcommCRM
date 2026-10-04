@@ -6,7 +6,15 @@ export const CHAVE_CSS_PERSONALIZADO = "APP_CUSTOM_CSS";
 export const CSS_PERSONALIZADO_MAX_BYTES = 16 * 1024;
 
 const TTL_MEMO_MS = 30_000;
-const PROPRIEDADES_VISUAIS = new Set([
+/**
+ * O que FECHA a exfiltração por CSS é esta lista, e não o filtro de funções:
+ * nenhuma propriedade daqui aceita `<image>` ou `<url>` (não há `background`,
+ * `background-image`, `border-image`, `list-style`, `cursor`, `mask`, `filter`
+ * nem `content`). Ampliar a lista exige rever essa pergunta para a propriedade
+ * nova; `tests/unit/css-personalizado-marca.test.ts` reprova a ampliação até a
+ * lista revisada de lá ser atualizada junto.
+ */
+export const PROPRIEDADES_VISUAIS: ReadonlySet<string> = new Set([
   "color",
   "background-color",
   "border-color",
@@ -45,8 +53,14 @@ const SELETOR_VISUAL = new RegExp(
   `^${PARTE_DO_SELETOR}(?:(?:\\s+|\\s*>\\s*)${PARTE_DO_SELETOR})*$`,
 );
 const VALOR_CSS_SEGURO = /^[#A-Za-z0-9_.,%() "'/+\-]+$/;
-const FUNCOES_BLOQUEADAS =
-  /(?:url|expression|attr|image-set|-moz-binding)\s*\(|@import|javascript\s*:/i;
+/**
+ * Lista do que PODE, e não do que não pode: uma lista de bloqueio deixava passar
+ * `src()`, `paint()` e `-moz-element()`, que carregam recurso. Toda função do
+ * valor tem de estar aqui; parêntese sem nome (agrupamento dentro de `calc`)
+ * passa.
+ */
+const FUNCOES_PERMITIDAS = new Set(["rgb", "rgba", "hsl", "hsla", "var", "calc", "min", "max", "clamp"]);
+const CHAMADA_DE_FUNCAO = /([A-Za-z0-9_-]*)\s*\(/g;
 const CARACTERES_NAO_PERMITIDOS = /[\\<\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
 type ResultadoCss = {
@@ -57,6 +71,13 @@ type ResultadoCss = {
 };
 
 export type ValidacaoCssPersonalizado = ResultadoCss;
+
+function soFuncoesPermitidas(valor: string): boolean {
+  for (const [, nome = ""] of valor.matchAll(CHAMADA_DE_FUNCAO)) {
+    if (nome !== "" && !FUNCOES_PERMITIDAS.has(nome.toLowerCase())) return false;
+  }
+  return true;
+}
 
 function recusar(erro: string): ResultadoCss {
   return { css: null, erro, regras: 0, declaracoes: 0 };
@@ -75,6 +96,13 @@ export function validarCssPersonalizado(entrada: string): ResultadoCss {
   }
   if (CARACTERES_NAO_PERMITIDOS.test(fonte)) {
     return recusar("Remova escapes, caracteres de controle e sinais de HTML (< ou >).");
+  }
+
+  // Antes do parse, e no texto inteiro: dentro do valor ou do seletor o PostCSS
+  // não cria nó de comentário — esconde o texto cru em `raws`, e é o cru que
+  // sai no `toString()`.
+  if (fonte.includes("/*")) {
+    return recusar("Use apenas regras CSS simples; comentários e diretivas @ não são aceitos.");
   }
 
   let raiz: Root;
@@ -127,7 +155,7 @@ export function validarCssPersonalizado(entrada: string): ResultadoCss {
       if (
         filho.important ||
         !VALOR_CSS_SEGURO.test(filho.value) ||
-        FUNCOES_BLOQUEADAS.test(filho.value)
+        !soFuncoesPermitidas(filho.value)
       ) {
         erro = "Valor CSS recusado. URLs, funções dinâmicas e !important não são permitidos.";
         return false;
