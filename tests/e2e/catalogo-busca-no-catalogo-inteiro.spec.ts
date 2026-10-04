@@ -12,7 +12,9 @@
  *      produtos ao todo, um deles com nome que ordena DEPOIS da posição 500;
  *   2. busca esse produto pelo nome e ele aparece (na versão anterior, não);
  *   3. vê a contagem do catálogo inteiro e anda de página;
- *   4. abre uma página que não existe mais e cai na última que existe;
+ *   4. abre uma página que não existe mais (além do total, e começando
+ *      exatamente nele) e cai na última que existe; busca uma letra só e a tela
+ *      não lista nada, como a rota;
  *   5. busca com vírgula e parêntese — que antes iam crus para o `.or()` do
  *      PostgREST — e a tela responde, em vez de quebrar;
  *   6. a rota que o seletor de produtos da proposta lê (sem `pagina`) mantém o
@@ -43,14 +45,20 @@ test.describe.configure({ mode: "serial", timeout: 180_000 });
  * linha a linha): deixar o catálogo grande fez as specs seguintes que abrem
  * `/app/products` estourarem o `statement_timeout` de 8 s do `authenticated`
  * (run 37135035200: fotos-no-catalogo, moeda-da-organizacao,
- * qa-titulos-das-telas). O prefixo `E2E-PAG-<lote>-` só existe nesta rodada.
+ * qa-titulos-das-telas).
+ *
+ * A limpeza é por `E2E-PAG-%`, não só pelo lote desta rodada, e roda também
+ * ANTES: um job abortado no meio deixaria 580 produtos com um lote que nenhuma
+ * rodada futura apagaria, e o estouro voltaria intermitente.
  */
-test.afterAll(async () => {
+async function limparCatalogoDaSpec(): Promise<void> {
   const { url, serviceRole } = credenciaisSupabaseDeTeste();
   const db = createClient(url, serviceRole, { auth: { persistSession: false } });
-  const { error } = await db.from("catalog_products").delete().like("codigo", `E2E-PAG-${LOTE}-%`);
+  const { error } = await db.from("catalog_products").delete().like("codigo", "E2E-PAG-%");
   expect(error, "a limpeza dos produtos da spec falhou").toBeNull();
-});
+}
+test.beforeAll(limparCatalogoDaSpec);
+test.afterAll(limparCatalogoDaSpec);
 
 async function entrar(page: Page): Promise<void> {
   const email = creds.users.manager?.email;
@@ -92,7 +100,12 @@ test("gerente encontra produto além do 500º e anda de página", async ({ page 
 
   // (1) 530 produtos pela tela, em dois arquivos.
   await importar(page, "lote-1.csv", planilha(1, 499, [`E2E-PAG-${LOTE}-ALVO,${ALVO},99`]));
-  await importar(page, "lote-2.csv", planilha(500, 529));
+  // Mais 50 com nome próprio: uma busca que dá EXATAMENTE uma página cheia.
+  const cinquenta = Array.from({ length: 50 }, (_, i) => {
+    const n = String(i + 1).padStart(2, "0");
+    return `E2E-PAG-${LOTE}-C${n},Cinquenta ${LOTE} ${n},10`;
+  });
+  await importar(page, "lote-2.csv", planilha(500, 529, cinquenta));
 
   // (2) o produto que ordena depois do 500º aparece pela busca.
   await buscar(page, ALVO);
@@ -118,6 +131,18 @@ test("gerente encontra produto além do 500º e anda de página", async ({ page 
   await page.waitForURL((u) => u.searchParams.get("pagina") === "11", { timeout: ESPERA });
   await expect(page.getByTestId("contagem-produtos")).toHaveText(/^501–529 de 529$/, { timeout: ESPERA });
   await expect(page.getByTestId(`produto-E2E-PAG-${LOTE}-529`)).toBeVisible();
+
+  // (3c) página que começa EXATAMENTE no total: o PostgREST responde 206 com
+  // lista vazia (não 416). Antes isso virava "51–50 de 50" sem saída.
+  await page.goto(`/app/products?busca=${encodeURIComponent(`Cinquenta ${LOTE}`)}&pagina=2`);
+  await page.waitForURL((u) => !u.searchParams.has("pagina"), { timeout: ESPERA });
+  await expect(page.getByTestId("contagem-produtos")).toHaveText(/^1–50 de 50$/, { timeout: ESPERA });
+
+  // (3d) termo abaixo do piso: a tela não lista nada (como a rota), em vez de
+  // mostrar o catálogo inteiro com a letra na caixa.
+  await buscar(page, "P");
+  await expect(page.getByTestId("produtos-busca-vazia")).toBeVisible({ timeout: ESPERA });
+  await expect(page.getByTestId("lista-produtos")).toHaveCount(0);
 
   // (4) vírgula e parêntese no termo: antes iam crus para o `.or()`.
   await buscar(page, `paginado, ${LOTE} (529`);

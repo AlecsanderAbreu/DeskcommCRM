@@ -194,6 +194,17 @@ describe("GET /api/v1/products — o catálogo inteiro, não os 500 primeiros", 
     expect(corpo.meta).toBeUndefined();
   });
 
+  it.each(["0", "abc", "-1"])("`pagina=%s` inválida conta como ausente: formato antigo, sem `meta`", async (p) => {
+    vi.mocked(createClient).mockResolvedValue(supabaseDeLeitura([{ id: "p1" }], 1) as never);
+    const { GET } = await import("./route");
+
+    const corpo = await (await GET(listar(`?pagina=${p}`))).json();
+
+    expect(consulta.limit).toBe(500);
+    expect(consulta.range).toBeNull();
+    expect(corpo.meta).toBeUndefined();
+  });
+
   it("com `pagina=3`, pede ao banco a terceira fatia de 50 e devolve o total", async () => {
     vi.mocked(createClient).mockResolvedValue(supabaseDeLeitura([{ id: "p1" }], 4412) as never);
     const { GET } = await import("./route");

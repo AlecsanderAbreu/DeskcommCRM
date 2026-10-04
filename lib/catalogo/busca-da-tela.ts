@@ -19,7 +19,9 @@
  *                            vírgula viram um curinga só ("glock 17" acha
  *                            "Glock G17") — e a vírgula, que injetaria uma
  *                            condição no `.or()`, some
- *   `%`/`_` escapados      → gramática do LIKE: curinga digitado é literal
+ *   `\`, `%`, `_` escapados → gramática do LIKE: curinga digitado é literal, e a
+ *                            própria barra (o escape do LIKE) também — sem isso
+ *                            `abc\` engolia o curinga do fim e não achava nada
  *
  * A rota montava o `.or()` com o texto cru: um nome com vírgula injetava
  * condição, um parêntese sem par derrubava a busca com 400 e `%` virava
@@ -46,14 +48,23 @@ export const PRODUTOS_POR_PAGINA = 50;
 export function filtroDaBuscaDoCatalogo(bruto: string | null | undefined): string | null {
   const termo = (bruto ?? "").trim();
   if (!buscaValeConsulta(termo)) return null;
-  const s = normalizarTermoDeBusca(termo.replace(/[()]/g, " ")).replace(/[%_]/g, (m) => `\\${m}`);
+  const s = normalizarTermoDeBusca(termo.replace(/[()]/g, " ")).replace(/[\\%_]/g, (m) => `\\${m}`);
   return ["nome", "codigo", "marca", "categoria"].map((c) => `${c}.ilike.*${s}*`).join(",");
 }
 
-/** A página pedida na URL, sempre um inteiro ≥ 1. */
+/**
+ * A página pedida, quando a URL pede uma de verdade: inteiro ≥ 1, escrito só
+ * com dígitos. `null` para ausente ou inválida (`0`, `-3`, `abc`, `2x`).
+ */
+export function paginaPedida(bruto: string | null | undefined): number | null {
+  if (bruto === null || bruto === undefined || !/^\d+$/.test(bruto.trim())) return null;
+  const n = Number(bruto.trim());
+  return Number.isSafeInteger(n) && n >= 1 ? n : null;
+}
+
+/** A página pedida na URL, sempre um inteiro ≥ 1 (a 1 quando ausente ou inválida). */
 export function paginaDaUrl(bruto: string | null | undefined): number {
-  const n = Number.parseInt(bruto ?? "", 10);
-  return Number.isFinite(n) && n >= 1 ? n : 1;
+  return paginaPedida(bruto) ?? 1;
 }
 
 /** O intervalo `range(de, ate)` do PostgREST para a página. */
@@ -69,6 +80,10 @@ export function intervaloDaPagina(pagina: number, porPagina = PRODUTOS_POR_PAGIN
  * tabela com 3 linhas: `Range: 3-4` → 206 e `[]`; `Range: 50-99` → 416
  * `PGRST103`. Acontece de verdade quando alguém apaga o único produto da última
  * página, ou abre um link antigo.
+ *
+ * ⚠️ O 416 só vem quando o início PASSA do total. Começar EXATAMENTE no total
+ * (50 produtos, página 2) é 206 com lista vazia, sem erro — quem chama trata
+ * os dois casos como "página além da última".
  */
 export const FAIXA_ALEM_DO_FIM = "PGRST103";
 

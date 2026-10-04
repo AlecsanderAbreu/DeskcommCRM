@@ -18,7 +18,7 @@ import {
   FAIXA_ALEM_DO_FIM,
   filtroDaBuscaDoCatalogo,
   intervaloDaPagina,
-  paginaDaUrl,
+  paginaPedida,
   PRODUTOS_POR_PAGINA,
 } from "@/lib/catalogo/busca-da-tela";
 import { moedaDaOrganizacao } from "@/lib/catalogo/moeda-da-org";
@@ -37,8 +37,11 @@ export async function GET(req: NextRequest): Promise<Response> {
   const filtro = filtroDaBuscaDoCatalogo(params.get("busca"));
   // Paginação é OPCIONAL: sem `pagina`, a resposta é a de sempre (até 500
   // linhas, sem `meta`) — o seletor de produtos da proposta lê esta rota assim.
-  const paginado = params.has("pagina");
-  const pagina = paginaDaUrl(params.get("pagina"));
+  // `?pagina=` inválido (`0`, `abc`) conta como ausente: responder `meta.pagina:
+  // 1` para uma URL que pediu outra coisa seria a resposta mentir sobre a pergunta.
+  const pedida = paginaPedida(params.get("pagina"));
+  const paginado = pedida !== null;
+  const pagina = pedida ?? 1;
 
   // Termo digitado abaixo do piso (`"c"`, `", ,"`, `"()"`) NÃO vai ao banco e
   // devolve lista vazia — o desfecho da busca de contatos

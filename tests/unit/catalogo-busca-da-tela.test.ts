@@ -4,6 +4,7 @@ import {
   filtroDaBuscaDoCatalogo,
   intervaloDaPagina,
   paginaDaUrl,
+  paginaPedida,
   queryDaTela,
   ultimaPagina,
 } from "@/lib/catalogo/busca-da-tela";
@@ -35,6 +36,12 @@ describe("filtroDaBuscaDoCatalogo — o termo digitado, antes de virar filtro", 
     expect(condicoes(f)[0]).toBe("nome.ilike.*15*99259*");
   });
 
+  it("a barra invertida (o escape do LIKE) também é literal", () => {
+    // Sem isso, `abc\` virava `*abc\*` e a barra engolia o curinga do fim.
+    expect(condicoes(filtroDaBuscaDoCatalogo("abc\\"))[0]).toBe("nome.ilike.*abc\\\\*");
+    expect(condicoes(filtroDaBuscaDoCatalogo("a\\b"))[0]).toBe("nome.ilike.*a\\\\b*");
+  });
+
   it("`%` e `_` digitados são literais, não curingas", () => {
     expect(condicoes(filtroDaBuscaDoCatalogo("50%_off"))[0]).toBe("nome.ilike.*50\\%\\_off*");
   });
@@ -57,6 +64,20 @@ describe("paginação pela URL", () => {
     ["3", 3],
   ])("pagina=%j vira %d", (bruto, esperado) => {
     expect(paginaDaUrl(bruto)).toBe(esperado);
+  });
+
+  it.each([
+    [undefined, null],
+    ["", null],
+    ["0", null],
+    ["-3", null],
+    ["abc", null],
+    ["2x", null],
+    ["1.5", null],
+    ["3", 3],
+    [" 7 ", 7],
+  ])("paginaPedida(%j) → %j (inválida conta como ausente)", (bruto, esperado) => {
+    expect(paginaPedida(bruto)).toBe(esperado);
   });
 
   it("a página N é a fatia [(N-1)*50, N*50-1]", () => {

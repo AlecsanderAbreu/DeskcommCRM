@@ -68,23 +68,34 @@ export default async function ProdutosPage({
       .eq("organization_id", activeOrg.orgId);
     return filtro ? q.or(filtro) : q;
   };
-  const { data, count, error } = await consultaDoCatalogo(false)
-    .order("ativo", { ascending: false })
-    .order("nome")
-    .order("id")
-    .range(...intervaloDaPagina(pagina));
 
-  if (error?.code === FAIXA_ALEM_DO_FIM) {
-    // A página pedida não existe mais (apagaram o último produto dela, ou o
-    // link é antigo): vai para a última que existe, com a mesma busca.
-    const { count: agora } = await consultaDoCatalogo(true);
-    redirect(`/app/products${queryDaTela(busca, ultimaPagina(agora ?? 0))}`);
+  let produtos: Produto[] = [];
+  let total = 0;
+  // Termo abaixo do piso (uma letra, só pontuação) NÃO vai ao banco e não lista
+  // nada — o mesmo desfecho da rota e da busca de contatos. Ignorar o termo
+  // mostraria o catálogo inteiro com a palavra na caixa: ruído que parece resposta.
+  if (busca === "" || filtro !== null) {
+    const { data, count, error } = await consultaDoCatalogo(false)
+      .order("ativo", { ascending: false })
+      .order("nome")
+      .order("id")
+      .range(...intervaloDaPagina(pagina));
+
+    // Página além da última (apagaram o último produto dela, ou o link é antigo):
+    // vai para a última que existe, com a mesma busca. Os dois jeitos de o
+    // PostgREST dizer isso — 416 quando o início passa do total, e 206 vazio
+    // quando começa EXATAMENTE nele — dão no mesmo lugar.
+    const alemDoFim = error?.code === FAIXA_ALEM_DO_FIM || (!error && pagina > 1 && (data ?? []).length === 0);
+    if (alemDoFim) {
+      const agora = error ? (await consultaDoCatalogo(true)).count : count;
+      redirect(`/app/products${queryDaTela(busca, ultimaPagina(agora ?? 0))}`);
+    }
+    // Erro do banco não vira "nenhum produto cadastrado": a tela de erro do app
+    // diz que algo falhou, em vez de afirmar que o catálogo está vazio.
+    if (error) throw new Error(`Não consegui ler o catálogo: ${error.message}`);
+    produtos = (data ?? []) as unknown as Produto[];
+    total = count ?? produtos.length;
   }
-  // Erro do banco não vira "nenhum produto cadastrado": a tela de erro do app
-  // diz que algo falhou, em vez de afirmar que o catálogo está vazio.
-  if (error) throw new Error(`Não consegui ler o catálogo: ${error.message}`);
-  const produtos = (data ?? []) as unknown as Produto[];
-  const total = count ?? produtos.length;
 
   // O bucket é privado: a tela recebe URL assinada de 1 h, montada aqui. Só
   // caminho que é DO produto (ver `fotoPertenceAoProduto`) — a assinatura é

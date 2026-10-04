@@ -233,6 +233,18 @@ export function ProdutosClient({
   const router = useRouter();
   const [busca, setBusca] = React.useState(buscaInicial);
   const [carregando, iniciarNavegacao] = React.useTransition();
+
+  // A URL pode mudar sem passar pela caixa: Voltar/Avançar do navegador, ou um
+  // link. A página não remonta quando só as searchParams mudam, então a caixa
+  // precisa acompanhar — senão o debounce abaixo via a caixa diferente da URL e
+  // mandava de volta para a busca antiga. Quando a URL muda POR CAUSA da caixa
+  // (o termo já é o mesmo, sem os espaços das pontas), nada a fazer: reescrever
+  // a caixa tiraria o espaço que a pessoa acabou de digitar.
+  const [buscaDaUrl, setBuscaDaUrl] = React.useState(buscaInicial);
+  if (buscaInicial !== buscaDaUrl) {
+    setBuscaDaUrl(buscaInicial);
+    if (busca.trim() !== buscaInicial) setBusca(buscaInicial);
+  }
   const [criando, setCriando] = React.useState(false);
   const [rascunho, setRascunho] = React.useState<Rascunho>(VAZIO);
   const [salvando, setSalvando] = React.useState(false);
