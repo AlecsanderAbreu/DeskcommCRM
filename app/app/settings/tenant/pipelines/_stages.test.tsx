@@ -928,6 +928,23 @@ describe("taxa histórica por etapa — a contagem ao lado do campo (#1753)", ()
     expect(screen.getByTestId("taxa-e1")).toHaveTextContent("20 negócios encerrados passaram");
   });
 
+  /**
+   * O bloco bateu o teto de leitura: a frase avisa que é amostra — com a frase
+   * DELE, sem «período», porque esta medida não tem janela.
+   */
+  it("bloco truncado avisa que cobre só parte dos negócios abertos, sem falar em período", async () => {
+    montarTaxa({ ...RESPOSTA, tempo_na_etapa: { ...RESPOSTA.tempo_na_etapa, truncado: true } });
+    const linha = await screen.findByTestId("tempo-etapa-e1");
+    expect(linha).toHaveTextContent("Amostra limitada: este número cobre só parte dos negócios abertos do funil.");
+    expect(linha).not.toHaveTextContent("período");
+  });
+
+  it("bloco inteiro não fala em amostra limitada", async () => {
+    montarTaxa();
+    const linha = await screen.findByTestId("tempo-etapa-e1");
+    expect(linha).not.toHaveTextContent("Amostra limitada");
+  });
+
   /** Corpo de uma leitura em cache anterior a este PR: sem o bloco, sem erro. */
   it("sem o bloco tempo_na_etapa a tela segue mostrando a taxa", async () => {
     montarTaxa({ ...RESPOSTA, tempo_na_etapa: undefined });

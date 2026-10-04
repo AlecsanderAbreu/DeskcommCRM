@@ -568,6 +568,11 @@ export function StagesSection({
                       data-testid={`tempo-etapa-${etapa.id}`}
                     >
                       {fraseDeTempo}
+                      {/* Este bloco não tem período: o corte é na leitura dos
+                          negócios abertos, e a frase diz isso — não a da taxa. */}
+                      {corpoDasTaxas?.tempo_na_etapa?.truncado
+                        ? ` ${t("Amostra limitada: este número cobre só parte dos negócios abertos do funil.")}`
+                        : ""}
                     </p>
                   ) : null}
                 </div>
