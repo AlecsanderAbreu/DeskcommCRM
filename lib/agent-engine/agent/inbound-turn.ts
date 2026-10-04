@@ -176,7 +176,12 @@ import {
 } from './skills';
 import { readSkillReference, skillHasReferences } from './skill-references';
 import { READ_ONLY_TOOLS, wrapToolsWithBreaker, type ToolBreakerThresholds } from './tool-breaker';
-import { loadChannelProvider, nomesDasFerramentas, runBeforeSend } from '../guardrails/before-send';
+import {
+  loadChannelProvider,
+  nomesDasFerramentas,
+  runBeforeSend,
+  tipoDeEnvio,
+} from '../guardrails/before-send';
 import { isStatusSendable } from '../../channels/meta/template-binding';
 import { capabilitiesOf } from '@/lib/channels/capabilities';
 import { renderTemplateBody } from '@/lib/channels/meta/render-template';
@@ -1607,6 +1612,9 @@ export async function deteccoesDeterministicasDoAssistido(
         ? deps.channel(pool)
         : new WahaChannelAdapter(pool, { ...deps.crmCfg, agentActorId: agent.agentId }),
       optedOutThisTurn,
+      // #2112: o TIPO do turno decide a janela do aviso — inbound/case respondem,
+      // follow-up dispara. Mesmo discriminador do resto do turno (`eTurnoDeResposta`).
+      origem: tipoDeEnvio(eTurnoDeResposta(job)),
       now: clock(),
       log,
       ...(lgpd !== undefined ? { lgpd } : {}),
@@ -1773,6 +1781,9 @@ export async function runAgentTurn(
             channel: (deps.channel ?? ((p: pg.Pool) => new WahaChannelAdapter(p, deps.crmCfg)))(
               pool,
             ),
+            // #2112: a escolta roda no turno INTEIRO, inclusive num follow-up —
+            // o tipo do turno é o que diz qual janela o gate do aviso avalia.
+            origem: tipoDeEnvio(eTurnoDeResposta(job)),
             now: deps.clock?.() ?? new Date(),
             log: logDaEscolta,
             ...(deps.knobs.disclosureMode !== undefined
@@ -2308,6 +2319,11 @@ async function executarTurnoDoAgente(
     base: {
       channel: liveChannel(),
       optedOutThisTurn,
+      // #2112: o TIPO do turno decide a janela do aviso — `inbound_turn`/
+      // `case_reply_turn` respondem a quem escreveu; `followup_turn` é disparo
+      // (retomada), e o aviso de escalação dentro dele tem de cair na janela de
+      // `window_*`. Mesmo discriminador do resto do turno.
+      origem: tipoDeEnvio(eTurnoDeResposta(liveJob())),
       now: clock(),
       log: runLog,
       lgpd,
@@ -3636,6 +3652,10 @@ async function executarTurnoDoAgente(
               conversationSummary: buildHandoffSummary(previous),
               contextoDoTurno: { checkpoint: previous, pendentesDoCliente: inboundsPendentes },
               avisoAoLead: aviso,
+              // #2210: com a mensagem na mão o handoff pergunta ao banco se a
+              // derivação da mídia ainda estava em aberto — e aí grava a marca
+              // que permite devolver o atendimento sozinho quando o texto chegar.
+              gatilho: { inboundMessageId: input.inboundMessageId },
               log: runLog,
             },
             raw,
