@@ -17,10 +17,12 @@ export const COLUNAS_DA_ORIGEM =
   "id, pipeline_id, status, title, description, contact_id, value_cents, currency, " +
   "owner_user_id, owner_agent_id, expected_close_date, tags, source, custom_fields, source_metadata";
 
+/** A linha COMPLETA do negócio de origem, como a automação a lê. */
+export type OrigemDaTransferencia = OrigemParaClonar;
 
 /**
  * Clona o negócio no funil de destino e encerra a origem — a ÚNICA forma de
-trocar de funil do sistema (automação e roteador de intenção, #2155).
+ * trocar de funil do sistema (automação e roteador de intenção, #2155).
  *
  * Mesma ordem da rota do clone, e pelas mesmas razões: o funil de destino
  * confere a etapa, a origem confere se tem onde fechar (sem isso o clone
@@ -29,12 +31,12 @@ trocar de funil do sistema (automação e roteador de intenção, #2155).
  * transferência. O motivo é o canônico `moved_to_another_pipeline`, que não é
  * perda comercial: `fn_attendant_metrics` o exclui (migration 0266).
  *
+ * `razaoNaTimeline` diz QUEM levou o card — a automação ou o roteador de
+ * intenção —, porque é a única pista que o operador tem ao ler a linha do tempo.
+ *
  * Devolve o erro em vez de lançar: quem chama transforma isso no `status:
  * "failed"` da execução, que é o que a aba Atividade mostra ao operador.
  */
-/** A linha COMPLETA do negócio de origem, como a automação a lê. */
-export type OrigemDaTransferencia = OrigemParaClonar;
-
 export async function transfereParaOFunil(
   admin: SupabaseClient,
   organizationId: string,
@@ -42,6 +44,7 @@ export async function transfereParaOFunil(
   origem: OrigemParaClonar,
   pipelineId: string,
   stageId: string | null,
+  razaoNaTimeline: string,
 ): Promise<{ ok: true; clone: Record<string, unknown> } | { ok: false; error: string }> {
   const recusa = recusaTrocaDeFunil(origem, pipelineId);
   if (recusa) return { ok: false, error: recusa.code };
@@ -76,7 +79,7 @@ export async function transfereParaOFunil(
     leadId: origem.id,
     desfecho: "lost",
     motivo: motivoDaPerdaDaOrigem(null),
-    razaoNaTimeline: "Levado para outro funil pela automação",
+    razaoNaTimeline,
     payloadNaTimeline: { to_pipeline_id: pipelineId, to_lead_id: clone.id },
   });
 

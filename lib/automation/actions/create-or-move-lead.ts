@@ -21,6 +21,9 @@ import {
 // "trocar de funil" divergiriam na primeira mudança de uma delas.
 import { COLUNAS_DA_ORIGEM, transfereParaOFunil } from "@/lib/leads/transfere-para-o-funil";
 
+/** O que a linha do tempo diz de quem levou o card — o roteador de intenção diz outra coisa. */
+const RAZAO_DA_AUTOMACAO = "Levado para outro funil pela automação";
+
 async function execute(ctx: ActionCtx, config: Record<string, unknown>): Promise<ActionResultDetail> {
   const pipelineId = typeof config.pipeline_id === "string" ? config.pipeline_id : null;
   const stageId = typeof config.stage_id === "string" ? config.stage_id : null;
@@ -83,7 +86,7 @@ async function execute(ctx: ActionCtx, config: Record<string, unknown>): Promise
               error: "lead_already_transferred_in_event",
             };
           }
-          const transferencia = await transfereParaOFunil(ctx.admin, ctx.organizationId, handlerCtx, lead, pipelineId, stageId);
+          const transferencia = await transfereParaOFunil(ctx.admin, ctx.organizationId, handlerCtx, lead, pipelineId, stageId, RAZAO_DA_AUTOMACAO);
           if (!transferencia.ok) {
             return { type: "create_or_move_lead", status: "failed", error: transferencia.error };
           }
@@ -128,7 +131,7 @@ async function execute(ctx: ActionCtx, config: Record<string, unknown>): Promise
       // "trocar de funil" divergiriam na primeira mudança de uma delas.
       const emOutroFunil = await negocioAbertoEmOutroFunil(ctx, contact.id, pipelineId);
       if (emOutroFunil) {
-        const transferencia = await transfereParaOFunil(ctx.admin, ctx.organizationId, handlerCtx, emOutroFunil, pipelineId, stageId);
+        const transferencia = await transfereParaOFunil(ctx.admin, ctx.organizationId, handlerCtx, emOutroFunil, pipelineId, stageId, RAZAO_DA_AUTOMACAO);
         if (!transferencia.ok) {
           return { type: "create_or_move_lead", status: "failed", error: transferencia.error };
         }

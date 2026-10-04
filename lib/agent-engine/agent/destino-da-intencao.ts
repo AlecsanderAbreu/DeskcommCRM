@@ -100,6 +100,7 @@ export async function aplicaDestinoDaIntencao(
     origem,
     deps.destinoPipelineId,
     deps.destinoStageId,
+    "Levado para outro funil pelo roteador de intenção",
   );
   if (!transferencia.ok) {
     return { status: "recusado", error: transferencia.error, origemId: origem.id };

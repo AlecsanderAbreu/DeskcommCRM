@@ -82,6 +82,8 @@ describe("aplicaDestinoDaIntencao (#2155 — o card vai para o funil da intenç�
     expect(transferir.mock.calls[0]![3]).toMatchObject({ id: "lead-1", pipeline_id: "pipe-entrada" });
     expect(transferir.mock.calls[0]![4]).toBe("pipe-b");
     expect(transferir.mock.calls[0]![5]).toBe("stage-b1");
+    // A linha do tempo diz QUEM levou o card: o roteador, não "a automação".
+    expect(transferir.mock.calls[0]![6]).toBe("Levado para outro funil pelo roteador de intenção");
   });
 
   it("card JÁ no funil destino → nada a fazer (idempotente em toda mensagem seguinte)", async () => {
