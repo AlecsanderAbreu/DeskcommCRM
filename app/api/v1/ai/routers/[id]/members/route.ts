@@ -36,6 +36,9 @@ const memberInputSchema = z.object({
   // roteamento continua só escolhendo o agente (comportamento de antes).
   pipeline_id: z.string().uuid().nullable().default(null),
   stage_id: z.string().uuid().nullable().default(null),
+}).refine((m) => m.stage_id === null || m.pipeline_id !== null, {
+  message: "stage_id exige pipeline_id",
+  path: ["stage_id"],
 });
 
 const membersPutSchema = z.object({
@@ -97,6 +100,16 @@ export async function PUT(req: NextRequest, ctx: RouteCtx): Promise<Response> {
       return fail(
         "validation_failed",
         t("O fluxo de atendimento escolhido não existe nesta organização."),
+        422,
+        { requestId },
+      );
+    // As FKs compostas da 0542 recusam funil/etapa de outra empresa (ou já
+    // excluído). Agente e roteiro são conferidos antes, então o 23503 aqui é
+    // o destino — erro de quem configura, não do servidor.
+    if (code === "23503")
+      return fail(
+        "validation_failed",
+        t("O funil ou a etapa de destino não existe nesta organização."),
         422,
         { requestId },
       );
