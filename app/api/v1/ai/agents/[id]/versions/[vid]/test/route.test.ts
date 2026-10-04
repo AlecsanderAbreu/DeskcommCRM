@@ -31,35 +31,39 @@ const USER = "11111111-1111-4111-8111-111111111111";
 const AGENT = "33333333-3333-4333-8333-333333333333";
 const VERSION = "44444444-4444-4444-8444-444444444444";
 
-function stubAdmin(atualizacoes: Record<string, unknown>[]) {
+function stubAdmin(atualizacoes: Record<string, unknown>[], selects: string[] = []) {
   return {
     from: (table: string) => {
       if (table === "ai_agent_versions") {
         return {
-          select: () => ({
-            eq: () => ({
+          select: (colunas: string) => {
+            selects.push(colunas);
+            return {
               eq: () => ({
                 eq: () => ({
-                  maybeSingle: async () => ({
-                    data: {
-                      id: VERSION,
-                      agent_id: AGENT,
-                      organization_id: ORG,
-                      system_prompt: "oi",
-                      provider: "anthropic",
-                      model: "claude-sonnet-4-6",
-                      channel_session_id: null,
-                      max_steps: 3,
-                      token_budget: 1000,
-                      cost_budget_cents: 100,
-                      tool_ids: [],
-                    },
-                    error: null,
+                  eq: () => ({
+                    maybeSingle: async () => ({
+                      data: {
+                        id: VERSION,
+                        agent_id: AGENT,
+                        organization_id: ORG,
+                        system_prompt: "oi",
+                        provider: "anthropic",
+                        model: "claude-sonnet-4-6",
+                        channel_session_id: null,
+                        max_steps: 3,
+                        token_budget: 1000,
+                        cost_budget_cents: 100,
+                        tool_ids: [],
+                        knowledge_source_ids: ["55555555-5555-4555-8555-555555555555"],
+                      },
+                      error: null,
+                    }),
                   }),
                 }),
               }),
-            }),
-          }),
+            };
+          },
         };
       }
       // ai_agent_runs
@@ -83,11 +87,13 @@ function stubAdmin(atualizacoes: Record<string, unknown>[]) {
 
 describe("POST .../versions/:vid/test — core compartilhado", () => {
   const atualizacoes: Record<string, unknown>[] = [];
+  const selectsDeVersao: string[] = [];
   const requestPool = { query: vi.fn() };
   const turnDeps = {};
 
   beforeEach(() => {
     atualizacoes.length = 0;
+    selectsDeVersao.length = 0;
     const user: AuthUser = {
       id: USER,
       email: "a@example.com",
@@ -102,7 +108,7 @@ describe("POST .../versions/:vid/test — core compartilhado", () => {
         ? { ok: true, user, org: { orgId: ORG, name: "Org", role: "admin" } }
         : ({ ok: false, response: null } as never),
     );
-    vi.mocked(createAdminClient).mockReturnValue(stubAdmin(atualizacoes) as never);
+    vi.mocked(createAdminClient).mockReturnValue(stubAdmin(atualizacoes, selectsDeVersao) as never);
     vi.mocked(getRequestPool).mockReturnValue(requestPool as never);
     vi.mocked(requestTurnDeps).mockReturnValue(turnDeps as never);
   });
@@ -145,6 +151,30 @@ describe("POST .../versions/:vid/test — core compartilhado", () => {
       status: "failed",
       error_code: "preview_failed",
     }));
+  });
+
+  // #2237 — "O que ele consulta antes de responder" mora em
+  // `ai_agent_versions.knowledge_source_ids`, e o SELECT desta rota é a SÉTIMA
+  // cópia manual da lista de colunas do repo: as outras seis estão vigiadas por
+  // `tests/unit/agent-version-columns-drift.test.ts`, esta não. Ficou para trás
+  // sozinha, sem teste nenhum reprovar. Quem testa uma versão tem de ler a
+  // MESMA coluna que a tela mostra e que o runtime do preview recarrega por
+  // versionId (`loadAgentVersionConfig`) — sem ela a rota não enxerga os
+  // materiais da versão que está testando.
+  it("lê knowledge_source_ids — os materiais da versão que será testada", async () => {
+    const { POST } = await import("./route");
+    const req = new NextRequest("http://localhost/x", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sample_message: "oi" }),
+    });
+
+    await POST(req, { params: Promise.resolve({ id: AGENT, vid: VERSION }) });
+
+    expect(selectsDeVersao).toHaveLength(1);
+    expect((selectsDeVersao[0] ?? "").split(",").map((c) => c.trim())).toContain(
+      "knowledge_source_ids",
+    );
   });
 });
 

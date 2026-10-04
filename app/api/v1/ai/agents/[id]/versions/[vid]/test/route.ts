@@ -110,10 +110,18 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
 
   const admin = createAdminClient();
 
+  // ⚠️ `knowledge_source_ids` (#2237): os materiais marcados em "O que ele
+  // consulta antes de responder" moram NESTA coluna, e a rota lia uma cópia à
+  // mão da lista de colunas que ficou para trás — as outras 6 cópias do repo
+  // estão sob `tests/unit/agent-version-columns-drift.test.ts`, esta não.
+  // O runtime do preview recarrega a config por versionId
+  // (`loadAgentVersionConfig` → `agent-config.ts`), então a coluna viaja com a
+  // MESMA linha que a tela mostra: quem testa a versão que tem material
+  // consulta o material, igual ao turno de WhatsApp.
   const { data: version } = await admin
     .from("ai_agent_versions")
     .select(
-      "id, agent_id, organization_id, system_prompt, provider, model, channel_session_id, max_steps, token_budget, cost_budget_cents, tool_ids",
+      "id, agent_id, organization_id, system_prompt, provider, model, channel_session_id, max_steps, token_budget, cost_budget_cents, tool_ids, knowledge_source_ids",
     )
     .eq("id", vid)
     .eq("organization_id", activeOrg.orgId)
