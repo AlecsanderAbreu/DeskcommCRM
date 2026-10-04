@@ -153,15 +153,15 @@ describe("POST .../versions/:vid/test — core compartilhado", () => {
     }));
   });
 
-  // #2237 — "O que ele consulta antes de responder" mora em
-  // `ai_agent_versions.knowledge_source_ids`, e o SELECT desta rota é a SÉTIMA
-  // cópia manual da lista de colunas do repo: as outras seis estão vigiadas por
-  // `tests/unit/agent-version-columns-drift.test.ts`, esta não. Ficou para trás
-  // sozinha, sem teste nenhum reprovar. Quem testa uma versão tem de ler a
-  // MESMA coluna que a tela mostra e que o runtime do preview recarrega por
-  // versionId (`loadAgentVersionConfig`) — sem ela a rota não enxerga os
-  // materiais da versão que está testando.
-  it("lê knowledge_source_ids — os materiais da versão que será testada", async () => {
+  // #2237 — a config que o Testar usa (prompt, modelo, ferramentas e os
+  // materiais de `knowledge_source_ids`) o runtime do preview recarrega por
+  // versionId (`loadAgentVersionConfig`). O SELECT desta rota era uma SÉTIMA
+  // cópia manual da lista de colunas, fora de
+  // `tests/unit/agent-version-columns-drift.test.ts`, e envelheceu sem ninguém
+  // ler: faltava `knowledge_source_ids`. A rota lê só o que usa — existência e
+  // canal —, então não há cópia para envelhecer. Se alguém voltar a pôr a lista
+  // de config aqui, este caso reprova antes de ela divergir de novo.
+  it("lê da versão só o que usa — a config vem do runtime, não de uma cópia aqui", async () => {
     const { POST } = await import("./route");
     const req = new NextRequest("http://localhost/x", {
       method: "POST",
@@ -172,8 +172,12 @@ describe("POST .../versions/:vid/test — core compartilhado", () => {
     await POST(req, { params: Promise.resolve({ id: AGENT, vid: VERSION }) });
 
     expect(selectsDeVersao).toHaveLength(1);
-    expect((selectsDeVersao[0] ?? "").split(",").map((c) => c.trim())).toContain(
-      "knowledge_source_ids",
+    const colunas = (selectsDeVersao[0] ?? "").split(",").map((c) => c.trim()).sort();
+    expect(colunas).toEqual(["channel_session_id", "id"]);
+    expect(vi.mocked(testAgentVersion)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ versionId: VERSION }),
     );
   });
 });
