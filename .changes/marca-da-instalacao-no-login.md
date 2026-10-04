@@ -1,5 +1,5 @@
 ---
-impacto: capacidade_nova
+impacto: nada_mudou
 secao: corrigido
 titulo: A marca da instalação aparece também no login
 ---
