@@ -30,10 +30,11 @@
  *
  * Todos os OUTROS campos (budgets, handoff, follow-up, operador, escopo) vêm dos
  * `.default(...)` do `versionShapeSchema`, que é o mesmo pelo qual o formulário
- * da tela cria uma v1 — ou seja, esta ponte entrega o MESMO resultado de criar
- * pela tela, não uma variação paralela.
+ * da tela valida uma v1 — os defaults da versão são os mesmos. A receita das
+ * linhas é a de `mcpAgentDraftRecords` (a do corpo com `version`); a tela grava
+ * pelo seu próprio insert (`createMcpAgentAction`).
  *
- * NÃO toca em dado nenhum: converte o corpo no MOMEMO da escrita. Agentes
+ * NÃO toca em dado nenhum: converte o corpo no MOMENTO da escrita. Agentes
  * `kind='rag_bot'` que já existem seguem intocados e seguem funcionando pela
  * recuperação legada (`LegacyRecovery` + `/reconcile`).
  */

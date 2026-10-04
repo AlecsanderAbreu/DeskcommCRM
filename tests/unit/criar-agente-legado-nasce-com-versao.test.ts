@@ -134,6 +134,18 @@ describe("POST /api/v1/ai/agents — Modo A (corpo legado, sem `version`)", () =
     expect(versao.agent_id).toBe(gravado("ai_agents").id);
   });
 
+  it("sem `model` no corpo, mantém o default que o Modo A sempre gravou", async () => {
+    const res = await (
+      await import("@/app/api/v1/ai/agents/route")
+    ).POST(post({ name: "Tobias", system_prompt: "Você é o Tobias, atendente da loja." }));
+
+    expect(res.status, await res.clone().text()).toBe(201);
+    // Antes do #2296: `input.model ?? "anthropic/claude-sonnet-5"`. Não o
+    // DEFAULT da coluna (`claude-sonnet-4-6`) que a ponte usa sem `model`.
+    expect(gravado("ai_agents").model).toBe("anthropic/claude-sonnet-5");
+    expect(gravado("ai_agent_versions").model).toBe("claude-sonnet-5");
+  });
+
   it("o formato da resposta do corpo legado continua sendo a linha do agente", async () => {
     const res = await (
       await import("@/app/api/v1/ai/agents/route")

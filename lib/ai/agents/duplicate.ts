@@ -15,6 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { mcpAgentDraftRecords } from "./create-draft";
 import { corpoLegadoComoCorpoDeCriacao } from "./legado-para-versao";
+import { agentMcpCreateSchema } from "./validation";
 
 export const DUPLICATE_AGENT_COLUMNS =
   "id, organization_id, name, description, model, system_prompt, is_active, is_default, kind, priority, published_version_id, archived_at, config, guardrails, active_kb_version_id, created_at, updated_at";
@@ -170,9 +171,11 @@ export async function duplicateAgentWithVersion(
   // não uma reimplementação: os defaults de budgets/handoff/follow-up/operador
   // saem do MESMO `versionShapeSchema` pelo qual a tela cria uma v1. O resultado
   // é emendado com o que duplicar copia de verdade (config, guardrails, acervo).
-  const receitaLegada = origemLegadaSemVersao
-    ? mcpAgentDraftRecords(
-        { orgId, userId: actorUserId },
+  // `safeParse` antes da receita: `mcpAgentDraftRecords` usa `parse`, que LANÇA,
+  // e uma linha legada escrita direto no banco (prompt com menos de 10
+  // caracteres) faria a duplicação estourar ZodError em vez de recusar.
+  const corpoLegado = origemLegadaSemVersao
+    ? agentMcpCreateSchema.safeParse(
         corpoLegadoComoCorpoDeCriacao({
           system_prompt: (src.system_prompt as string | null) ?? null,
           model: (src.model as string | null) ?? null,
@@ -181,6 +184,12 @@ export async function duplicateAgentWithVersion(
           priority: (src.priority as number | null) ?? 0,
         }),
       )
+    : null;
+  if (corpoLegado && !corpoLegado.success) {
+    return { ok: false, error: "agent_insert_failed", message: corpoLegado.error.message };
+  }
+  const receitaLegada = corpoLegado
+    ? mcpAgentDraftRecords({ orgId, userId: actorUserId }, corpoLegado.data)
     : null;
 
   const { data: newAgent, error: agentErr } = await admin
@@ -191,9 +200,10 @@ export async function duplicateAgentWithVersion(
       description: receitaLegada ? receitaLegada.agent.description : src.description,
       model: receitaLegada ? receitaLegada.agent.model : src.model,
       system_prompt: receitaLegada ? receitaLegada.agent.system_prompt : src.system_prompt,
-      // Nada mais nasce `rag_bot`: a origem legada vira `mcp_agent` junto com a
-      // v1 que a acompanha (#1357). Um `rag_bot` SEM versão é invisível para o
-      // CRM e para o agent-engine — copiar esse estado era clonar um mudo.
+      // A origem legada SEM versão vira `mcp_agent` junto com a v1 que a
+      // acompanha (#1357): um `rag_bot` sem versão é invisível para o CRM e para
+      // o agent-engine — copiar esse estado era clonar um mudo. Um `rag_bot` que
+      // JÁ TEM versão continua sendo copiado como `rag_bot`, com a v1 rascunho.
       kind: receitaLegada ? "mcp_agent" : (src.kind ?? "rag_bot"),
       priority: src.priority ?? 0,
       // Cópia nasce fora do ar: sem published_version_id, nenhum runtime a enxerga.

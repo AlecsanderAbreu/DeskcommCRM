@@ -193,6 +193,23 @@ describe("duplicateAgentWithVersion", () => {
     expect(res.sourceVersionId).toBeNull();
   });
 
+  it("rag_bot legado com prompt que a v1 recusa: recusa sem gravar, não lança", async () => {
+    // Prompt abaixo do mínimo da versão (10) só existe escrito direto no banco;
+    // `mcpAgentDraftRecords` usa `parse`, e sem a guarda a ZodError escapava.
+    const ragBot = { ...AGENTE_MCP, kind: "rag_bot", system_prompt: "curto" };
+    const { db, inserts } = makeDb({ agent: ragBot });
+
+    const res = await duplicateAgentWithVersion(db, {
+      orgId: ORG,
+      agentId: "agent-1",
+      actorUserId: ACTOR,
+      requireVersion: false,
+    });
+
+    expect(res).toMatchObject({ ok: false, error: "agent_insert_failed" });
+    expect(inserts).toHaveLength(0);
+  });
+
   it("rota da API: mcp_agent sem versão é conflito, não casca", async () => {
     const { db } = makeDb({ agent: AGENTE_MCP });
 

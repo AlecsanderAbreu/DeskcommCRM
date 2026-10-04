@@ -152,7 +152,12 @@ export async function POST(req: NextRequest): Promise<Response> {
         details: parseLegado.error.flatten(),
       });
     }
-    corpo = corpoLegadoComoCorpoDeCriacao(parseLegado.data);
+    // `model` omitido mantém o default que o Modo A sempre gravou — não o
+    // DEFAULT da coluna, que é outro (`claude-sonnet-4-6`).
+    corpo = corpoLegadoComoCorpoDeCriacao({
+      ...parseLegado.data,
+      model: parseLegado.data.model ?? "anthropic/claude-sonnet-5",
+    });
     veioDoCorpoLegado = true;
   }
   const parsed = agentMcpCreateSchema.safeParse(corpo);
@@ -208,8 +213,8 @@ export async function POST(req: NextRequest): Promise<Response> {
   });
 
   // O contrato de resposta de cada formato se mantém: o corpo legado pedia a
-  // LINHA do agente e continua recebendo-a (agora com `kind = "mcp_agent"` e
-  // `published_version_id` apontando para a v1 que acabou de nascer); o corpo
+  // LINHA do agente e continua recebendo-a (agora com `kind = "mcp_agent"`; a v1
+  // nasce RASCUNHO, então `published_version_id` fica null até publicar); o corpo
   // com `version` segue devolvendo `{ agent, version }`. Mudar o formato que
   // integrador já consome seria trocar o defeito por outro.
   return ok(veioDoCorpoLegado ? (agentRow as unknown) : { agent: agentRow, version: versionRow }, {
