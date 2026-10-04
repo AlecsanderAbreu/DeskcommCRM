@@ -120,12 +120,14 @@ describe("fio da recusa de bloqueado", () => {
     const erro = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       await handleStasisStart(eventoDeEntrada("+5532984793302"));
+      // mockRestore() limpa o histórico do spy — por isso os expects vêm
+      // ANTES do finally: depois de restaurar, a contagem zera.
+      expect(erro).toHaveBeenCalledTimes(1);
+      expect(fakes.hangup).not.toHaveBeenCalled();
+      expect(fakes.continuar).toHaveBeenCalledTimes(1);
     } finally {
       erro.mockRestore();
     }
-    expect(erro).toHaveBeenCalledTimes(1);
-    expect(fakes.hangup).not.toHaveBeenCalled();
-    expect(fakes.continuar).toHaveBeenCalledTimes(1);
     expect(fakes.inseridas[0]).toMatchObject({ status: "ringing", contact_id: null });
   });
 });
