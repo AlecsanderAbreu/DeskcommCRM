@@ -263,7 +263,7 @@ function wrapMcpTool(
 
         // ── DE QUE NEGÓCIO É ESTA ESCRITA — do contato da conversa ──────────
         //
-        // Só ESCRITA: `crm_list_followups`, `crm_list_appointments` e irmãs têm
+        // Só ESCRITA (`write` e `handoff`): `crm_list_followups`, `crm_list_appointments` e irmãs têm
         // `lead_id` e são leituras; trocar ali faria o modelo perguntar por um
         // negócio e receber outro. Só com contato do turno — que o turno de
         // atendimento E o do Operador recebem (`operator-turn.ts` passa
@@ -278,7 +278,7 @@ function wrapMcpTool(
         // abrindo; quem é de outro cliente é recusado com o motivo em texto.
         if (
           input.contatoDoTurno &&
-          def.category === "write" &&
+          def.category !== "read" &&
           typeof argsRecord.lead_id === "string"
         ) {
           const alvo = await negocioDaEscritaDoTurno(
