@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import pg from "pg";
 
 import { registrarRespostaDeCasoObsoleto } from "@/lib/atendimento/aviso-caso-obsoleto";
-import { GOV_AGENT_A, GOV_CONTACT_1, GOV_ORG, GOV_SESSION, seedGov } from "./gov-helpers";
+import { GOV_AGENT_A, GOV_ORG, GOV_SESSION, seedGov } from "./gov-helpers";
 
 /**
  * A RESPOSTA REGISTRADA NÃO SE PERDE QUANDO O AVISO JÁ ESTÁ ABERTO.
@@ -45,11 +45,18 @@ afterAll(async () => {
 
 describe("a resposta a caso obsoleto sobrevive ao aviso repetido", () => {
   it("com o índice segurado por outro escritor, o caso resolve e sobra UM aviso aberto", async () => {
+    // Contato próprio: o seed já abre uma conversa para GOV_CONTACT_1 nesta sessão,
+    // e `uniq_conversations_1to1_per_contact_session` recusaria a segunda.
+    const contact = randomUUID();
+    await pool.query(
+      `insert into contacts(id, organization_id, display_name) values ($1, $2, 'Caso obsoleto')`,
+      [contact, GOV_ORG],
+    );
     const conversation = randomUUID();
     await pool.query(
       `insert into conversations(id, organization_id, contact_id, channel_session_id, status)
        values ($1, $2, $3, $4, 'open')`,
-      [conversation, GOV_ORG, GOV_CONTACT_1, GOV_SESSION],
+      [conversation, GOV_ORG, contact, GOV_SESSION],
     );
     const caseId = randomUUID();
     await pool.query(
@@ -128,5 +135,6 @@ describe("a resposta a caso obsoleto sobrevive ao aviso repetido", () => {
     ]);
     await pool.query("delete from agent_cases where id = $1", [caseId]);
     await pool.query("delete from conversations where id = $1", [conversation]);
+    await pool.query("delete from contacts where id = $1", [contact]);
   });
 });
