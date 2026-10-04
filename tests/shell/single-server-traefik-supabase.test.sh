@@ -98,6 +98,12 @@ OUTROS="$WORK/proprio";   montar_arvore "$OUTROS"
 
 echo "rota do Supabase no Traefik do single-server (#2099)"
 
+# Os blocos (1)-(3) e (5) rodam o instalador INTEIRO, que lê a RAM em
+# /proc/meminfo antes de qualquer outra coisa. Onde ele não existe (macOS), os
+# blocos são pulados — como o (7), sem `docker compose` —; no Linux/CI rodam.
+SEM_MEMINFO_MSG='  - pulado: sem /proc/meminfo (o instalador lê a RAM de lá; roda no Linux/CI)'
+if [ -r /proc/meminfo ]; then
+
 # ════════════════════════════════════════════════════════════════════════════
 # (1) O que o instalador GRAVA no .env do Supabase
 # ════════════════════════════════════════════════════════════════════════════
@@ -134,6 +140,9 @@ check "controle: no modo Caddy não nasce Host nem entrypoint de Traefik" \
   bash -c '! grep -q "^TRAEFIK_HOST=" "$1" && ! grep -q "^TRAEFIK_ENTRYPOINT=" "$1"' _ "$ENV_C"
 check "controle: REVERSE_PROXY gravado no .env do CRM segue sendo caddy" \
   grep -qxF 'REVERSE_PROXY=caddy' "$CONTROLE/.env"
+else
+  echo "$SEM_MEMINFO_MSG"
+fi
 
 # (4) A gravação é ANTES do `dc_supabase up -d --wait`: no primeiro boot o
 #     Envoy já nasce com a rota, e numa re-execução o compose o recria porque
@@ -145,10 +154,14 @@ check "chave gravada antes de o Supabase subir" \
 
 # (5) Re-execução: idempotente, e uma árvore que já foi Traefik e volta para o
 #     Caddy tem a rota desligada (não sobra um `true` órfão).
+if [ -r /proc/meminfo ]; then
 check "segunda execução em modo traefik termina sem erro" \
   rodar_instalador "$ARVORE" REVERSE_PROXY=traefik
 check "segunda execução mantém uma linha por chave" \
   bash -c '[ "$(grep -c "^TRAEFIK_ENABLE=" "$1")" = 1 ] && grep -qxF TRAEFIK_ENABLE=true "$1"' _ "$ENV_T"
+else
+  echo "$SEM_MEMINFO_MSG"
+fi
 
 # ════════════════════════════════════════════════════════════════════════════
 # (6) O override: as etiquetas, com paridade EXATA com o Caddyfile
@@ -169,11 +182,11 @@ check "gzip do Caddyfile acompanha a rota do Supabase" \
 
 # As seis prefixos do Caddyfile — a REFERÊNCIA do modo Caddy —, uma a uma.
 prefixos="$(grep -E '^[[:space:]]*@supabase path ' "$CADDYFILE" | head -1 | sed 's/^[[:space:]]*@supabase path //' | tr ' ' '\n' | sed 's/\*$//' | tr '\n' ' ')"
-check "o Caddyfile tem as seis prefixos para ler" igual "$(printf '%s' "$prefixos" | wc -w)" 6
+check "o Caddyfile tem as seis prefixos para ler" igual "$(printf '%s' "$prefixos" | wc -w | tr -d ' ')" 6
 for p in $prefixos; do
   check "overlay roteia $p (paridade com o Caddyfile)" grep -qF "PathPrefix(\`$p\`)" "$OVERRIDE"
 done
-n_rotas="$(grep -o 'PathPrefix(`' "$OVERRIDE" | wc -l)"
+n_rotas="$(grep -o 'PathPrefix(`' "$OVERRIDE" | wc -l | tr -d ' ')"
 check "nenhuma prefixo extra no overlay (6 rotas, como o Caddyfile)" igual "$n_rotas" 6
 check "a regra casa com o Host do domínio (não publica os outros tenants da VPS)" \
   grep -qF 'Host(`${TRAEFIK_HOST:-}`) &&' "$OVERRIDE"
