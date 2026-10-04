@@ -18,13 +18,8 @@ export type UpdateCustomBrandingCssResult = { ok: true } | { ok: false; error: s
 export async function updateCustomBrandingCss(
   input: unknown,
 ): Promise<UpdateCustomBrandingCssResult> {
-  const parsed = z.string().max(16_384).safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Informe CSS como texto de até 16 KB." };
-
-  const entrada = parsed.data;
-  const validacao = validarCssPersonalizado(entrada);
-  if (validacao.erro) return { ok: false, error: validacao.erro };
-
+  // Permissão ANTES de olhar a entrada: quem não pode gravar recebe a recusa,
+  // nunca as mensagens do validador (que descrevem o que ele aceita).
   const escrita = await escritaDeAdminOuRecusa();
   if (!escrita.ok) {
     return {
@@ -40,6 +35,14 @@ export async function updateCustomBrandingCss(
   if (usuarioAtual?.support) {
     return { ok: false, error: "Saia do acompanhamento administrativo antes de mudar a marca." };
   }
+
+  const parsed = z.string().max(16_384).safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Informe CSS como texto de até 16 KB." };
+
+  const entrada = parsed.data;
+  const validacao = validarCssPersonalizado(entrada);
+  if (validacao.erro) return { ok: false, error: validacao.erro };
+
   const resultado = await gravarPelaTela(CHAVE_CSS_PERSONALIZADO, entrada.trim(), {
     ehSegredo: false,
     ator: user.id,

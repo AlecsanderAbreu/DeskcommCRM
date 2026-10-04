@@ -33,11 +33,22 @@ describe("updateCustomBrandingCss", () => {
     mocks.gravarPelaTela.mockResolvedValue({ ok: true });
   });
 
-  it("recusa entrada que não é texto antes de consultar permissões ou gravar", async () => {
+  it("recusa entrada que não é texto sem gravar", async () => {
     const resultado = await updateCustomBrandingCss({ css: CSS } as never);
 
     expect(resultado.ok).toBe(false);
-    expect(mocks.escritaDeAdminOuRecusa).not.toHaveBeenCalled();
+    expect(mocks.gravarPelaTela).not.toHaveBeenCalled();
+  });
+
+  it("quem não pode gravar recebe a recusa, não a mensagem do validador", async () => {
+    mocks.escritaDeAdminOuRecusa.mockResolvedValue({ ok: false, error: "forbidden" });
+
+    for (const entrada of ["body { color: red; }", { css: CSS } as never]) {
+      expect(await updateCustomBrandingCss(entrada)).toEqual({
+        ok: false,
+        error: "Esta ação exige acesso completo à instalação.",
+      });
+    }
     expect(mocks.gravarPelaTela).not.toHaveBeenCalled();
   });
 
