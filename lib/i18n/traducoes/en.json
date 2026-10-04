@@ -8822,5 +8822,13 @@
   "Adicione a ação \"Call Webhook\" ao formulário e cole o endereço acima.": "Add the \"Call Webhook\" action to the form and paste the address above.",
   "Janela de esfriando (vazio = 24 h de padrão)": "Going-cold window (empty = 24 h default)",
   "Janela de esfriando": "Going-cold window",
-  "A janela de esfriando vai de 1 hora a 8760 horas (365 dias).": "The going-cold window ranges from 1 hour to 8760 hours (365 days)."
+  "A janela de esfriando vai de 1 hora a 8760 horas (365 dias).": "The going-cold window ranges from 1 hour to 8760 hours (365 days).",
+  "Conferir o campo antes de a IA gravar": "Check the field before the AI saves it",
+  "Lê o que o cliente disse nas mensagens ainda sem resposta do turno e confere se o valor que a IA quer gravar no campo personalizado do negócio foi ele quem informou.": "Reads what the client said in the turn's still-unanswered messages and checks whether the value the AI wants to save in the deal's custom field was given by the client.",
+  "O Jev confere, nas mensagens que o cliente deixou sem resposta neste turno, se foi ele quem disse o valor do campo. O valor que ele não disse deixa de ser gravado e o assistente é mandado perguntar para ele; os outros campos da mesma chamada seguem gravando.": "Jev checks, in the messages the client left unanswered in this turn, whether the client gave the field's value. A value the client didn't give is not saved and the assistant is told to ask for it; the other fields in the same call keep being saved.",
+  "Antes de a IA gravar um campo personalizado do negócio, o Jev vai conferir nas mensagens do cliente se foi ele quem informou aquele valor. Ele não disse: o campo não é gravado e a IA pergunta ao cliente.": "Before the AI saves a deal custom field, Jev will check the client's messages to see whether the client gave that value. If not, the field is not saved and the AI asks the client.",
+  "dias, o Jev e o jeito de hoje deram o mesmo destino a": "days, Jev and the current behavior gave the same outcome to",
+  "campos do negócio.": "deal fields.",
+  "O Jev foi perguntado se o cliente disse, nas mensagens ainda sem resposta deste turno, o valor do campo personalizado do negócio que a IA ia gravar.": "Jev was asked whether the client said, in this turn's still-unanswered messages, the value of the deal custom field the AI was about to save.",
+  "O Jev não respondeu: o campo foi gravado como antes, sem a conferência.": "Jev didn't reply: the field was saved as before, without the check."
 }

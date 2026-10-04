@@ -5507,5 +5507,13 @@
   "Observando — onde o Jev compara, a sua IA de sempre decide, e ele só é comparado com ela. Nos pedidos do cliente, ele conta as mensagens em que a regra de hoje não reconheceu o pedido, e avisa a equipe.": "观察中——在 Jev 做对比的任务中，由您平时使用的 AI 决定，Jev 只与它做对比。对于客户的请求，它统计现有规则没有识别出该请求的消息，并提醒团队。",
   "Observando — onde o Jev compara, a sua IA de sempre decide, e ele só é comparado com ela. Nos pedidos do cliente, ele só conta as mensagens em que a regra de hoje não reconheceu o pedido.": "观察中——在 Jev 做对比的任务中，由您平时使用的 AI 决定，Jev 只与它做对比。对于客户的请求，它只统计现有规则没有识别出该请求的消息。",
   "Onde ele decide, vale a escolha que você fez antes de desligá-lo; onde só observa, a sua IA de sempre continua decidindo.": "在它做决定的任务中，沿用你关闭它之前所做的选择；在它只观察的任务中，仍由您平时使用的 AI 决定。",
-  "Onde ele só observa, a sua IA de sempre continua decidindo.": "在它只观察的任务中，仍由您平时使用的 AI 决定。"
+  "Onde ele só observa, a sua IA de sempre continua decidindo.": "在它只观察的任务中，仍由您平时使用的 AI 决定。",
+  "Conferir o campo antes de a IA gravar": "在 AI 保存前核对字段",
+  "Lê o que o cliente disse nas mensagens ainda sem resposta do turno e confere se o valor que a IA quer gravar no campo personalizado do negócio foi ele quem informou.": "读取客户在本轮尚未回复的消息中说的内容，核对 AI 想写入商机自定义字段的值是否由客户本人提供。",
+  "O Jev confere, nas mensagens que o cliente deixou sem resposta neste turno, se foi ele quem disse o valor do campo. O valor que ele não disse deixa de ser gravado e o assistente é mandado perguntar para ele; os outros campos da mesma chamada seguem gravando.": "Jev 会在客户本轮尚未得到回复的消息中核对字段的值是否由客户本人说出。客户没有说过的值不会被保存，助手会被要求向客户询问；同一次调用中的其他字段照常保存。",
+  "Antes de a IA gravar um campo personalizado do negócio, o Jev vai conferir nas mensagens do cliente se foi ele quem informou aquele valor. Ele não disse: o campo não é gravado e a IA pergunta ao cliente.": "在 AI 保存商机自定义字段之前，Jev 会在客户的消息中核对该值是否由客户本人提供。如果客户没有说过，该字段不会被保存，AI 会向客户询问。",
+  "dias, o Jev e o jeito de hoje deram o mesmo destino a": "天内，Jev 与当前做法给出相同结果的有",
+  "campos do negócio.": "个商机字段。",
+  "O Jev foi perguntado se o cliente disse, nas mensagens ainda sem resposta deste turno, o valor do campo personalizado do negócio que a IA ia gravar.": "Jev 被询问：客户是否在本轮尚未回复的消息中说出了 AI 准备保存的商机自定义字段的值。",
+  "O Jev não respondeu: o campo foi gravado como antes, sem a conferência.": "Jev 没有回应：字段按以前的方式保存，未经核对。"
 }

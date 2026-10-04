@@ -333,7 +333,7 @@ export const TAREFA_DA_CONFERENCIA_DE_CAMPO = {
   aoConfirmarDecidir:
     "Antes de a IA gravar um campo personalizado do negócio, o Jev vai conferir nas mensagens do cliente se foi ele quem informou aquele valor. Ele não disse: o campo não é gravado e a IA pergunta ao cliente.",
   concordancia: {
-    antes: "vezes, o Jev e o jeito de hoje deram o mesmo destino a",
+    antes: "dias, o Jev e o jeito de hoje deram o mesmo destino a",
     depois: "campos do negócio.",
   },
   rotulo: "Conferir o campo antes de a IA gravar",
@@ -343,12 +343,12 @@ export const TAREFA_DA_CONFERENCIA_DE_CAMPO = {
 
 export const TAREFAS_DO_JEV: readonly TarefaDoJev[] = [
   TAREFA_DO_CLIMA,
-  TAREFA_DA_CONFERENCIA_DE_CAMPO,
   TAREFA_DA_MANIPULACAO,
   TAREFA_DO_ROTEADOR,
   TAREFA_DO_PEDIDO_DE_HUMANO,
   TAREFA_DO_PEDIDO_PARA_PARAR,
   TAREFA_DO_FOLLOWUP,
+  TAREFA_DA_CONFERENCIA_DE_CAMPO,
 ];
 
 /**
@@ -358,6 +358,21 @@ export const TAREFAS_DO_JEV: readonly TarefaDoJev[] = [
 export function tarefaPodeDecidir(tarefa: Pick<TarefaDoJev, "soObserva">): boolean {
   return tarefa.soObserva === undefined;
 }
+
+/**
+ * A chamada da conferência de campo (#2234): também sem ponto no registro — o
+ * degrau 2 do `crm_update_lead` é quem pergunta, e as perguntas são por CAMPO,
+ * não por tarefa (`./campo-do-negocio`). Mesmo enquadramento de
+ * `PEDIDOS_DO_CLIENTE`, incluindo o `porQue` como PERGUNTA: a chamada sai só
+ * quando há campo para conferir, e a falha não muda nada no atendimento.
+ */
+export const CONFERENCIA_DE_CAMPO = {
+  purpose: "jev_campo_do_negocio",
+  rotulo: "Conferir o campo antes de a IA gravar",
+  porQue:
+    "O Jev foi perguntado se o cliente disse, nas mensagens ainda sem resposta deste turno, o valor do campo personalizado do negócio que a IA ia gravar.",
+  porQueNaFalha: "O Jev não respondeu: o campo foi gravado como antes, sem a conferência.",
+} as const;
 
 /**
  * A chamada que pergunta os dois pedidos (`./pedidos.ts`) precisa de um
@@ -376,21 +391,6 @@ export function tarefaPodeDecidir(tarefa: Pick<TarefaDoJev, "soObserva">): boole
  * o OUTRO pedido ("quero falar com um atendente" é perguntado só sobre parar de
  * receber — não pode dizer que a regra não viu pedido nenhum).
  */
-/**
- * A chamada da conferência de campo (#2234): também sem ponto no registro — o
- * degrau 2 do `crm_update_lead` é quem pergunta, e as perguntas são por CAMPO,
- * não por tarefa (`./campo-do-negocio`). Mesmo enquadramento de
- * `PEDIDOS_DO_CLIENTE`, incluindo o `porQue` como PERGUNTA: a chamada sai só
- * quando há campo para conferir, e a falha não muda nada no atendimento.
- */
-export const CONFERENCIA_DE_CAMPO = {
-  purpose: "jev_campo_do_negocio",
-  rotulo: "Conferir o campo antes de a IA gravar",
-  porQue:
-    "O Jev foi perguntado se o cliente disse, nas mensagens ainda sem resposta deste turno, o valor do campo personalizado do negócio que a IA ia gravar.",
-  porQueNaFalha: "O Jev não respondeu: o campo foi gravado como antes, sem a conferência.",
-} as const;
-
 export const PEDIDOS_DO_CLIENTE = {
   purpose: "jev_pedidos",
   rotulo: "Perceber pedidos do cliente",
