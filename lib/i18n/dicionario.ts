@@ -1938,6 +1938,9 @@ export const DICIONARIO: Traducoes = {
   "Quando o cliente escrever fora do horário, esta mensagem é enviada na hora — uma vez por cliente por período fechado, e nunca para quem pediu para parar. Deixe em branco para não enviar.": {
     es: "Cuando el cliente escriba fuera del horario, este mensaje se envía al instante — una vez por cliente por período cerrado, y nunca para quien pidió dejar de recibir. Déjelo en blanco para no enviar.",
   },
+  "Funil de destino (opcional)": { es: "Embudo de destino (opcional)" },
+  "Sem destino — só escolher o agente": { es: "Sin destino — solo elegir el agente" },
+  "Primeira etapa aberta": { es: "Primera etapa abierta" },
   Início: { es: "Inicio" },
   Fim: { es: "Fin" },
   Dias: { es: "Días" },
@@ -13918,6 +13921,7 @@ export const DICIONARIO: Traducoes = {
   "Chamar uma skill": { es: "Llamar una skill" },
   "Iniciar outro fluxo de atendimento": { es: "Iniciar otro flujo de atención" },
   "O fluxo de atendimento escolhido não existe nesta organização.": { es: "El flujo de atención elegido no existe en esta organización." },
+  "O funil ou a etapa de destino não existe nesta organização.": { es: "El embudo o la etapa de destino no existe en esta organización." },
   "Como usar os fluxos de atendimento (guia rápido)": { es: "Cómo usar los flujos de atención (guía rápida)" },
   "É um roteiro de perguntas que a IA segue durante a conversa: ela pergunta uma coisa por vez, entende a resposta e guarda o dado no cadastro do cliente.": { es: "Es un guion de preguntas que la IA sigue durante la conversación: pregunta una cosa a la vez, entiende la respuesta y guarda el dato en el registro del cliente." },
   "Montando o roteiro": { es: "Armando el guion" },
