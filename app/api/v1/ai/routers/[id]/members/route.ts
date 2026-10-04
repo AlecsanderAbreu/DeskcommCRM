@@ -32,6 +32,10 @@ const memberInputSchema = z.object({
   // Sem esta linha o Zod descartava o campo em silêncio e o vínculo
   // intenção → roteiro nunca era gravado (revisão do #1573, B2).
   flow_pointer_id: z.string().uuid().nullable().default(null),
+  // #2155 — funil/etapa de DESTINO quando a intenção casa. Sem destino, o
+  // roteamento continua só escolhendo o agente (comportamento de antes).
+  pipeline_id: z.string().uuid().nullable().default(null),
+  stage_id: z.string().uuid().nullable().default(null),
 });
 
 const membersPutSchema = z.object({
