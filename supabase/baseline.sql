@@ -4533,13 +4533,11 @@ GRANT ALL ON TABLE "public"."ai_budgets" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."ai_chunks" TO "anon";
 GRANT ALL ON TABLE "public"."ai_chunks" TO "authenticated";
 GRANT ALL ON TABLE "public"."ai_chunks" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."ai_faq_items" TO "anon";
 GRANT ALL ON TABLE "public"."ai_faq_items" TO "authenticated";
 GRANT ALL ON TABLE "public"."ai_faq_items" TO "service_role";
 
@@ -4551,13 +4549,11 @@ GRANT ALL ON TABLE "public"."ai_invocations" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."ai_knowledge_sources" TO "anon";
 GRANT ALL ON TABLE "public"."ai_knowledge_sources" TO "authenticated";
 GRANT ALL ON TABLE "public"."ai_knowledge_sources" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."ai_knowledge_versions" TO "anon";
 GRANT ALL ON TABLE "public"."ai_knowledge_versions" TO "authenticated";
 GRANT ALL ON TABLE "public"."ai_knowledge_versions" TO "service_role";
 
@@ -17051,6 +17047,9 @@ create policy tenant_isolation_ai_chunks_write on public.ai_chunks
     or public.fn_is_platform_admin_full()
   );
 
+-- Estas quatro nunca foram para o anon: a concessão que o dump trazia saiu
+-- do texto — ela era reaplicada a cada install/update só para ser revogada
+-- aqui, e uma atualização que morresse no meio deixava o anon com ALL.
 revoke all on table public.ai_knowledge_sources  from anon;
 revoke all on table public.ai_knowledge_versions from anon;
 revoke all on table public.ai_chunks             from anon;

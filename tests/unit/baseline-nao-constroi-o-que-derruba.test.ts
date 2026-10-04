@@ -68,12 +68,13 @@ import { describe, expect, it } from "vitest";
  * tinha ficado cego. Outras formas dinâmicas (um `execute` montado por
  * concatenação, por exemplo) continuam fora. CHECK e FOREIGN KEY ficam fora:
  * não constroem índice, e as instâncias medidas validam coluna recriada vazia.
- * Função e grant ficam fora — a mesma classe existe neles (medido na mesma
- * revisão) e é trabalho próprio. Trigger entrou na régua: gatilho criado e
- * derrubado adiante SEM recriação volta a valer entre os dois pontos em todo
- * install/update. Os `execute format('create trigger …')` de laço ficam fora —
- * os quatro medidos são drop+create na MESMA iteração, que é a substituição
- * que a regra permite.
+ * Trigger e concessão entraram na régua: gatilho criado e derrubado adiante SEM
+ * recriação, e `grant` a `anon`/`public` revogado adiante sem reconceder, voltam
+ * a valer entre os dois pontos em todo install/update. Os `execute format(...)`
+ * de laço ficam fora — medidos, são drop+create (e as concessões, grant+revoke)
+ * na MESMA iteração. Função fica fora: comparar os corpos das definições
+ * intermediárias do apêndice (98 hoje, medido) é a própria história reaplicada,
+ * e pede lista congelada própria, não esta régua. Trabalho próprio.
  *
  * Lê texto; que o ciclo install→update sai 0 é o job `invariants` quem mede, e
  * `tests/invariants/indices-redundantes-saem.test.ts` mede o estado final.
@@ -343,6 +344,48 @@ function paresDeTrigger(sql: string): Par[] {
 }
 
 /**
+ * Concessão TRANSITÓRIA — `grant` a `anon`/`public` que o PRÓPRIO arquivo
+ * revoga adiante, sem reconceder. A cada install/update o papel recupera o
+ * privilégio até o revoke; uma atualização que morra no meio deixa o papel com
+ * ele (autocommit, como as regras de isolamento do update.sh).
+ *
+ * Fora do escopo, de propósito: `alter default privileges` (não é concessão a
+ * um objeto) e `execute format('grant …')` de laço (não nomeia objeto).
+ * A chave é objeto + papel, e só os papéis alcançáveis de fora entram — `anon`
+ * (chave pública do browser) e `public` (todo mundo).
+ */
+function concessoesTransitorias(sql: string): string[] {
+  const historico = new Map<string, { tipo: "grant" | "revoke"; linha: number }[]>();
+  for (const m of sql.matchAll(/\b(grant|revoke)\b[^;]*;/gi)) {
+    const linhaIni = sql.lastIndexOf("\n", m.index!) + 1;
+    if (sql.slice(linhaIni, m.index!).includes("--")) continue;
+    const texto = m[0].replace(/\s+/g, " ");
+    if (/alter\s+default\s+privileges/i.test(texto)) continue;
+    const alvo = /\bon\s+([\s\S]*?)\s+(?:to|from)\s+([\s\S]*)$/i.exec(texto.replace(/;\s*$/, ""));
+    if (!alvo) continue;
+    const objeto = alvo[1]!.replace(/"/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+    for (const papel of alvo[2]!.toLowerCase().split(",").map((x) => x.replace(/"/g, "").trim())) {
+      if (papel !== "anon" && papel !== "public") continue;
+      const chave = `${objeto} :: ${papel}`;
+      historico.set(chave, [
+        ...(historico.get(chave) ?? []),
+        { tipo: m[1]!.toLowerCase() as "grant" | "revoke", linha: linhaDe(sql, m.index!) },
+      ]);
+    }
+  }
+  const achadas: string[] = [];
+  for (const [chave, seq] of historico) {
+    const ultimo = seq[seq.length - 1]!;
+    if (ultimo.tipo !== "revoke") continue; // estado final concedido: a concessão é real
+    const primeira = seq.find((x) => x.tipo === "grant");
+    if (primeira) {
+      achadas.push(`${chave}: concedido na linha ${primeira.linha}, revogado na ${ultimo.linha}`);
+    }
+  }
+  return achadas;
+}
+
+/**
  * O comando `create policy … ;` a partir da posição, normalizado para comparar
  * definições. Os comentários `--` saem ANTES do corte: no arquivo real, 4 desses
  * comandos têm um `;` dentro de um comentário, e cortar ali comparava um prefixo
@@ -477,6 +520,12 @@ begin
   end if;
 end $$;
 
+-- concessão a anon revogada adiante: transitória (proibida)
+grant all on table public.t2 to anon;
+-- revogação antes da concessão: estado final concedido (permitida)
+revoke all on table public.t3 from anon;
+grant all on table public.t3 to anon;
+
 -- ---- apêndice (migration 9999) ----
 drop index if exists public.velho_idx;
 drop index if exists public.cond_idx;
@@ -501,6 +550,7 @@ create policy "sel_igual" on public.t for select using (dono = auth.uid());
 drop trigger if exists trg_velho on public.t;
 drop trigger if exists trg_mesmo on public.t;
 drop trigger if exists trg_guardado on public.t;
+revoke all on table public.t2 from anon;
 `;
 
 describe("o instrumento, contra formas conhecidas", () => {
@@ -564,6 +614,12 @@ describe("o instrumento, contra formas conhecidas", () => {
       "existencia",
     );
   });
+
+  it("concessão transitória: acusa o grant revogado adiante e poupa o re-grant", () => {
+    const achados = concessoesTransitorias(SINTETICO);
+    expect(achados).toHaveLength(1);
+    expect(achados[0]).toMatch(/^table public\.t2 :: anon: concedido na linha \d+, revogado na \d+$/);
+  });
 });
 
 describe("baseline.sql não reconstrói o que ele mesmo derruba ou substitui", () => {
@@ -596,6 +652,10 @@ describe("baseline.sql não reconstrói o que ele mesmo derruba ou substitui", (
       criacoesDeTrigger(SQL).length,
       "nenhum trigger literal encontrado — o parser mudou?",
     ).toBeGreaterThan(0);
+    expect(
+      SQL,
+      "nenhuma concessão a anon/public no arquivo — o parser de concessões ficou cego?",
+    ).toMatch(/grant[^;]*\bto\b[^;]*\banon\b/i);
   });
 
   it("nenhuma criação de índice antes do próprio drop, fora de condição de verdade", () => {
@@ -628,6 +688,14 @@ describe("baseline.sql não reconstrói o que ele mesmo derruba ou substitui", (
       "Trigger criado e derrubado adiante a cada install/update: entre os dois pontos, o gatilho " +
         "antigo volta a valer. Tire a criação (ou a torne condicional ao mesmo predicado do drop, " +
         "invertido).\n",
+    ).toEqual([]);
+  });
+
+  it("nenhuma concessão a anon/public é transitória", () => {
+    expect(
+      concessoesTransitorias(SQL),
+      "Concessão reaplicada a cada install/update só para ser revogada adiante: uma atualização " +
+        "que morra no meio deixa o papel com o privilégio. Tire a concessão.\n",
     ).toEqual([]);
   });
 
