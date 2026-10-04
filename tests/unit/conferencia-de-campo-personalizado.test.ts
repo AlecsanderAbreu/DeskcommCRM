@@ -16,7 +16,12 @@ import {
   extrairNumeros,
   valorDitoLiteralmente,
 } from "@/lib/ai/decisao/campo-do-negocio";
-import { conferirCamposPersonalizados, origemEhAgenteDeIa } from "@/lib/mcp/conferencia-de-campos";
+import { CONFERENCIA_DE_CAMPO } from "@/lib/ai/decisao/tarefas";
+import {
+  conferirCamposPersonalizados,
+  mensagensPendentesDoTurno,
+  origemEhAgenteDeIa,
+} from "@/lib/mcp/conferencia-de-campos";
 import type { McpContext } from "@/lib/mcp/types";
 
 const avisos = vi.hoisted(() => [] as Array<[string, Record<string, unknown>]>);
@@ -73,8 +78,18 @@ function bancoFalso(f: FalsoBanco): SupabaseClient {
       alvo[chave] = valor;
       return c;
     };
-    c.order = () => c;
-    c.limit = () => c;
+    // Como o PostgREST: a ordem pedida e o limite valem — a leitura das
+    // mensagens depende dos dois (as mais recentes, do mais novo para trás).
+    let decrescente = false;
+    let limite = 1000; // o teto de linhas do PostgREST quando ninguém pede limite
+    c.order = (_coluna: string, opcoes?: { ascending?: boolean }) => {
+      decrescente = opcoes?.ascending === false;
+      return c;
+    };
+    c.limit = (n: number) => {
+      limite = n;
+      return c;
+    };
     c.maybeSingle = async () => ({ data: linhaDe(tabela, alvo), error: null });
     c.insert = (linhas: unknown) => {
       const lista = Array.isArray(linhas) ? linhas : [linhas];
@@ -83,7 +98,10 @@ function bancoFalso(f: FalsoBanco): SupabaseClient {
     };
     c.then = (ok: (v: unknown) => unknown, ruim?: (e: unknown) => unknown) =>
       Promise.resolve({
-        data: tabela === "messages" ? f.mensagens : [linhaDe(tabela, alvo)].filter(Boolean),
+        data:
+          tabela === "messages"
+            ? (decrescente ? [...f.mensagens].reverse() : f.mensagens).slice(0, limite)
+            : [linhaDe(tabela, alvo)].filter(Boolean),
         error: null,
       }).then(ok, ruim);
     return c;
@@ -354,5 +372,66 @@ describe("degrau 1 — normalização em código, sem rede", () => {
     expect(valorDitoLiteralmente("cliente@Exemplo.com", ["meu email é cliente@exemplo.com"])).toBe(true);
     expect(valorDitoLiteralmente(2000, ["até uns 2 mil por mês"])).toBe(true);
     expect(valorDitoLiteralmente(2000, ["quero apartamento de 2 quartos"])).toBe(false);
+  });
+});
+
+describe("as mensagens do turno — o Conversador antes da resposta, o Operador depois dela", () => {
+  const CONVERSA = "55555555-5555-4555-8555-555555555555";
+  const msg = (direction: string, body: string, minuto: number) => ({
+    direction,
+    body,
+    created_at: `2026-09-01T10:${String(minuto).padStart(2, "0")}:00.000Z`,
+  });
+  const pendentes = async (mensagens: FalsoBanco["mensagens"]) => {
+    const f: FalsoBanco = { inseridas: {}, lidas: [], settings: DECIDINDO, conversa: CONVERSA, mensagens, pipelineSettings: null };
+    return (await mensagensPendentesDoTurno(ctxDoAgente(bancoFalso(f)))).mensagens;
+  };
+  const historico = [
+    msg("inbound", "oi, quero alugar", 0),
+    msg("outbound", "claro! quantos quartos?", 1),
+    msg("inbound", "procuro algo pequeno", 2),
+    msg("inbound", "pra mim e meu cachorro", 3),
+  ];
+
+  it("Conversador, antes de responder: o bloco do cliente depois da resposta anterior", async () => {
+    expect(await pendentes(historico)).toEqual(["procuro algo pequeno", "pra mim e meu cachorro"]);
+  });
+
+  it("Operador, com a resposta deste turno já enviada: o MESMO bloco, não lista vazia", async () => {
+    const depois = [...historico, msg("outbound", "anotado!", 4), msg("outbound", "vou ver opções", 5)];
+    expect(await pendentes(depois)).toEqual(["procuro algo pequeno", "pra mim e meu cachorro"]);
+  });
+
+  it("conversa longa (mais que as 1000 linhas do PostgREST): lê as mais recentes, nunca as do começo", async () => {
+    const longa = [
+      ...Array.from({ length: 1100 }, (_, i) => msg(i % 2 === 0 ? "inbound" : "outbound", `antiga ${i}`, i % 60)),
+      ...historico.map((m, i) => ({ ...m, created_at: `2026-09-02T10:0${i}:00.000Z` })),
+    ];
+    expect(await pendentes(longa)).toEqual(["procuro algo pequeno", "pra mim e meu cachorro"]);
+  });
+});
+
+describe("custo — a chamada que deu certo aparece em Uso de IA", () => {
+  it("decidindo: uma linha `ok` em llm_calls com tokens, modelo e origem `jev`", async () => {
+    const r: RespostasDoJev = { respostas: { dito_quartos: 0.2, contrario_quartos: 0.1 }, chamadas: [] };
+    const { f } = await turno(["procuro algo pequeno"], { quartos: 1 }, r);
+    expect(f.inseridas.llm_calls).toEqual([
+      expect.objectContaining({
+        purpose: CONFERENCIA_DE_CAMPO.purpose,
+        status: "ok",
+        model: "typesafe/jev-1.13.0",
+        input_tokens: 12,
+        output_tokens: 0,
+        origem_da_escolha: "jev",
+        contact_id: CONTATO,
+        agent_id: "agent-1",
+      }),
+    ]);
+  });
+
+  it("degrau 1 resolveu tudo: nenhuma chamada, nenhuma linha de custo", async () => {
+    const r: RespostasDoJev = { respostas: {}, chamadas: [] };
+    const { f } = await turno(["até uns 2 mil por mês"], { orcamento_max: 2000 }, r);
+    expect(f.inseridas.llm_calls).toBeUndefined();
   });
 });

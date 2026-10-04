@@ -9,9 +9,11 @@
  *     ponte do turno, `lib/ai/runtime/tools.ts`). Tela, API de terceiros e
  *     automação não passam por aqui — e não fazem NENHUMA leitura extra
  *     (catraca por origem, provada em `tests/unit/conferencia-de-campo-personalizado.test.ts`).
- *  2. **AS MENSAGENS.** As pendentes do turno = as inbound depois da última
- *     outbound, a mesma régua de `inboundsNaoRespondidos`
- *     (`lib/agent-engine/agent/inbound-turn.ts`) — 1 a 3 mensagens, em geral.
+ *  2. **AS MENSAGENS.** As pendentes do turno = o último bloco de inbound,
+ *     depois de pular as outbound do FIM — 1 a 3 mensagens, em geral. Pular o
+ *     fim é o que serve aos dois papéis: o Conversador chama antes de responder
+ *     (ou depois de já ter mandado algo no mesmo turno), e o Operador roda
+ *     depois de a resposta sair (`operator-turn.ts`).
  *     Todas passam pelo `scrubMessage` ANTES de sair daqui: o texto que segue é
  *     o que o aceite cobre, e o que a linha em `jev_observacoes` nem vê.
  *  3. **RÓTULO DO FUNIL.** `campo.nome` é o label que o dono deu em
@@ -48,12 +50,18 @@ interface MensagemDoTurno {
   created_at: string;
 }
 
+/** Quantas mensagens recentes a leitura alcança — o turno cabe nelas com folga. */
+const MENSAGENS_LIDAS = 50;
+
 /**
- * As mensagens do cliente que este turno ainda não respondeu, passadas pelo
- * `scrubMessage`. O corte é a última outbound (a resposta anterior — ela já
- * encerrou o turno de antes); sem outbound nenhuma, tudo que o cliente disse
- * segue sem resposta. Falha de leitura devolve lista vazia, e a conferência
- * transforma isso em fail-open (`sem_mensagens_do_turno`), nunca em veto.
+ * As mensagens do cliente deste turno, passadas pelo `scrubMessage`: do mais
+ * novo para trás, pula as outbound do fim (a resposta deste turno, que o
+ * Operador já encontra enviada) e junta as inbound até a outbound anterior (a
+ * resposta do turno de antes). A leitura é das `MENSAGENS_LIDAS` mais recentes:
+ * em ordem crescente e sem limite, o PostgREST cortaria em 1000 linhas e as
+ * "pendentes" de uma conversa longa sairiam das antigas. Falha de leitura
+ * devolve lista vazia, e a conferência transforma isso em fail-open
+ * (`sem_mensagens_do_turno`), nunca em veto.
  */
 export async function mensagensPendentesDoTurno(
   ctx: McpContext,
@@ -76,14 +84,16 @@ export async function mensagensPendentesDoTurno(
       .select("direction, body, media_derived_text, created_at")
       .eq("organization_id", ctx.organizationId)
       .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: false })
+      .limit(MENSAGENS_LIDAS);
     if (msgErr) return { conversationId, mensagens: [] };
     const linhas = (data ?? []) as MensagemDoTurno[];
+    let i = 0;
+    while (i < linhas.length && linhas[i]?.direction === "outbound") i += 1;
     const pendentes: string[] = [];
-    for (let i = linhas.length - 1; i >= 0; i -= 1) {
+    for (; i < linhas.length; i += 1) {
       const m = linhas[i];
-      if (m === undefined) continue;
-      if (m.direction === "outbound") break;
+      if (m === undefined || m.direction === "outbound") break;
       const corpo = (m.body?.trim() ? m.body : m.media_derived_text) ?? "";
       if (corpo.trim() !== "") pendentes.unshift(corpo);
     }

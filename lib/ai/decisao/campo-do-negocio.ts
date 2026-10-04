@@ -23,22 +23,26 @@
  *     disse quartos; se precisar, pergunte"), com os outros campos da mesma
  *     chamada seguindo gravando.
  *
- * ═══ NASCE OBSERVANDO, E FALHA ABERTO ═══
+ * ═══ NASCE DESLIGADA, E FALHA ABERTO ═══
  *
- * Observando (ou com a tarefa desligada, sem credencial ou com o fornecedor
- * fora) o campo é GRAVADO, como hoje — é ficha, não envio ao cliente, e perder
+ * A tarefa tem alcance "conversa": sem o aceite da conversa e sem alguém
+ * escolher um estado para ela, nasce DESLIGADA (`estadoEfetivoDaTarefa`), e a
+ * ficha grava como antes. Observando (ou com a tarefa desligada, sem credencial
+ * ou com o fornecedor fora) o campo é GRAVADO, como hoje — é ficha, não envio ao cliente, e perder
  * dado é pior que gravar dedução; o que a observação registra é o par
  * `rotulo_jev` × `rotulo_atual` em `jev_observacoes`, SÓ com rótulos: nem o
  * valor do campo nem o texto do cliente saem daqui (o texto que vai para o Jev
  * passa antes pelo `scrubMessage`, e a linha gravada nem o texto nem o valor
- * carregam). Toda falha vira `llm_calls.error_code` (`jev_*`), para a tela ver.
+ * carregam). Toda chamada vira linha em `llm_calls` — a que deu certo com o
+ * custo, para aparecer em Uso de IA; a que falhou com `error_code` (`jev_*`).
  *
  * Nunca lança: quem chama recebe `{ gravaveis, recusados }` e decide.
  */
+import { costCents } from "@/lib/agent-engine/edge/llm/pricing";
 import { logger } from "@/lib/logger";
 import type { createAdminClient } from "@/lib/supabase/admin";
 
-import type { FalhaDaDecisao, Pergunta, Resposta } from "./cliente";
+import { MODELO_DO_JEV, type FalhaDaDecisao, type Pergunta, type Resposta } from "./cliente";
 import type { ConfigDoJev, EstadoQuePergunta } from "./config";
 import { podeTentar, registrarFalha, registrarSucesso } from "./disjuntor";
 import { chaveDasTarefas, decidirNoPonto, type DependenciasDoPonto } from "./ponto";
@@ -75,7 +79,10 @@ export interface CampoRecusado {
 }
 
 export interface ConferenciaDosCampos {
-  /** As chaves que seguem gravando (hoje: todas, em qualquer degrau). */
+  /**
+   * As chaves que seguem gravando: todas, exceto em `decidindo`, onde saem as
+   * que o Jev não confirmou (essas vão para `recusados`).
+   */
   gravaveis: string[];
   recusados: CampoRecusado[];
   /** O estado efetivo da tarefa quando a conferência rodou. */
@@ -326,6 +333,7 @@ export async function conferirCamposDoNegocio(
     return { gravaveis: TODOS(e.campos), recusados: [], estado, error_code: codigoDoErroDoJev("resposta_ilegivel") };
   }
   registrarSucesso(alvo);
+  await gravarCusto(admin, e, estado, r);
 
   const vereditos = pareados.map((p) => {
     const dito = p.dito ?? 0;
@@ -392,6 +400,42 @@ async function gravarObservacao(
   }
 }
 
+/** A chamada que deu certo vira linha de custo — o gasto aparece em Uso de IA (molde de `./pedidos`). */
+async function gravarCusto(
+  admin: Admin,
+  e: EntradaDaConferencia,
+  estado: EstadoQuePergunta,
+  r: { modelo: string; latenciaMs: number; uso: { tokensDeEntrada: number; tokensDeSaida: number } },
+): Promise<void> {
+  const { error } = await admin.from("llm_calls").insert({
+    organization_id: e.organizationId,
+    contact_id: e.contactId,
+    agent_id: e.agentId,
+    purpose: CONFERENCIA_DE_CAMPO.purpose,
+    provider: "typesafe",
+    model: `typesafe/${r.modelo}`,
+    input_tokens: r.uso.tokensDeEntrada,
+    output_tokens: r.uso.tokensDeSaida,
+    // Versão sem preço na tabela sai `null`, nunca o preço de outra.
+    cost_cents: costCents(r.modelo, {
+      inputTokens: r.uso.tokensDeEntrada,
+      outputTokens: r.uso.tokensDeSaida,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    }),
+    latency_ms: r.latenciaMs,
+    status: "ok",
+    // Decidindo, a resposta dele tira o campo da escrita; observando, só fica registrada.
+    origem_da_escolha: estado === "decidindo" ? "jev" : "jev_observacao",
+  });
+  if (error) {
+    logger.warn("custo da conferência de campo não foi gravado", {
+      organization_id: e.organizationId,
+      erro: error.message.slice(0, 200),
+    });
+  }
+}
+
 /** A falha do degrau 2 vira linha em Execuções com `error_code` (`jev_*`). */
 async function gravarFalha(admin: Admin, e: EntradaDaConferencia, falha: FalhaDaDecisao): Promise<void> {
   const { error } = await admin.from("llm_calls").insert({
@@ -400,7 +444,7 @@ async function gravarFalha(admin: Admin, e: EntradaDaConferencia, falha: FalhaDa
     agent_id: e.agentId,
     purpose: CONFERENCIA_DE_CAMPO.purpose,
     provider: "typesafe",
-    model: `typesafe/jev-1.13.0`,
+    model: `typesafe/${MODELO_DO_JEV}`,
     input_tokens: 0,
     output_tokens: 0,
     cost_cents: 0,
