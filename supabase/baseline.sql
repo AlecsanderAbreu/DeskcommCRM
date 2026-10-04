@@ -4532,9 +4532,9 @@ GRANT ALL ON TABLE "public"."ai_budgets" TO "authenticated";
 GRANT ALL ON TABLE "public"."ai_budgets" TO "service_role";
 
 -- I/U/D de `anon` e `authenticated` saem junto dos grants: morando no bloco da
--- 0159, no fim do arquivo, a chave anon recuperava a escrita a cada passada até
+-- 0160, no fim do arquivo, a chave anon recuperava a escrita a cada passada até
 -- a linha de lá — e a mantinha se a passada morresse no meio (issue #2255). A
--- decisão (só o serviço escreve orçamento) segue comentada no bloco da 0159.
+-- decisão (só o serviço escreve orçamento) segue comentada no bloco da 0160.
 revoke insert, update, delete on table public.ai_budgets from authenticated, anon;
 
 

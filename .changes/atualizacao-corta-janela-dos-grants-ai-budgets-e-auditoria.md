@@ -1,7 +1,7 @@
 ---
 impacto: nada_mudou
 secao: corrigido
-titulo: A atualização não devolve mais escrita em orçamentos de IA nem TRUNCATE do log de auditoria ao papel anônimo
+titulo: A atualização não devolve mais INSERT/UPDATE/DELETE em orçamentos de IA nem TRUNCATE do log de auditoria às chaves anon e authenticated
 ---
 O `baseline.sql` é reaplicado inteiro em toda atualização. Duas concessões do snapshot ao papel `anon` eram revogadas só no fim do arquivo: `INSERT/UPDATE/DELETE` em `ai_budgets` e `TRUNCATE` em `api_audit_log` (o privilégio que a RLS não alcança). Entre as duas pontas, e até a próxima atualização completa se a passada morresse no meio, a chave anônima carregava o privilégio.
 

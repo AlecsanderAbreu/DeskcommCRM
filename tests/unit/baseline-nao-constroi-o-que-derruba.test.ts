@@ -431,7 +431,7 @@ function concessoesTransitorias(sql: string): ConcessaoTransitoria[] {
 const CONCESSOES_ACEITAS = new Map<string, string>([
   [
     "ai_budgets :: anon",
-    "O snapshot concede ALL e o bloco da 0159 revoga I/U/D (só o serviço escreve orçamento). Estreitar a " +
+    "O snapshot concede ALL e o bloco da 0160 revoga I/U/D (só o serviço escreve orçamento). Estreitar a " +
       "concessão mudaria o ACL FINAL — a chave anon fica com SELECT/REFERENCES/TRIGGER/TRUNCATE, e o SELECT " +
       "é lido pelo PostgREST —; a revogação passou a acompanhar o grant (issue #2255) e a janela some.",
   ],
