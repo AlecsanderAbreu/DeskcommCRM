@@ -381,3 +381,84 @@ describe("remarcar para mais longe rearma o degrau da data nova (#2243)", () => 
   });
 });
 
+
+describe("os outros lados do rearma (#2243, triagem do #2249)", () => {
+  // A véspera de 04/10 16:00 sai em 03/10 16:05 — o ponto de partida comum.
+  const base: LinhaDeTeste = {
+    comeca: "2026-10-04T16:00:00.000Z",
+    criadoEm: "2026-10-01T10:00:00.000Z",
+    principal: 1440,
+    extras: null,
+  };
+  const vespera = () => {
+    const estado = { enviados: null as number[] | null, enviadoEm: null as string | null };
+    expect(varredura(estado, base, "2026-10-03T16:05:00.000Z")).toEqual([1440]);
+    return estado;
+  };
+
+  it("linha legada (remarcada antes da 0536, starts_at_marked_at NULL) não rearma — igual à main", () => {
+    // Remarcada em 05/10 09:00 para 06/10 08:00, mas a coluna não registrou: a
+    // véspera nova (05/10 08:00) já tinha passado na remarcação, e sem a régua
+    // dela o #2239 não vê isso. Rearmar soltaria um "véspera" 23h antes da
+    // reunião, minutos depois da remarcação — a classe da #2223.
+    const estado = vespera();
+    const legada = { ...base, comeca: "2026-10-06T08:00:00.000Z" };
+    expect(varredura(estado, legada, "2026-10-05T09:05:00.000Z")).toEqual([]);
+  });
+
+  it("lista do backfill da 0254 com o principal reduzido depois não rearma — igual à main", () => {
+    // A 0254 gravou `[principal ATUAL]` (60) em linha cujo lembrete saiu pelo
+    // principal antigo (1440): o 60 nunca saiu de verdade, e o carimbo não é
+    // dele. Sem remarcação, nada a rearmar.
+    const estado = { enviados: [60] as number[] | null, enviadoEm: "2026-10-03T16:05:00.000Z" };
+    const linha = { ...base, principal: 60 };
+    expect(varredura(estado, linha, "2026-10-04T15:05:00.000Z")).toEqual([]);
+  });
+
+  it("empurrar 30 min depois da véspera NÃO gera uma segunda véspera", () => {
+    // Remarcada às 16:20 para 04/10 16:30: a véspera nova (03/10 16:30) cai 25
+    // min depois da que acabou de sair — dois textos em sequência.
+    const estado = vespera();
+    const meiaHora = { ...base, comeca: "2026-10-04T16:30:00.000Z", remarcadoEm: "2026-10-03T16:20:00.000Z" };
+    expect(varredura(estado, meiaHora, "2026-10-03T16:35:00.000Z")).toEqual([]);
+    expect(varredura(estado, meiaHora, "2026-10-04T16:00:00.000Z")).toEqual([]);
+  });
+
+  it("mesmo horário no dia seguinte gera a véspera da data nova — o envio sai minutos DEPOIS do alvo", () => {
+    // A véspera saiu às 16:05 (o cron roda a cada 5 min); a nova (04/10 16:00)
+    // fica a 23h55 do carimbo. Uma régua de intervalo CHEIO a recusaria e a
+    // remarcação mais comum voltaria ao silêncio da #2243.
+    const estado = vespera();
+    const amanha = { ...base, comeca: "2026-10-05T16:00:00.000Z", remarcadoEm: "2026-10-03T18:00:00.000Z" };
+    expect(varredura(estado, amanha, "2026-10-04T16:05:00.000Z")).toEqual([1440]);
+    expect(varredura(estado, amanha, "2026-10-04T16:10:00.000Z")).toEqual([]);
+  });
+
+  it("empurrar 3 dias gera a véspera da data nova, uma vez só", () => {
+    const estado = vespera();
+    const tresDias = { ...base, comeca: "2026-10-07T16:00:00.000Z", remarcadoEm: "2026-10-03T16:20:00.000Z" };
+    expect(varredura(estado, tresDias, "2026-10-03T16:35:00.000Z")).toEqual([]);
+    expect(varredura(estado, tresDias, "2026-10-06T16:05:00.000Z")).toEqual([1440]);
+    expect(varredura(estado, tresDias, "2026-10-06T16:10:00.000Z")).toEqual([]);
+  });
+
+  it("rearmado mas já vencido na remarcação continua descartado (#2239, linhas com starts_at_marked_at)", () => {
+    // Remarcada em 04/10 18:00 para 05/10 17:00: a véspera nova (04/10 17:00)
+    // está a mais de um dia do carimbo — o rearme a libera —, mas já tinha
+    // passado quando o horário foi marcado. Quem a segura é o #2239.
+    const estado = vespera();
+    const longe = { ...base, comeca: "2026-10-05T17:00:00.000Z", remarcadoEm: "2026-10-04T18:00:00.000Z" };
+    expect(varredura(estado, longe, "2026-10-04T18:05:00.000Z")).toEqual([]);
+  });
+
+  it("remarcar duas vezes: cada data nova ganha a sua véspera, uma vez só", () => {
+    const estado = vespera();
+    const segunda = { ...base, comeca: "2026-10-11T16:00:00.000Z", remarcadoEm: "2026-10-03T18:30:00.000Z" };
+    expect(varredura(estado, segunda, "2026-10-10T16:05:00.000Z")).toEqual([1440]);
+    expect(varredura(estado, segunda, "2026-10-10T16:10:00.000Z")).toEqual([]);
+    const terceira = { ...base, comeca: "2026-10-18T16:00:00.000Z", remarcadoEm: "2026-10-10T20:00:00.000Z" };
+    expect(varredura(estado, terceira, "2026-10-10T20:05:00.000Z")).toEqual([]);
+    expect(varredura(estado, terceira, "2026-10-17T16:05:00.000Z")).toEqual([1440]);
+    expect(varredura(estado, terceira, "2026-10-17T16:10:00.000Z")).toEqual([]);
+  });
+});

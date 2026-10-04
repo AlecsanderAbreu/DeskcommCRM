@@ -72,8 +72,10 @@
  * logo `alvo > carimbo` só é verdadeiro para ocasião que ainda não saiu, e o
  * alvo de um degrau carimbado só ultrapassa o carimbo quando o horário andou
  * para além do último envio. Rearmar pelo instante da remarcação reenviaria
- * ocasião já disparada; pelo carimbo não consegue — e é o mesmo `<=` de
- * `vencidoNaMarcacao` com outra referência. `reminder_sent_at` NÃO volta a
+ * ocasião já disparada; pelo carimbo não consegue. Duas guardas da triagem
+ * (#2249) estreitam o rearme: só linha com `starts_at_marked_at` (remarcada
+ * depois da 0536), e só quando o alvo novo fica a meio intervalo do degrau
+ * ou mais depois do último envio — ver `degrausPendentes`. `reminder_sent_at` NÃO volta a
  * ser filtro de quem recebe (a 0254 proíbe, e o teste do cron prende): ele só
  * dá o instante de comparação para uma lista que guarda "quais" sem "quando".
  *
@@ -405,14 +407,36 @@ export function degrausPendentes(input: {
   // data nova ainda não saiu. Sem isto a lista é eterna e a data nova nunca
   // ganha lembrete — o defeito da issue.
   //
-  // `vencidoNaMarcacao` é a MESMA comparação de sempre (`<=`), com outra
-  // referência: "o alvo deste degrau já tinha passado quando o último
-  // lembrete saiu?" — `true` = saiu, mantém suprimido; `false` = rearma.
+  // A referência é o carimbo: "o alvo deste degrau já tinha passado quando o
+  // último lembrete saiu?" — sim = saiu, mantém suprimido. A guarda 2 abaixo
+  // aperta esse "depois" para "meio intervalo do degrau depois".
   // `enviados` é cópia em memória: a lista gravada continua sendo a
   // autoridade do que saiu, e o carimbo da rodada a regrava como sempre.
-  if (input.enviadoEm) {
+  //
+  // Duas guardas da triagem (#2249):
+  //
+  // 1. Só rearma linha com `remarcadoEm`. A 0536 nasceu sem backfill: linha
+  //    remarcada antes dela tem `starts_at_marked_at` NULL, a régua do #2239
+  //    cai em `created_at` e não vê a remarcação — rearmar ali soltaria, na
+  //    primeira rodada depois do update, uma véspera cuja hora já tinha
+  //    passado. E a lista que o backfill da 0254 escreveu (`[principal
+  //    ATUAL]`) não é envio do cron, então o carimbo não a data. Sem a
+  //    coluna, vale o comportamento de antes: não rearma.
+  // 2. Só rearma se o alvo novo ficou a pelo menos METADE DO INTERVALO do
+  //    degrau depois do último envio. Empurrar a reunião 30 min depois de a
+  //    véspera sair não pode gerar uma segunda véspera 30 min depois da
+  //    primeira — mandar dois textos em sequência é o que faz a pessoa
+  //    bloquear o número (a regra do cabeçalho desta função). A régua é o
+  //    intervalo do próprio degrau: "há pouco" para a véspera é horas, para
+  //    o aviso de 1h são minutos. Metade, e não o intervalo cheio: o envio
+  //    sai minutos DEPOIS do alvo (o cron roda a cada 5 min), então
+  //    "mesmo horário, no dia seguinte" — a remarcação mais comum — deixa o
+  //    alvo novo a 24h MENOS esses minutos do último envio, e a régua cheia
+  //    o recusaria, devolvendo a data nova ao silêncio da #2243.
+  if (input.enviadoEm && input.remarcadoEm) {
     for (const degrau of [...enviados]) {
-      if (!vencidoNaMarcacao(input.comeca, degrau, input.enviadoEm)) {
+      const alvo = input.comeca.getTime() - degrau * 60_000;
+      if (alvo - input.enviadoEm.getTime() >= (degrau * 60_000) / 2) {
         enviados.delete(degrau);
       }
     }
