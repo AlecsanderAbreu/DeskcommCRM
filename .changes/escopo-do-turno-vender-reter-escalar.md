@@ -10,7 +10,4 @@ pedido sobre outro cliente recebe a mesma recusa que um identificador inexistent
 busca de contatos encontra o contato da conversa mesmo quando outros nomes parecidos vêm
 antes na lista.
 
-Durante a conversa, a consulta ao banco de dados externo conectado passa a ser recusada:
-o agente responde que a equipe confirma o dado, em vez de consultá-lo. Até que a conexão
-possa indicar qual coluna identifica o cliente, isso vale para toda conversa. Fora de uma
-conversa de atendimento (integração, MCP externo, rota HTTP), nada muda.
+Fora de uma conversa de atendimento (integração, MCP externo, rota HTTP), nada muda.
