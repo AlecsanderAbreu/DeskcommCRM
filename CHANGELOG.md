@@ -48,6 +48,8 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 - **Ajuste o visual do sistema com CSS personalizado** A página Marca da instalação passa a permitir regras CSS cosméticas para ajustar login e telas das organizações, com validação de segurança e sem editar arquivos nem reiniciar o servidor. Se uma folha deixar as telas ilegíveis, abra a página com `?sem_css=1` no endereço para vê-la sem o CSS personalizado e desfazer o ajuste.
 
+  Contribuição de @rodrigotxt (#2241).
+
 - **Pedido de parar de receber mensagens ou de falar com uma pessoa dito em áudio passa a abrir aviso na Central** Um "não quero mais receber mensagens" falado chegava ao CRM com o texto vazio, e nem o bloqueio da entrada nem o Jev o enxergavam. Agora, quando a transcrição de um áudio do cliente fica pronta, a mesma regra que reconhece o pedido por escrito roda sobre o transcrito e, onde ela não reconhece e a tarefa de pedidos do Jev está ligada, o Jev é perguntado como numa mensagem de texto. O resultado é só um aviso na Central. O aviso da regra ("Um cliente pediu para parar de receber mensagens num áudio" ou "...para falar com uma pessoa num áudio") abre com a tarefa do Jev ligada ou desligada. O aviso só abre onde o atendimento automático rodaria naquela conversa: há um agente não pausado no número, a IA pode responder, o contato não está com uma pessoa nem bloqueado, e a conversa não é de grupo.
 
   A transcrição de um áudio não bloqueia o contato. O bloqueio corta todo envio ao contato (resposta do agente, funil, follow-up, campanha) e só um admin o desfaz, à mão (Contatos › Desbloquear); uma transcrição pode errar, e o erro dela somaria com o da regra. É a mesma política do texto digitado, onde o pedido ambíguo escala para uma pessoa e não bloqueia. Quem quiser parar de receber continua bloqueado ao responder PARAR por escrito, e o aviso diz isso à equipe.
@@ -67,6 +69,8 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
   Os quatro gatilhos novos aparecem no seletor de automações com os campos de condição do próprio negócio. Neles, por ora, a automação não pode "Atribuir a um atendente" nem "Criar/mover lead no funil": a própria mudança dispararia a automação de novo, sem fim. O corpo da troca de responsável **não** leva UUID de usuário nenhum.
 
   Duas mudanças aditivas valem também para quem já tem regras de negócio (`lead.created`, `lead.stage_changed`): o lead no corpo do webhook passa a trazer `lost_reason` e `closed_at`; e a opção "Incluir o responsável no corpo", que antes só valia em compromisso, passa a incluir o responsável do negócio (`owner`: `kind`, `id`, `name`). Quem valida o corpo com lista fechada de campos precisa aceitar os dois.
+
+  Contribuição de @webtecnica (#2211, fatia da proposta #1528).
 
 ### Alterado
 
@@ -88,7 +92,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   O ponto de produto que o relator também sugeriu (texto próprio quando o atendimento está ENCERRADO, ou o envio abrir um novo atendimento) continua em aberto: escolher entre as duas é decisão de mantenedor, e este fragmento não toma nenhuma delas.
 
-  Contribuição de @webtecnica (#2188).
+  Contribuição de @webtecnica (#2244, refs #2188, relatada por @amexgestao).
 
 - **O aviso de envio retido na conversa julga cada envio pela janela certa, e o aviso de escalação dentro de um follow-up segue a janela de disparo** O registro de envio retido passa a guardar se a mensagem segurada era uma resposta a quem escreveu ou um disparo (follow-up, campanha). O aviso de retenção da conversa usa a janela de resposta para respostas e a janela de disparo para disparos, e a hora que ele mostra é a da janela do envio retido. Antes todo envio retido era tratado como resposta. O aviso de que uma pessoa vai atender, quando nasce dentro de um follow-up, agora é avaliado pela janela de disparo. Com as janelas padrão (7h às 22h nas duas) nada muda. Registros antigos continuam lidos como resposta. Nenhuma ação do operador.
 
@@ -110,13 +114,15 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 - **A marca da instalação aparece também no login** O nome configurado em Administração → Marca passa a aparecer também sob o título Entrar, sem editar a configuração do servidor.
 
+  Contribuição de @rodrigotxt (#2241).
+
 - **O painel de Provedores mostra quem de fato ouve o áudio do cliente, e não mais whisper-1 fixo** O ponto "Ouvir o áudio do cliente" anunciava `whisper-1` para toda organização, inclusive para a que não tem chave OpenAI e transcreve pelo próprio modelo de conversa (por exemplo, Gemini com a chave do Google validada). O painel passa a rodar a mesma escada de transcrição do worker e mostra o degrau que vai rodar: o serviço da instalação (`TRANSCRIPTION_API_KEY`), a chave OpenAI com o modelo de transcrição em vigor, ou o modelo de conversa da organização quando ele declara a capacidade de áudio. Sem nenhum dos três, mostra "—" e o motivo, traduzido no idioma de quem usa a tela. A ordem dos degraus não mudou. Contribuição de @webtecnica (#2205, refs #2190).
 
 - **A reunião remarcada para menos de 24h não recebe mais o lembrete de véspera minutos depois da remarcação** Quando uma reunião marcada com dias de antecedência era remarcada para o dia seguinte, o lembrete de véspera saía logo depois da remarcação, porque o sistema ainda media a partir da data em que a reunião foi criada. Agora vale o momento em que o horário atual foi marcado: o lembrete cuja hora já tinha passado nesse momento não sai, e o lembrete que ainda estava por vir continua saindo na hora certa. Reuniões que nunca foram remarcadas não mudam de comportamento. Contribuição de @webtecnica (#2239, fecha #2230).
 
 - **Quatro bibliotecas internas sobem de versão para fechar avisos de segurança** O aviso automático de segurança do repositório apontou quinze alertas em quatro bibliotecas que o sistema usa por dentro. Três vão na instalação: `ip-address` (lida com endereços IP no limite de requisições do servidor MCP), `fast-uri` (interpreta endereços na validação de esquemas) e `brace-expansion` (expande padrões de nomes de arquivo). A quarta, `undici`, é usada só nos testes do projeto.
 
-  Todas subiram para versões corrigidas dentro da mesma linha que já usavam (`ip-address` 10.7.3, `fast-uri` 3.1.8, `brace-expansion` 1.1.21 e 5.0.12, `undici` 8.11.2). Nenhuma tela, nenhuma configuração e nenhum comando mudam: quem opera uma VPS só precisa atualizar como de costume.
+  Todas subiram para versões corrigidas dentro da mesma linha que já usavam (`ip-address` 10.7.3, `fast-uri` 3.1.8, `brace-expansion` 1.1.21 e 5.0.12, `undici` 8.11.2). Nenhuma tela, nenhuma configuração e nenhum comando mudam: quem opera uma VPS só precisa atualizar como de costume. (#2214)
 
 - **Acesso só de leitura ao painel de plataforma deixa de escrever nas tabelas de IA, agenda, campanhas, CRM, financeiro, vendas e comissões** A 0508 e a primeira fatia fecharam a escrita de quem entra no painel de plataforma com `scope=support_readonly` em parte do banco, mas 45 regras de escrita criadas nos blocos seguintes ainda aceitavam a checagem que ignora o scope do JWT: agentes de IA, base de conhecimento, disponibilidade e agenda, campanhas, catálogo, funil e tarefas do CRM, honorários, sessões de voz, os moldes de lançamento recorrente, contas, formas de pagamento, plano de contas, vendas, comissões, lançamentos financeiros e fidelidade.
 
@@ -124,7 +130,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art (#2115).
+  Contribuição de @Tong-bit-art (#2202, continua #2115).
 
 ## [1.70.0] — 2026-10-03
 
