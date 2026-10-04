@@ -7949,6 +7949,10 @@ export const DICIONARIO: Traducoes = {
     es: "El envío de este paso se descartó porque la cuenta fue suspendida",
   },
   "sai num envio novo quando a conta for reativada": { es: "sale en un envío nuevo cuando se reactive la cuenta" },
+  "O envio deste passo foi descartado porque a inscrição está pausada": {
+    es: "El envío de este paso se descartó porque la inscripción está pausada",
+  },
+  "sai num envio novo quando a inscrição for retomada": { es: "sale en un envío nuevo cuando se reanude la inscripción" },
   "Mensagem enviada": { es: "Mensaje enviado" },
   "Segurou o fluxo por causa de um retorno agendado": {
     es: "Frenó el flujo por un regreso programado",
