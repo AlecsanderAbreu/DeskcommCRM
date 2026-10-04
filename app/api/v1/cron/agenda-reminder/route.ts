@@ -59,6 +59,24 @@
  * `revision_started_at` vira também com status e conversa (confirmar um
  * compromisso já dentro de 24h mataria a véspera armada).
  *
+ * **REMARCAÇÃO PARA MAIS LONGE REARMA O DEGRAU DA DATA NOVA (issue #2243).**
+ * `reminder_sent_offsets_minutes` responde "quais degraus já saíram", e a
+ * resposta não tem data: a véspera que saiu para a reunião ANTIGA continuava
+ * suprimida depois que a reunião era movida para a semana seguinte — a data
+ * nova ficava sem lembrete nenhum, em silêncio, e a lista seguia "correta".
+ * A limpeza mora AQUI, na leitura, e não na escrita da remarcação: sem
+ * migration nova, sem mexer na 0536 (#2239), e a regra vira exercitável sem
+ * banco. A régua é o ÚLTIMO CARIMBO — `reminder_sent_at`, gravado ANTES do
+ * envio (#2226) — e não o instante da remarcação: uma ocasião já disparada tem
+ * alvo <= carimbo (o carimbo é da mesma rodada do envio, com `agora >= alvo`),
+ * logo `alvo > carimbo` só é verdadeiro para ocasião que ainda não saiu, e o
+ * alvo de um degrau carimbado só ultrapassa o carimbo quando o horário andou
+ * para além do último envio. Rearmar pelo instante da remarcação reenviaria
+ * ocasião já disparada; pelo carimbo não consegue — e é o mesmo `<=` de
+ * `vencidoNaMarcacao` com outra referência. `reminder_sent_at` NÃO volta a
+ * ser filtro de quem recebe (a 0254 proíbe, e o teste do cron prende): ele só
+ * dá o instante de comparação para uma lista que guarda "quais" sem "quando".
+ *
  * **O carimbo vai ANTES do envio.** O caso medido mandou o lembrete às
  * 18:35:01 e a MESMA mensagem saiu de novo às 18:40:01 — para o mesmo
  * compromisso, o mesmo degrau. O carimbo não chegava à linha por nenhum dos
@@ -147,6 +165,14 @@ interface CompromissoAVencer {
   starts_at_marked_at: string | null;
   location_details: string | null;
   reminder_sent_offsets_minutes: number[] | null;
+  /**
+   * `reminder_sent_at` — instante do ÚLTIMO carimbo de envio (#2243): a
+   * referência contra a qual um degrau já carimbado volta a ser candidato
+   * quando a remarcação leva o horário para além do último envio. Não é
+   * filtro de quem recebe — a 0254 proíbe; é só o instante que a lista, que
+   * guarda "quais" sem "quando", não tem. `null` = a limpeza fica de fora.
+   */
+  reminder_sent_at: string | null;
   calendar_event_types: TipoDoCompromisso | TipoDoCompromisso[] | null;
   /** Status da org embutido — quem decide é `ehOperante`, não uma lista de ids. */
   organizations?: { status?: string | null } | Array<{ status?: string | null }> | null;
@@ -348,8 +374,49 @@ export function degrausPendentes(input: {
    * comportamento de antes, sem mudança para dado legado.
    */
   remarcadoEm?: Date | null;
+  /**
+   * `reminder_sent_at` da linha — o instante do ÚLTIMO CARIMBO DE ENVIO
+   * (issue #2243).
+   *
+   * A lista `jaEnviados` diz QUAIS degraus saíram, mas não QUANDO — e sem o
+   * quando não há como distinguir "a véspera da data antiga já saiu" de "a da
+   * data nova já saiu" depois que a remarcação move o horário. É o que a
+   * #2243 reporta: remarcada para mais longe, a véspera que já tinha saído
+   * seguia suprimida e a data nova ficava sem lembrete algum.
+   *
+   * A comparação é contra o carimbo, e não contra a remarcação: o carimbo é
+   * gravado ANTES do envio (#2226), na mesma rodada, com `agora >= alvo` —
+   * logo toda ocasião já disparada tem `alvo <= enviadoEm`, e `alvo >
+   * enviadoEm` só é verdadeiro para ocasião que ainda não saiu. Rearmar pelo
+   * instante da remarcação reenviaria ocasião disparada; pelo carimbo, não.
+   *
+   * `null`/ausente = a linha não diz quando saiu o último lembrete: a
+   * limpeza fica de fora e vale o comportamento antigo (falha fechada na
+   * direção de nunca reenviar).
+   */
+  enviadoEm?: Date | null;
 }): number[] {
   const enviados = new Set(input.jaEnviados ?? []);
+  // ─── REMARCAÇÃO PARA MAIS LONGE REARMA O DEGRAU DA DATA NOVA (#2243) ──────
+  //
+  // Um degrau carimbado só volta a ser candidato quando o horário NOVO dele
+  // ficou DEPOIS do último carimbo: a remarcação andou para além do último
+  // envio, então a ocasião que a lista suprimia é a da data antiga, e a da
+  // data nova ainda não saiu. Sem isto a lista é eterna e a data nova nunca
+  // ganha lembrete — o defeito da issue.
+  //
+  // `vencidoNaMarcacao` é a MESMA comparação de sempre (`<=`), com outra
+  // referência: "o alvo deste degrau já tinha passado quando o último
+  // lembrete saiu?" — `true` = saiu, mantém suprimido; `false` = rearma.
+  // `enviados` é cópia em memória: a lista gravada continua sendo a
+  // autoridade do que saiu, e o carimbo da rodada a regrava como sempre.
+  if (input.enviadoEm) {
+    for (const degrau of [...enviados]) {
+      if (!vencidoNaMarcacao(input.comeca, degrau, input.enviadoEm)) {
+        enviados.delete(degrau);
+      }
+    }
+  }
   const todos = new Set([input.principal, ...(input.extras ?? [])]);
   // A régua de `vencidoNaMarcacao` é UM instante: o da última marcação DESTA
   // data. `remarcadoEm` vem antes de propósito — é ele que sabe do movimento.
@@ -380,7 +447,7 @@ async function handle(req: NextRequest): Promise<Response> {
   const { data, error } = await admin
     .from("calendar_appointments")
     .select(
-      "id, organization_id, contact_id, title, starts_at, created_at, starts_at_marked_at, location_details, reminder_sent_offsets_minutes, " +
+      "id, organization_id, contact_id, title, starts_at, created_at, starts_at_marked_at, location_details, reminder_sent_offsets_minutes, reminder_sent_at, " +
         "calendar_event_types!inner(name, reminder_enabled, reminder_minutes_before, reminder_extra_offsets_minutes, reminder_template_name, reminder_body, reminder_bodies, location_details), organizations:organization_id!inner(status)",
     )
     .eq("status", "confirmed")
@@ -440,6 +507,9 @@ async function handle(req: NextRequest): Promise<Response> {
       // A régua da remarcação (#2230): nulo = nunca remarcada, e aí vale
       // `created_at` — a rota não decide nada, só repassa os dois instantes.
       remarcadoEm: linha.starts_at_marked_at ? new Date(linha.starts_at_marked_at) : null,
+      // O instante do último carimbo (#2243): sem ele a limpeza dos degraus
+      // da data antiga fica de fora e a remarcação para mais longe não rearma.
+      enviadoEm: linha.reminder_sent_at ? new Date(linha.reminder_sent_at) : null,
     });
     if (pendentes.length === 0) {
       pular("ainda_nao");

@@ -26,6 +26,15 @@
  * `starts_at_marked_at` a cada mudança de `starts_at`, e `degrausPendentes`
  * prefere ele a `criadoEm`.
  *
+ * A regra 4 (issue #2243) fecha o OUTRO lado da remarcação: **remarcar para
+ * mais longe REARMA o degrau cujo horário novo passou do último carimbo.**
+ * A lista `reminder_sent_offsets_minutes` gravava "saiu" sem data — a véspera
+ * da data antiga suprimia a da data nova para sempre, e o cliente ficava sem
+ * lembrete algum. `varredura()` passa a replicar também o `reminder_sent_at`
+ * do carimbo (`enviadoEm`, gravado junto com a lista, antes do envio), que é
+ * contra o que `degrausPendentes` desarma a ocasião que ainda não saiu. Sem
+ * `enviadoEm` (controle) a data nova nunca ganha lembrete: é o defeito.
+ *
  * O controle de 60 min entra de propósito no mesmo arquivo: o conserto não pode
  * apagar o lembrete que funciona (a regressão silenciosa seria pior que o defeito).
  *
@@ -58,7 +67,11 @@ interface LinhaDeTeste {
  * como a rota faz entre uma rodada e a seguinte — é o estado que a segunda
  * varredura lê.
  */
-function varredura(estado: { enviados: number[] | null }, linha: LinhaDeTeste, agora: string): number[] {
+function varredura(
+  estado: { enviados: number[] | null; enviadoEm?: string | null },
+  linha: LinhaDeTeste,
+  agora: string,
+): number[] {
   const pendentes = degrausPendentes({
     agora: d(agora),
     comeca: d(linha.comeca),
@@ -67,8 +80,13 @@ function varredura(estado: { enviados: number[] | null }, linha: LinhaDeTeste, a
     jaEnviados: estado.enviados,
     criadoEm: linha.criadoEm ? d(linha.criadoEm) : null,
     remarcadoEm: linha.remarcadoEm ? d(linha.remarcadoEm) : null,
+    enviadoEm: estado.enviadoEm ? d(estado.enviadoEm) : null,
   });
   estado.enviados = [...new Set([...(estado.enviados ?? []), ...pendentes])];
+  // A rota grava `reminder_sent_at` no MESMO carimbo da lista, antes do envio
+  // (#2226) — os dois juntos ou nenhum, como no banco. Só havendo o que
+  // carimbar, como na rota (`ainda_nao` corta antes).
+  if (pendentes.length > 0) estado.enviadoEm = agora;
   return pendentes;
 }
 
@@ -268,3 +286,98 @@ describe("remarcação reposiciona a régua (#2230)", () => {
     ).toEqual([1440]);
   });
 });
+
+describe("remarcar para mais longe rearma o degrau da data nova (#2243)", () => {
+  it("a véspera sai para a data antiga, a reunião é movida e a data nova GANHA lembrete", () => {
+    // O caso da issue. Criada 01/10 para 04/10 16:00; a véspera (1440) sai
+    // em 03/10 16:05, e o carimbo daquela rodada grava lista E instante.
+    const estado = { enviados: null as number[] | null, enviadoEm: null as string | null };
+    const linha: LinhaDeTeste = {
+      comeca: "2026-10-04T16:00:00.000Z",
+      criadoEm: "2026-10-01T10:00:00.000Z",
+      principal: 1440,
+      extras: null,
+    };
+    expect(varredura(estado, linha, "2026-10-03T16:05:00.000Z")).toEqual([1440]);
+    expect(estado.enviados).toEqual([1440]);
+    expect(estado.enviadoEm).toBe("2026-10-03T16:05:00.000Z");
+
+    // Remarcada às 18:30 para 11/10 16:00 — mais longe. A véspera NOVA é
+    // 10/10 16:00.
+    const movida = {
+      ...linha,
+      comeca: "2026-10-11T16:00:00.000Z",
+      remarcadoEm: "2026-10-03T18:30:00.000Z",
+    };
+    // Primeira varredura depois da remarcação: o lembrete ANTIGO não
+    // re-dispara — a ocasião que saiu foi a de 03/10, e ela não existe mais.
+    expect(varredura(estado, movida, "2026-10-03T18:35:00.000Z")).toEqual([]);
+    // Nada sai cedo demais: a nova véspera ainda é futura.
+    expect(varredura(estado, movida, "2026-10-10T15:55:00.000Z")).toEqual([]);
+    // Na véspera da data NOVA o degrau está rearma do e sai — uma vez só.
+    expect(varredura(estado, movida, "2026-10-10T16:05:00.000Z")).toEqual([1440]);
+    expect(varredura(estado, movida, "2026-10-10T16:10:00.000Z")).toEqual([]);
+  });
+
+  it("controle: sem o instante do carimbo a MESMA remarcação nunca ganha lembrete — o defeito", () => {
+    // A lista sem data não sabe que [1440] é da data antiga: ela suprime a
+    // véspera de 10/10 para sempre. É o que o fix tem de mudar.
+    const estado = { enviados: [1440] as number[] | null, enviadoEm: null as string | null };
+    const movida: LinhaDeTeste = {
+      comeca: "2026-10-11T16:00:00.000Z",
+      criadoEm: "2026-10-01T10:00:00.000Z",
+      remarcadoEm: "2026-10-03T18:30:00.000Z",
+      principal: 1440,
+      extras: null,
+    };
+    expect(varredura(estado, movida, "2026-10-10T16:05:00.000Z")).toEqual([]);
+    expect(varredura(estado, movida, "2026-10-10T16:10:00.000Z")).toEqual([]);
+  });
+
+  it("sem remarcação o carimbo não rearma nada — a ocasião que saiu não sai de novo", () => {
+    // O alvo desta linha é o mesmo de quando a véspera saiu (alvo <= carimbo),
+    // então a limpeza nem mexe na lista: o supressor segue suprimindo.
+    const estado = { enviados: [1440] as number[] | null, enviadoEm: "2026-10-03T16:05:00.000Z" };
+    const linha: LinhaDeTeste = {
+      comeca: "2026-10-04T16:00:00.000Z",
+      criadoEm: "2026-10-01T10:00:00.000Z",
+      principal: 1440,
+      extras: null,
+    };
+    expect(varredura(estado, linha, "2026-10-03T16:10:00.000Z")).toEqual([]);
+    expect(varredura(estado, linha, "2026-10-04T15:55:00.000Z")).toEqual([]);
+  });
+
+  it("a véspera da data nova que JÁ saiu segue suprimida — o carimbo é depois do alvo", () => {
+    // Rearmado o degrau, ele sai em 10/10 16:05 e carimba; a varredura
+    // seguinte não pode reenviar. É o invariante do #2226 com a limpeza nova.
+    const estado = { enviados: [1440] as number[] | null, enviadoEm: "2026-10-10T16:05:00.000Z" };
+    const movida: LinhaDeTeste = {
+      comeca: "2026-10-11T16:00:00.000Z",
+      criadoEm: "2026-10-01T10:00:00.000Z",
+      remarcadoEm: "2026-10-03T18:30:00.000Z",
+      principal: 1440,
+      extras: null,
+    };
+    expect(varredura(estado, movida, "2026-10-10T16:10:00.000Z")).toEqual([]);
+  });
+
+  it("multidegrau: só o degrau cujo alvo novo passou do carimbo rearma; o pendente segue a regra normal", () => {
+    // A véspera saiu (1440 carimbado), a hora cheia (60) ainda não. A
+    // remarcação rearma a ocasião nova do 1440 e não inventa o 60.
+    const estado = { enviados: [1440] as number[] | null, enviadoEm: "2026-10-03T16:05:00.000Z" };
+    const movida: LinhaDeTeste = {
+      comeca: "2026-10-11T16:00:00.000Z",
+      criadoEm: "2026-10-01T10:00:00.000Z",
+      remarcadoEm: "2026-10-03T18:30:00.000Z",
+      principal: 60,
+      extras: [1440],
+    };
+    expect(varredura(estado, movida, "2026-10-03T18:35:00.000Z")).toEqual([]);
+    expect(varredura(estado, movida, "2026-10-10T16:05:00.000Z")).toEqual([1440]);
+    // E o 60 continua esperando a hora nova, saindo uma vez só.
+    expect(varredura(estado, movida, "2026-10-11T15:05:00.000Z")).toEqual([60]);
+    expect(varredura(estado, movida, "2026-10-11T15:10:00.000Z")).toEqual([]);
+  });
+});
+
