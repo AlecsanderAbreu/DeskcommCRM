@@ -307,7 +307,7 @@ describe("GET /api/v1/pipelines/[id]/stages/win-rates", () => {
         etapa({ id: "e4", name: "Cancelado", slug: "cancelado", position: 2000, is_lost: true }),
       ],
     });
-    db.tabelas.crm_leads.push(negocio("g1", "e3"));
+    db.tabelas.crm_leads.push({ ...negocio("g1", "e3") });
     const from = vi.spyOn(db.client, "from");
     const { GET } = await import("./route");
     const res = await GET(reqGet(), ctx);
