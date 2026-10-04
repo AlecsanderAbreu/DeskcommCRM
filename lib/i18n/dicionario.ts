@@ -12691,6 +12691,26 @@ export const DICIONARIO: Traducoes = {
     es: "Clientes persona jurídica y los contactos de cada uno.",
   },
   "Nova empresa": { es: "Nueva empresa" },
+  // Ciclo B2B da issue #1937: consulta de CNPJ antes de criar, edição e
+  // exclusão segura na tela de detalhe.
+  "Consultar CNPJ": { es: "Consultar CNPJ" },
+  "Consultando…": { es: "Consultando…" },
+  "Dados públicos preenchidos. Revise antes de criar.": {
+    es: "Datos públicos rellenados. Revíselos antes de crear.",
+  },
+  "Já existe uma empresa com este CNPJ nesta organização. Revise antes de criar.": {
+    es: "Ya existe una empresa con este CNPJ en esta organización. Revísela antes de crear.",
+  },
+  "Não foi possível consultar o CNPJ.": { es: "No fue posible consultar el CNPJ." },
+  Rua: { es: "Calle" },
+  Bairro: { es: "Barrio" },
+  Cidade: { es: "Ciudad" },
+  Complemento: { es: "Complemento" },
+  "Excluir empresa": { es: "Eliminar empresa" },
+  "Não foi possível excluir.": { es: "No fue posible eliminar." },
+  "A exclusão apaga o cadastro da empresa. Vínculos com pessoas, contatos e negócios podem impedi-la: nesse caso a tela mostra o motivo e nada é apagado.": {
+    es: "La eliminación borra el registro de la empresa. Los vínculos con personas, contactos y negocios pueden impedirla: en ese caso la pantalla muestra el motivo y no se borra nada.",
+  },
   "Buscar por nome, fantasia ou CNPJ…": { es: "Buscar por nombre, fantasía o CNPJ…" },
   "Erro ao carregar empresas.": { es: "Error al cargar empresas." },
   "Nenhuma empresa ainda.": { es: "Ninguna empresa todavía." },
