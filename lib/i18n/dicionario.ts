@@ -4482,6 +4482,31 @@ export const DICIONARIO: Traducoes = {
   "O Jev não respondeu: valeu só a regra de hoje.": {
     es: "Jev no respondió: valió solo la regla de hoy.",
   },
+  // A conferência de campo do negócio (#2234): a tarefa no cartão e o porquê em IA › Execuções.
+  "Conferir o campo antes de a IA gravar": {
+    es: "Verificar el campo antes de que la IA lo guarde",
+  },
+  "Lê o que o cliente disse nas mensagens ainda sem resposta do turno e confere se o valor que a IA quer gravar no campo personalizado do negócio foi ele quem informou.": {
+    es: "Lee lo que el cliente dijo en los mensajes aún sin respuesta del turno y verifica si el valor que la IA quiere guardar en el campo personalizado del negocio lo informó él.",
+  },
+  "O Jev confere, nas mensagens que o cliente deixou sem resposta neste turno, se foi ele quem disse o valor do campo. O valor que ele não disse deixa de ser gravado e o assistente é mandado perguntar para ele; os outros campos da mesma chamada seguem gravando.": {
+    es: "Jev verifica, en los mensajes que el cliente dejó sin respuesta en este turno, si fue él quien dijo el valor del campo. El valor que no dijo deja de guardarse y se le indica al asistente que se lo pregunte; los demás campos de la misma llamada se siguen guardando.",
+  },
+  "Antes de a IA gravar um campo personalizado do negócio, o Jev vai conferir nas mensagens do cliente se foi ele quem informou aquele valor. Ele não disse: o campo não é gravado e a IA pergunta ao cliente.": {
+    es: "Antes de que la IA guarde un campo personalizado del negocio, Jev verificará en los mensajes del cliente si fue él quien informó ese valor. Si no lo dijo, el campo no se guarda y la IA se lo pregunta al cliente.",
+  },
+  "dias, o Jev e o jeito de hoje deram o mesmo destino a": {
+    es: "días, Jev y la forma actual le dieron el mismo destino a",
+  },
+  "campos do negócio.": {
+    es: "campos del negocio.",
+  },
+  "O Jev foi perguntado se o cliente disse, nas mensagens ainda sem resposta deste turno, o valor do campo personalizado do negócio que a IA ia gravar.": {
+    es: "Se le preguntó a Jev si el cliente dijo, en los mensajes aún sin respuesta de este turno, el valor del campo personalizado del negocio que la IA iba a guardar.",
+  },
+  "O Jev não respondeu: o campo foi gravado como antes, sem a conferência.": {
+    es: "Jev no respondió: el campo se guardó como antes, sin la verificación.",
+  },
   "Ver as conversas:": {
     es: "Ver las conversaciones:",
   },
