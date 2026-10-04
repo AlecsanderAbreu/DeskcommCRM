@@ -66,8 +66,14 @@ test.describe("Relatórios › Por etiqueta, pela tela (#1891)", () => {
   });
 
   test.afterAll(async () => {
-    if (conversas.length) await admin.from("conversations").delete().in("id", conversas);
-    if (contatos.length) await admin.from("contacts").delete().in("id", contatos);
+    if (conversas.length) {
+      const { error: e1 } = await admin.from("conversations").delete().in("id", conversas);
+      expect(e1).toBeNull();
+    }
+    if (contatos.length) {
+      const { error: e2 } = await admin.from("contacts").delete().in("id", contatos);
+      expect(e2).toBeNull();
+    }
   });
 
   test("a linha conta as três conversas e o clique leva às três na aba Todas", async ({ page }) => {
@@ -78,6 +84,9 @@ test.describe("Relatórios › Por etiqueta, pela tela (#1891)", () => {
     const aberta = await abreConversa(page, `Etiqueta ${TAG} aberta`);
     const comDono = await abreConversa(page, `Etiqueta ${TAG} com dono`);
     const resolvida = await abreConversa(page, `Etiqueta ${TAG} resolvida`);
+    // CONTROLE sem a etiqueta: sem ela, o `toHaveCount(3)` lá embaixo passaria
+    // num servidor que ignora `?tag=` sempre que a org tivesse só estas três.
+    const controle = await abreConversa(page, `Etiqueta ${TAG} controle`);
 
     const claim = await page.request.post(`/api/v1/conversations/${comDono}/claim`, { data: {} });
     expect(claim.ok(), `claim: ${await claim.text()}`).toBe(true);
@@ -131,6 +140,7 @@ test.describe("Relatórios › Por etiqueta, pela tela (#1891)", () => {
     // Filtrada de verdade: a etiqueta é única desta rodada, então a lista
     // inteira são as três — nenhuma conversa alheia da org compartilhada.
     await expect(page.locator("button[data-conversation-id]")).toHaveCount(3);
+    await expect(itemDaLista(page, controle), "a sem etiqueta fica fora").toHaveCount(0);
     await captura(page, "relatorio-por-etiqueta-02-inbox-todas");
 
     // ── CONTROLE: o link sem `filter=all` (o Inbox abre na Fila). ──────────
@@ -142,6 +152,7 @@ test.describe("Relatórios › Por etiqueta, pela tela (#1891)", () => {
         r.url().includes("comando=") &&
         r.url().includes(`tag=${TAG}`) &&
         r.status() === 200,
+      { timeout: 30_000 },
     );
     await page.goto(`/app/inbox?tag=${encodeURIComponent(TAG)}`);
     // O que a Fila RECEBEU, além do que desenhou: um zero só na tela poderia
