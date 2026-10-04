@@ -43,7 +43,7 @@ const PROMESSA_ANTIGA = "Quem precisa do valor anterior tem `api_audit_log`";
 const CONFESSAO_VELHA = "O valor anterior NÃO é guardado em lugar nenhum";
 
 /** A regra medida que a #1755 passou a vigiar: lista branca, não acesso geral. */
-const REGRA_NOVA = "ANTES-E-DEPOIS SÓ DOS CAMPOS TIPOS SEM PII";
+const REGRA_NOVA = "ANTES-E-DEPOIS SÓ DOS CAMPOS TIPADOS SEM PII";
 
 describe("o comentário da timeline não promete o valor anterior", () => {
   it("diz a regra medida: antes-depois só dos campos tipados sem PII", () => {

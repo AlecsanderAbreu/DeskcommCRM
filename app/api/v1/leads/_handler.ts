@@ -799,14 +799,15 @@ export async function updateLeadHandler(
     // reason é RENDERIZADO NA TELA e vai junto em captura, exportação e ticket
     // de suporte; o §9 proíbe PII nova em log, reason ou evidence.
     //
-    // O VALOR DO TÍTULO, DA DESCRIÇÃO E DAS TAGS NÃO é guardado em lugar
-    // nenhum — nem aqui, nem no `api_audit_log`. Pôr essa PII lá ficaria fora
-    // do alcance da proteção: o audit é append-only (migration 0258) e a
-    // anonimização da LGPD (lib/lgpd/cascata.ts) não o reescreve — a cascata
-    // só insere a linha `lgpd.redact_executed` (migration 0019, passo 8). O
-    // que sobra é o expurgo por retenção (L-10: 5 anos, migration 0167).
+    // O VALOR DO TÍTULO, DA DESCRIÇÃO, DAS TAGS E DE `custom_fields` NÃO é
+    // guardado em lugar nenhum — nem aqui, nem no `api_audit_log`. Pôr essa
+    // PII lá ficaria fora do alcance da proteção: o audit é append-only
+    // (migration 0258) e a anonimização da LGPD (lib/lgpd/cascata.ts) não o
+    // reescreve — a cascata só insere a linha `lgpd.redact_executed`
+    // (migration 0019, passo 8). O que sobra é o expurgo por retenção (L-10:
+    // 5 anos, migration 0167).
     //
-    // ANTES-E-DEPOIS SÓ DOS CAMPOS TIPOS SEM PII vai para o audit desde a
+    // ANTES-E-DEPOIS SÓ DOS CAMPOS TIPADOS SEM PII vai para o audit desde a
     // #1755: `value_cents`, `currency`, `owner_user_id`, `owner_agent_id` e
     // `expected_close_date`, pela lista branca de `lib/leads/valores-audit.ts`
     // — o mesmo par `{ antes, depois }` que `ai.budget_limit_changed` já grava
@@ -880,7 +881,7 @@ export async function updateLeadHandler(
     .eq("id", leadId)
     .maybeSingle();
 
-  // ANTES E DEPOIS DOS CAMPOS TIPOS, NÃO DO TEXTO (issue #1755).
+  // ANTES E DEPOIS DOS CAMPOS TIPADOS, NÃO DO TEXTO (issue #1755).
   //
   // A lista branca mora em lib/leads/valores-audit.ts, junto com a medição de
   // por que é branca (audit append-only que a cascata da LGPD não reescreve).
