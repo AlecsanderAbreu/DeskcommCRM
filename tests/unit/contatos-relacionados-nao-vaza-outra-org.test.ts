@@ -99,8 +99,13 @@ function montarBanco(
     const base = tabelas[nome] ?? [];
     const eqs: [string, unknown][] = [];
     const ins: [string, unknown[]][] = [];
+    let ordem: [string, boolean] | null = null;
     const elo: Record<string, unknown> = {
       select: () => elo,
+      order: (coluna: string, opcoes?: { ascending?: boolean }) => {
+        ordem = [coluna, opcoes?.ascending !== false];
+        return elo;
+      },
       eq: (coluna: string, valor: unknown) => {
         eqs.push([coluna, valor]);
         return elo;
@@ -110,10 +115,16 @@ function montarBanco(
         return elo;
       },
     };
-    const linhas = () =>
-      base.filter(
+    const linhas = () => {
+      const filtradas = base.filter(
         (l) => eqs.every(([c, v]) => l[c] === v) && ins.every(([c, v]) => v.includes(l[c])),
       );
+      if (!ordem) return filtradas;
+      const [coluna, crescente] = ordem;
+      return [...filtradas].sort(
+        (a, b) => String(a[coluna]).localeCompare(String(b[coluna])) * (crescente ? 1 : -1),
+      );
+    };
     elo.maybeSingle = () => Promise.resolve({ data: linhas()[0] ?? null, error: null });
     elo.then = (
       aoOk?: (valor: { data: Linha[]; error: null }) => unknown,
@@ -235,8 +246,12 @@ describe("GET contatos-relacionados — a F1 da #1506", () => {
     montarBanco({
       crm_leads: [{ id: LEAD, organization_id: ORG_A }],
       crm_lead_links: [
-        link(MARIA, { metadata: { papel: "Mãe" } }),
-        link(MARIA, { metadata: { papel: "Responsável financeiro" } }),
+        // Fora de ordem de propósito: a consulta é que ordena por created_at.
+        link(MARIA, {
+          metadata: { papel: "Responsável financeiro" },
+          created_at: "2026-10-02T12:00:00Z",
+        }),
+        link(MARIA, { metadata: { papel: "Mãe" }, created_at: "2026-10-01T12:00:00Z" }),
       ],
       contacts: [contato(MARIA, ORG_A, { name: "Maria Silva" })],
     });
@@ -244,7 +259,7 @@ describe("GET contatos-relacionados — a F1 da #1506", () => {
     const { data } = await corpo(await chamar());
 
     expect(data).toHaveLength(1);
-    // O PRIMEIRO link vence: é a ordem do índice único que a tela lê.
+    // O link MAIS ANTIGO vence: a rota ordena os links por created_at.
     expect(data?.[0]).toMatchObject({ papel: "Mãe" });
   });
 

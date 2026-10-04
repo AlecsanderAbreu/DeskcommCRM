@@ -96,7 +96,10 @@ export async function GET(_req: NextRequest, ctx: RouteCtx): Promise<Response> {
     .eq("lead_id", leadId)
     .eq("organization_id", orgId)
     .eq("target_kind", "contact")
-    .eq("link_kind", "related");
+    .eq("link_kind", "related")
+    // Ordem explícita: sem ela, a ordem da lista e o papel que vence na
+    // deduplicação ficariam por conta da ordem física da tabela.
+    .order("created_at", { ascending: true });
   if (linksErr) return fail("internal_error", linksErr.message, 500, { requestId });
 
   const linhasDeLink = (links ?? []) as unknown as { target_id: string; metadata: unknown }[];
