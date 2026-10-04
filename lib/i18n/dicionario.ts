@@ -1933,7 +1933,7 @@ export const DICIONARIO: Traducoes = {
   "Só enviar follow-up nestes horários": { es: "Enviar seguimientos solo en estos horarios" },
   "Mensagem fora do horário (opcional)": { es: "Mensaje fuera del horario (opcional)" },
   "Ex.: Nosso atendimento funciona de segunda a sexta, das 8h às 18h. Recebemos sua mensagem e respondemos no próximo horário de atendimento.": {
-    es: "Ej.: Nuestro atención funciona de lunes a viernes, de 8h a 18h. Recibimos su mensaje y respondemos en el próximo horario de atención.",
+    es: "Ej.: Nuestra atención funciona de lunes a viernes, de 8h a 18h. Recibimos su mensaje y respondemos en el próximo horario de atención.",
   },
   "Quando o cliente escrever fora do horário, esta mensagem é enviada na hora — uma vez por cliente por período fechado, e nunca para quem pediu para parar. Deixe em branco para não enviar.": {
     es: "Cuando el cliente escriba fuera del horario, este mensaje se envía al instante — una vez por cliente por período cerrado, y nunca para quien pidió dejar de recibir. Déjelo en blanco para no enviar.",
