@@ -69,7 +69,8 @@ export const crmListConversations: McpToolDefinition<typeof listInputShape> = {
     // `ctx.contatoDoTurno` é contexto de CONFIANÇA (injetado por
     // `lib/ai/runtime/tools.ts`, nunca escrito pelo modelo); sem ele — rota
     // HTTP, MCP externo, agente sem conversa — `contatoEfetivo` é o
-    // `contact_id` pedido, ou nada, e a listagem segue idêntica à de antes.
+    // `contact_id` pedido, ou nada. Sem contato, a listagem é a de antes; com
+    // `contact_id` pedido, o filtro agora vai na consulta e não na página.
     const doTurno = ctx.contatoDoTurno;
     // ESCOPO, e não tradução: com o contato do turno na mão, pedir
     // explicitamente o contato de OUTRO cliente é interseção vazia — devolver
