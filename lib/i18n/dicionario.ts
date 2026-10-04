@@ -10542,6 +10542,11 @@ export const DICIONARIO: Traducoes = {
   "…e mais": { es: "…y más" },
   "Código": { es: "Código" },
   "Preço de venda": { es: "Precio de venta" },
+  "Produto atualizado": { es: "Producto actualizado" },
+  "Sincronizado de": { es: "Sincronizado de" },
+  "Edite na origem: o que você mudar aqui é sobrescrito na próxima sincronização.": {
+    es: "Edita en el origen: lo que cambies aquí se vuelve a sobrescribir en la próxima sincronización.",
+  },
   "(opcional)": { es: "(opcional)" },
   "Serve para o atendente saber até onde pode negociar. Não aparece para o cliente.": {
     es: "Sirve para que el asistente sepa hasta dónde puede negociar. No se muestra al cliente.",
