@@ -4522,6 +4522,18 @@ export const DICIONARIO: Traducoes = {
   "O Jev percebeu, numa mensagem do cliente, um pedido para parar de receber mensagens que a regra de hoje não reconheceu. Abra a conversa e confira. Se o cliente quer mesmo parar de receber mensagens, assuma o atendimento para o assistente parar de responder e peça que ele responda PARAR — é assim que o contato fica bloqueado. O Jev nunca bloqueia ninguém.": {
     es: "Jev detectó, en un mensaje del cliente, un pedido de dejar de recibir mensajes que la regla de hoy no reconoció. Abre la conversación y revísala. Si el cliente de verdad quiere dejar de recibir mensajes, asume la atención para que el asistente deje de responder y pídele que responda BAJA: así el contacto queda bloqueado. Jev nunca bloquea a nadie.",
   },
+  "Um cliente pediu para falar com uma pessoa num áudio": {
+    es: "Un cliente pidió hablar con una persona en un audio",
+  },
+  "Um cliente pediu para parar de receber mensagens num áudio": {
+    es: "Un cliente pidió dejar de recibir mensajes en un audio",
+  },
+  "A regra de hoje reconheceu, na transcrição de um áudio do cliente, um pedido para falar com uma pessoa. Abra a conversa e confira se alguém da equipe já assumiu — a transcrição não passa a conversa nem cala o assistente.": {
+    es: "La regla de hoy reconoció, en la transcripción de un audio del cliente, un pedido de hablar con una persona. Abre la conversación y verifica si alguien del equipo ya la asumió; la transcripción no transfiere la conversación ni silencia al asistente.",
+  },
+  "A regra de hoje reconheceu, na transcrição de um áudio do cliente, um pedido para parar de receber mensagens. Abra a conversa e confira. A transcrição de um áudio não bloqueia o contato: se o cliente quiser mesmo parar de receber, assuma o atendimento para o assistente parar de responder e peça que ele responda PARAR — é assim que o contato fica bloqueado.": {
+    es: "La regla de hoy reconoció, en la transcripción de un audio del cliente, un pedido de dejar de recibir mensajes. Abre la conversación y revísala. La transcripción de un audio no bloquea el contacto: si el cliente de verdad quiere dejar de recibir mensajes, asume la atención para que el asistente deje de responder y pídele que responda BAJA: así el contacto queda bloqueado.",
+  },
   "Abra a conversa e decida se alguém da equipe assume o atendimento.": {
     es: "Abre la conversación y decide si alguien del equipo asume la atención.",
   },
