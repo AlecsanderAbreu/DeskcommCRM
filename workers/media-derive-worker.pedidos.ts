@@ -35,8 +35,11 @@
  * aviso da Central (`jev_parar_de_receber` / `jev_pedido_de_humano`, o kind do
  * #1747, que fica aberto até o bloqueio, o encerramento ou "Marcar resolvido").
  * O falso positivo aqui é pior que em texto: soma o erro da transcrição ao da
- * regex, e o bloqueio é irreversível para quem opera. Quem silência é a
- * pessoa, como diz o cabeçalho de `lib/opt-out/deteccao.ts`.
+ * regex, e o bloqueio corta todo envio ao contato (before-send, funil,
+ * follow-up, campanha) até um admin desfazê-lo à mão
+ * (`app/api/v1/contacts/[id]/unblock`, regra W-02). Quem silencia é a pessoa,
+ * como diz o cabeçalho de `lib/opt-out/deteccao.ts`: o ambíguo escala, não
+ * bloqueia.
  *
  * ─── O DENOMINADOR É O DO #1747 ─────────────────────────────────────────────
  *

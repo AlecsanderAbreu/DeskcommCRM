@@ -164,10 +164,13 @@ export const AVISOS_DOS_PEDIDOS = {
  * que a regra não reconheceu, e aqui foi exatamente o contrário. Dizer o
  * contrário do que aconteceu é o modo de a Central mentir para quem a lê.
  *
- * O corpo também diz o que NESTE caminho é verdade — que sobre o transcrito
- * nada foi bloqueado, porque o bloqueio continua sendo da pessoa, na entrada
- * da mensagem (`lib/opt-out/deteccao.ts`) —, e nunca repete a transcrição:
- * a Central é lida pela organização inteira.
+ * O corpo também diz a REGRA deste caminho — a transcrição de um áudio não
+ * bloqueia o contato, porque o bloqueio continua sendo do texto que o cliente
+ * digita, na entrada da mensagem (`lib/opt-out/deteccao.ts`) —, e nunca
+ * repete a transcrição: a Central é lida pela organização inteira. Diz a
+ * regra, e não "nada foi bloqueado": como os irmãos de cima, o corpo fica
+ * aberto por dias e não afirma estado que muda depois de ele abrir (o cliente
+ * pode responder PARAR no minuto seguinte).
  */
 export const AVISOS_DA_REGRA = {
   humano: {
@@ -180,7 +183,7 @@ export const AVISOS_DA_REGRA = {
     kind: "jev_parar_de_receber",
     titulo: "Um cliente pediu para parar de receber mensagens num áudio",
     corpo:
-      "A regra de hoje reconheceu, na transcrição de um áudio do cliente, um pedido para parar de receber mensagens. Abra a conversa e confira. Sobre o que foi transcrito nada foi bloqueado: se o cliente quiser mesmo parar de receber, assuma o atendimento para o assistente parar de responder e peça que ele responda PARAR — é assim que o contato fica bloqueado.",
+      "A regra de hoje reconheceu, na transcrição de um áudio do cliente, um pedido para parar de receber mensagens. Abra a conversa e confira. A transcrição de um áudio não bloqueia o contato: se o cliente quiser mesmo parar de receber, assuma o atendimento para o assistente parar de responder e peça que ele responda PARAR — é assim que o contato fica bloqueado.",
   },
 } as const satisfies Record<IdDoPedido, { kind: InboxKind; titulo: string; corpo: string }>;
 
