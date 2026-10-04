@@ -49,6 +49,15 @@ export interface PromiseClassification {
    * o filtro barato que roda sem chamada de modelo; este campo é o que pega o resto.
    */
   prometeuRetornoHumano: boolean;
+  /**
+   * Quem volta é SÓ o próprio assistente ("te retorno amanhã de manhã"), sem pessoa,
+   * setor, equipe ou análise interna? É o que deixa o `casePromiseGate` aceitar um
+   * `schedule_followup` como destino da promessa no lugar de um caso (#1873, opção a).
+   *
+   * Degrade FECHADO, ao contrário dos outros dois: falha de parse, campo ausente ou tipo
+   * trocado viram `false` — na dúvida, o follow-up não libera e o caso continua exigido.
+   */
+  retornoSoDoAssistente: boolean;
 }
 
 /**
@@ -85,10 +94,15 @@ export const PROMISE_SEMANTIC_INSTRUCTION =
   'promessa" — NÃO vale para esta pergunta. É exatamente por essa ressalva que a frase ' +
   '"vou encaminhar para análise e te retorno com a proposta" escapou da trava: ela É um ' +
   "compromisso de retorno, ainda que vaga sobre o CONTEÚDO do que volta.\n" +
+  "Na mesma pergunta, decida também retornoSoDoAssistente: true SOMENTE quando quem volta " +
+  'a falar é o próprio assistente, sem nenhuma pessoa, setor, equipe ou análise interna no ' +
+  'caminho ("combinado, te retorno amanhã de manhã"). Se a mensagem diz que alguém da ' +
+  'empresa vai agir ("vou encaminhar para a equipe", "para análise", "o responsável vai ' +
+  'ver"), retornoSoDoAssistente=false. Também é false quando prometeuRetornoHumano=false.\n' +
   "\n" +
   "Responda SOMENTE com JSON, sem explicação: " +
   '{"isPromise": true|false, "suspectPhrase": "<trecho literal da promessa na mensagem>"|null, ' +
-  '"prometeuRetornoHumano": true|false}. ' +
+  '"prometeuRetornoHumano": true|false, "retornoSoDoAssistente": true|false}. ' +
   "suspectPhrase é null quando isPromise=false.";
 
 function buildPromiseMessage(candidate: string): string {
@@ -166,7 +180,12 @@ export function parsePromiseClassification(
         reason: haviaJsonCandidato ? "invalid_json" : "no_json",
       },
     );
-    return { isPromise: false, suspectPhrase: null, prometeuRetornoHumano: fallbackLexico };
+    return {
+      isPromise: false,
+      suspectPhrase: null,
+      prometeuRetornoHumano: fallbackLexico,
+      retornoSoDoAssistente: false,
+    };
   }
   const obj = bruto as Record<string, unknown>;
   const isPromise = obj.isPromise === true || obj.isPromise === "true";
@@ -177,10 +196,13 @@ export function parsePromiseClassification(
   // ninguém perceber. Por isso o tipo é `boolean` obrigatório e o parser garante o valor.
   const prometeuRetornoHumano =
     typeof obj.prometeuRetornoHumano === "boolean" ? obj.prometeuRetornoHumano : fallbackLexico;
+  // Degrade FECHADO (#1873): só `true` literal libera o follow-up como destino.
+  const retornoSoDoAssistente = obj.retornoSoDoAssistente === true;
   return {
     isPromise,
     suspectPhrase: isPromise && rawPhrase !== "" ? rawPhrase : null,
     prometeuRetornoHumano,
+    retornoSoDoAssistente,
   };
 }
 

@@ -85,6 +85,7 @@ describe("os leitores leem a resposta inteira dentro de array, como o recorte an
       isPromise: true,
       suspectPhrase: "x",
       prometeuRetornoHumano: false,
+      retornoSoDoAssistente: false,
     });
     expect(warn).not.toHaveBeenCalled();
   });
@@ -96,6 +97,7 @@ describe("os leitores leem a resposta inteira dentro de array, como o recorte an
       isPromise: false,
       suspectPhrase: null,
       prometeuRetornoHumano: false,
+      retornoSoDoAssistente: false,
     });
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('fail-open p/ "sem promessa"'), {
       event: "promise_semantic_parse_fail",

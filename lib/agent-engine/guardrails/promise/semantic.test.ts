@@ -75,6 +75,7 @@ it("leva a oferta completa na mesma chamada e mantém promessa adicional visíve
     suspectPhrase: "garanto vaga amanhã",
     // O modelo não respondeu a Pergunta 2 → degrada ao léxico, que não vê retorno aqui.
     prometeuRetornoHumano: false,
+    retornoSoDoAssistente: false,
   });
 });
 
@@ -212,5 +213,35 @@ describe("parsePromiseClassification", () => {
     // `false` em ambos ou para o léxico em ambos —, este caso ou o 3 caem.
     const r = parsePromiseClassification("desculpe, não consegui", FRASE_QUE_O_LEXICO_PEGA);
     expect(r.isPromise).toBe(false);
+  });
+});
+
+/**
+ * #1873, opção (a) — `retornoSoDoAssistente` é o que deixa um `schedule_followup` valer
+ * como destino da promessa. O degrade dele é o OPOSTO do de `prometeuRetornoHumano`:
+ * qualquer falha vira `false`, e o follow-up não libera nada.
+ */
+describe("parsePromiseClassification — retornoSoDoAssistente (degrade fechado)", () => {
+  const FRASE_DO_ASSISTENTE = "Combinado! Te retorno amanhã de manhã.";
+
+  it("o caminho feliz lê o campo", () => {
+    const r = parsePromiseClassification(
+      '{"isPromise": false, "suspectPhrase": null, "prometeuRetornoHumano": true, "retornoSoDoAssistente": true}',
+      FRASE_DO_ASSISTENTE,
+    );
+    expect(r.retornoSoDoAssistente).toBe(true);
+  });
+
+  it.each([
+    ["campo ausente", '{"isPromise": false, "suspectPhrase": null, "prometeuRetornoHumano": true}'],
+    ["tipo trocado", '{"isPromise": false, "suspectPhrase": null, "prometeuRetornoHumano": true, "retornoSoDoAssistente": "true"}'],
+    ["saída sem JSON", "desculpe, não consegui"],
+    ["JSON inválido", "{retornoSoDoAssistente: true}"],
+  ])("%s → false", (_rotulo, saida) => {
+    expect(parsePromiseClassification(saida, FRASE_DO_ASSISTENTE).retornoSoDoAssistente).toBe(false);
+  });
+
+  it("a instrução pergunta o campo e o pede no JSON", () => {
+    expect(PROMISE_SEMANTIC_INSTRUCTION).toContain('"retornoSoDoAssistente": true|false');
   });
 });

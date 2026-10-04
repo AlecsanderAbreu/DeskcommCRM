@@ -158,6 +158,7 @@ describe("guardrail de promessa — parsePromiseClassification (#2124, leitor 6 
       suspectPhrase: "te dou de graça",
       // A cópia lida não traz a Pergunta 2 (#1873) → degrada ao léxico, que não vê retorno.
       prometeuRetornoHumano: false,
+      retornoSoDoAssistente: false,
     });
     // Leu JSON de verdade: nenhum warn de parse-fail (o recorte antigo avisava
     // `invalid_json` aqui porque o span abrangia as duas cópias).
@@ -174,6 +175,7 @@ describe("guardrail de promessa — parsePromiseClassification (#2124, leitor 6 
       isPromise: false,
       suspectPhrase: null,
       prometeuRetornoHumano: true,
+      retornoSoDoAssistente: false,
     });
     expect(semJson).toHaveBeenCalledWith(
       expect.stringContaining('fail-open p/ "sem promessa"'),
@@ -188,6 +190,7 @@ describe("guardrail de promessa — parsePromiseClassification (#2124, leitor 6 
       isPromise: false,
       suspectPhrase: null,
       prometeuRetornoHumano: false,
+      retornoSoDoAssistente: false,
     });
     expect(invalido).toHaveBeenCalledWith(
       expect.stringContaining('fail-open p/ "sem promessa"'),
