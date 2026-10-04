@@ -18,6 +18,8 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Vale no máximo um aviso por contato por período fechado: o período começa quando a janela fecha e só volta a valer quando ela abre e fecha de novo: um segundo contato na mesma noite não recebe de novo, e o contato bloqueado (opt-out/`is_blocked`), o titular anonimizado e o número interno da própria organização não recebem nunca. O aviso é RESPOSTA a quem escreveu primeiro, não disparo ativo: ele respeita a janela de resposta do número, o warm-up, o teto diário e o espaçamento, e entra na contagem de envios como qualquer outro. Quando o horário de atendimento abre, a IA responde normalmente sobre a conversa que já tem o aviso.
 
+  Contribuição de @webtecnica (#2284, refs #1926).
+
 - **Em coexistência, o que a equipe cadastra no endereço do app WhatsApp Business vira cadastro no CRM** Num número em coexistência (o mesmo número no app WhatsApp Business e na Cloud API), a empresa também cadastra e renomeia contato no **endereço** do app — o da agenda do celular. A Meta entrega isso no webhook `smb_app_state_sync`, que o canal oficial descartava: o CRM ficava sem o nome que a equipe usa no celular, e o contato só nascia na primeira mensagem, muitas vezes sem nome nenhum.
 
   Agora esse webhook entra: o contato passa a existir no CRM com o nome do app (o mesmo que a Meta manda para o `display_name`, pela mesma resolução de número da mensagem recebida e do eco). A aba "API Oficial (Meta)" passa a listar `smb_app_state_sync` entre os campos a assinar no dashboard da Meta — sem coexistência a Meta não envia esse evento, então assinar é inofensivo para quem não usa.
@@ -26,7 +28,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   A importação do histórico de conversas (`history`, até 180 dias) e o botão de Embedded Signup com coexistência continuam fora deste passo — ver a #1632.
 
-  Contribuição de @webtecnica (refs #1632).
+  Contribuição de @webtecnica (#2283, refs #1632).
 
 - **Relatórios ganham a aba Por etiqueta** Em Relatórios (Atividades) há agora a aba **Por etiqueta**: para cada etiqueta em uso, quantas conversas ela teve no período (7, 30 ou 90 dias), quantas estão abertas e quantas foram resolvidas, a espera média e a fatia do total. Espera que não foi medida aparece como "—", nunca como zero, e período sem conversa etiquetada diz o motivo em vez de mostrar uma tabela de zeros. A aba abre direto por `/app/activities?aba=etiquetas`.
 
@@ -58,7 +60,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Nada a fazer na instalação.
 
-  Contribuição de @webtecnica (refs #1109).
+  Contribuição de @webtecnica (#2279, refs #1109).
 
 - **Com o Jev medindo o clima, relatar o problema deixa de passar a conversa para uma pessoa, e a concordância do Jev usa o limiar de cada agente** Quando o Jev decide o clima da conversa (Jev decidindo, ou sem IA de linguagem configurada), a escala dele passa a separar o relato do problema, que fica no neutro e não aciona a passagem, da insatisfação com o atendimento e da hostilidade aberta, que acionam. É a mesma separação que a IA de linguagem ganhou na 1.71.0. Vale para toda organização com o Jev decidindo, sem ajuste nenhum. Quem atende e-commerce deve ver menos passagens para uma pessoa por decepção com produto; para passar mais, suba o limiar do agente.
 
@@ -78,31 +80,31 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Agora as revogações acompanham as concessões, e o estado final não muda: o `anon` segue sem o que era revogado e com o resto — a leitura escopada por política em `ai_budgets` e `SELECT`/`INSERT` no log de auditoria. Nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art.
+  Contribuição de @Tong-bit-art (#2257).
 
 - **A atualização para de devolver o TRUNCATE do log de auditoria ao papel de serviço, e anon/authenticated perdem o TRUNCATE em orçamentos de IA** O `baseline.sql` é reaplicado inteiro em toda atualização. Três pontas da mesma família ficaram de fora do #2257: o `service_role` recuperava `TRUNCATE` no log de auditoria entre a concessão do snapshot e o bloco da 0258 (mais de 20 mil linhas de janela, de pé até a próxima atualização completa se a passada morresse no meio); e `anon`/`authenticated` mantinham `TRUNCATE` em `ai_budgets` no estado final, porque a 0160 revogou só INSERT/UPDATE/DELETE.
 
   Agora a revogação acompanha as concessões nos três casos, e o `TRUNCATE` de `ai_budgets` sai também do estado final para as duas chaves — ele não passa pela RLS e nenhum consumidor o usa (toda escrita da tabela é service role). Leitura e escrita legítimas seguem como estavam. Nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art.
+  Contribuição de @Tong-bit-art (#2259).
 
 - **A atualização interrompida não deixa mais de pé a versão antiga do portão de anonimização** O `baseline.sql` reaplica a história da função de anonimizar contato em duas definições. A intermediária, anterior à correção do #2196, ainda usava a checagem de plataforma que ignora o `scope` do JWT: se uma atualização morresse entre as duas, era essa versão que ficava no banco até a próxima passada completa, e um platform admin `support_readonly` fora de sessão de suporte voltava a poder anonimizar contato.
 
   A definição intermediária passou a usar a guarda completa (`fn_is_platform_admin_full`, que já existe no snapshot), então o furo não fica de pé em nenhuma passada. O estado final não muda e nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art.
+  Contribuição de @Tong-bit-art (#2256).
 
 - **A atualização não devolve mais o privilégio de TRUNCATE ao papel anônimo em idempotency_keys** O `baseline.sql` é reaplicado inteiro em toda atualização. A concessão de `ALL` ao `anon` em `idempotency_keys` vinha do snapshot e a revogação de `TRUNCATE` — um privilégio que a RLS não alcança — ficava no apêndice: entre as duas pontas, e até a próxima atualização completa se a passada morresse no meio, o papel anônimo carregava o privilégio.
 
   Agora a revogação acompanha a concessão, e o estado final não muda: o `anon` continua sem `TRUNCATE` e com os demais privilégios da concessão. Nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art.
+  Contribuição de @Tong-bit-art (#2253).
 
 - **A atualização da VPS deixa de reabrir o gatilho velho da demanda e a permissão anônima das tabelas de conhecimento** O `baseline.sql` é reaplicado inteiro em toda atualização. Dois trechos eram reconstruídos no começo do arquivo e desfeitos no fim, e cada passada reabria a janela: o gatilho `trg_demanda_fecha_com_conversa` (substituído pelo modelo de atendimento na migration 0222) voltava a valer até ser derrubado, e quatro tabelas de conhecimento (fontes, versões, chunks e FAQ da IA) recebiam `ALL` para o papel `anon` — a chave pública do navegador — até serem revogadas adiante. Se a atualização morresse no meio, o gatilho antigo e a permissão anônima ficavam de pé até a próxima tentativa.
 
   Agora as duas recriações saíram do texto: o gatilho não é mais reinstalado, e as quatro tabelas não são mais concedidas ao `anon` de passagem. O estado final é o mesmo de antes — nenhuma tela, nenhuma regra e nenhum dado mudam, e nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art.
+  Contribuição de @Tong-bit-art (#2250).
 
 - **A Central para de abrir em dobro os avisos de orçamento de IA (limite atingido e aviso de gasto)** Os dois avisos de orçamento — "o orçamento de IA foi atingido" e "o gasto passou do aviso" — deduplicam por organização e tipo, mas a pergunta "já existe um aberto?" e a escrita não eram atômicas, e dois turnos podem avaliar o gasto no mesmo instante (o worker roda tarefas em paralelo, e o worker de respostas é outro processo). Dois avisos idênticos apareciam para o mesmo problema.
 
@@ -118,7 +120,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art.
+  Contribuição de @Tong-bit-art (#2263).
 
 - **A Central para de abrir em dobro o aviso de resposta a caso obsoleto quando a rota e o worker escrevem no mesmo instante** A resposta de um humano a um caso que já mudou de atendimento abre um aviso na Central ("Resposta registrada; atendimento mudou"), deduplicado por conversa. Dois escritores podiam chegar juntos — a rota que registra a resposta e o worker que percebe a fronteira de serviço velha — e os dois inseriam, porque a pergunta "já existe um aviso aberto?" e a escrita não eram atômicas.
 
@@ -126,7 +128,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art.
+  Contribuição de @Tong-bit-art (#2260).
 
 - **Numa conversa de atendimento, preencher resposta pronta e abrir conversa ficam no contato da conversa** Numa conversa de atendimento, `crm_render_message_template` passa a preencher a resposta
   pronta apenas com os dados do contato daquela conversa: um `contact_id` ou um `lead_id` de
@@ -146,7 +148,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Agora o turno confere a inscrição antes de qualquer efeito: se ela foi apagada, cancelada, pausada ou já saiu do nó, o envio é descartado em silêncio — a mesma regra que o caminho sem worker já aplicava. Nada muda para quem tem a inscrição viva no nó certo, e nada é preciso fazer na instalação.
 
-  Contribuição de @Tong-bit-art.
+  Contribuição de @Tong-bit-art (#2261).
 
 - **Os pedidos de privacidade, os honorários e a lista de conversas de uma conversa de atendimento também ficam do lado do contato do turno** O #2182 escopou ao contato da conversa as quatro leituras do Atender, mas deixou três
   ferramentas e um conserto de página de fora. Um pedido de EXCLUSÃO de outro cliente
@@ -173,9 +175,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
   `contact_id` explícito passa a filtrar no banco, então cursor e `has_more` descrevem as
   conversas daquele contato. O filtro só estreita a lista, nunca a amplia.
 
-  Refs #2184
-
-  Contribuição de @webtecnica (#2184).
+  Contribuição de @webtecnica (#2271, refs #2184).
 
 - **A reunião remarcada para mais longe volta a receber o lembrete da data nova** Quando um lembrete já tinha saído e a reunião era remarcada para uma data mais distante, a data nova ficava sem esse lembrete, porque o sistema guardava apenas que ele já tinha sido enviado, sem dizer para qual data. Agora o lembrete volta a valer para a data nova e sai uma única vez, na hora certa.
 
@@ -187,13 +187,13 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Na aba Execuções, as rodadas do Testar passam a aparecer como teste. Os rascunhos do modo assistido, que atendem conversas reais, continuam aparecendo como produção. E um teste que não produziu resposta deixa de aparecer como aprovado.
 
-  Contribuição de @leadframeassessoria-lab (substitui #2252).
+  Contribuição de @leadframeassessoria-lab (#2254, substitui #2252).
 
 - **O follow-up pausado volta a andar quando o atendimento humano termina** Um follow-up que estava no passo de enviar mensagem e ficava pausado porque uma pessoa assumiu o atendimento perdia o envio em silêncio: o turno rodava durante a pausa, era descartado, e nada ficava registrado. Quando o atendimento era retomado, o motor continuava achando que aquele turno estava em voo — só conferia de novo, nunca mandava outro — e o fluxo ficava parado no mesmo passo até o sistema marcá-lo como morto por tempo esgotado, com um motivo que não era o verdadeiro.
 
   Agora o descarte durante a pausa deixa o mesmo rastro que a suspensão da conta já deixava: na retomada, o passo é reenfileirado e a mensagem sai normalmente. Follow-ups encerrados, passos que já andaram e fluxos apagados continuam descartados em silêncio, como antes — e nada precisa ser feito na instalação.
 
-  Contribuição de @webtecnica.
+  Contribuição de @webtecnica (#2277, refs #2262).
 
 ## [1.71.0] — 2026-10-04
 
