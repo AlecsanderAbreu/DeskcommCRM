@@ -1,4 +1,4 @@
-<!-- traduzido-de: docs/white-label.md@31881d23e2a1 -->
+<!-- traduzido-de: docs/white-label.md@e862cd45e445 -->
 
 [🇧🇷 Português](white-label.md) · 🇺🇸 English · [🇪🇸 Español](white-label.es.md)
 
@@ -24,7 +24,7 @@ The color is **derived**, not applied raw: one hex yields eleven shades in both 
 
 On the same **Installation Brand** page, the installation administrator can add CSS for fine visual adjustments to the login and the screens of every organization. The stylesheet applies globally without restarting the server, and can be removed by clearing the field and saving.
 
-For safety, this is not an unrestricted CSS editor: it accepts class selectors and visual color, border, shadow, and typography properties. It rejects global or ID selectors, `@` rules, URLs and remote loading, escapes, scripts, `!important`, and layout or positioning properties. The limit is 16 KB. If a saved stylesheet no longer passes validation, it is not applied and the Brand page shows the reason. Because this setting belongs to the installation, every organization it serves is affected; review the screens after saving.
+For safety, this is not an unrestricted CSS editor: it accepts class selectors and visual color, border, shadow, and typography properties. It rejects global or ID selectors, `@` rules, URLs and remote loading, functions other than `rgb`/`rgba`/`hsl`/`hsla`/`var`/`calc`/`min`/`max`/`clamp`, comments, escapes, scripts, `!important`, and layout or positioning properties. The limit is 16 KB. If a saved stylesheet no longer passes validation, it is not applied and the Brand page shows the reason. Because this setting belongs to the installation, every organization it serves is affected; review the screens after saving.
 
 Example:
 
@@ -37,6 +37,8 @@ Example:
 	border-radius: 12px;
 }
 ```
+
+**If the CSS makes the screens unreadable.** A valid stylesheet can still hide text (transparent color, zero font size) or cover the screen with a shadow — including the login and the Brand page itself. To get out, open the page with `?sem_css=1` in the address: it loads without the custom CSS, only for you. Sign in through `/login?sem_css=1`, then open `/admin/marca?sem_css=1` by typing the address, clear the field and save. Without access to the screen, from the server: `psql "$SUPABASE_DB_URL" -c "delete from public.platform_config where chave = 'APP_CUSTOM_CSS';"` — the CSS stops applying within 30 seconds. Step by step in [`runbooks/css-personalizado.md`](runbooks/css-personalizado.md) (in Portuguese).
 
 The file is accepted **by its bytes, not by its extension**. Renaming an `.svg` to `.png` fools nothing: the system reads the content, refuses it and says why. This is not fussiness — SVG is XML and can carry script, which would run if someone opened the image directly by its address, in a bucket that is public by necessity.
 

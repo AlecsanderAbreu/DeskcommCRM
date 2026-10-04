@@ -1,4 +1,4 @@
-<!-- traduzido-de: docs/white-label.md@31881d23e2a1 -->
+<!-- traduzido-de: docs/white-label.md@e862cd45e445 -->
 
 [🇧🇷 Português](white-label.md) · [🇺🇸 English](white-label.en.md) · 🇪🇸 Español
 
@@ -24,7 +24,7 @@ El color es **derivado**, no aplicado en crudo: de un hex salen once tonos en lo
 
 En la misma página **Marca de la instalación**, el administrador de la instalación puede agregar CSS para ajustes visuales finos en el login y en las pantallas de todas las organizaciones. La hoja se aplica globalmente, sin reiniciar el servidor, y se puede quitar borrando el contenido y guardando.
 
-Por seguridad, no es un editor de CSS sin restricciones: acepta selectores de clase y propiedades visuales de color, borde, sombra y tipografía. Rechaza selectores globales o por ID, reglas `@`, URL y cargas remotas, escapes, scripts, `!important` y propiedades de diseño o posicionamiento. El límite es 16 KB. Si una hoja guardada deja de superar la validación, no se aplica y la página Marca muestra el motivo. Como esta configuración pertenece a la instalación, también afecta a todas las organizaciones que atiende; revisa las pantallas después de guardar.
+Por seguridad, no es un editor de CSS sin restricciones: acepta selectores de clase y propiedades visuales de color, borde, sombra y tipografía. Rechaza selectores globales o por ID, reglas `@`, URL y cargas remotas, funciones fuera de `rgb`/`rgba`/`hsl`/`hsla`/`var`/`calc`/`min`/`max`/`clamp`, comentarios, escapes, scripts, `!important` y propiedades de diseño o posicionamiento. El límite es 16 KB. Si una hoja guardada deja de superar la validación, no se aplica y la página Marca muestra el motivo. Como esta configuración pertenece a la instalación, también afecta a todas las organizaciones que atiende; revisa las pantallas después de guardar.
 
 Ejemplo:
 
@@ -37,6 +37,8 @@ Ejemplo:
 	border-radius: 12px;
 }
 ```
+
+**Si el CSS deja las pantallas ilegibles.** Una hoja válida todavía puede ocultar texto (color transparente, fuente de tamaño cero) o cubrir la pantalla con una sombra — incluso el login y la propia página Marca. Para salir, abre la página con `?sem_css=1` en la dirección: carga sin el CSS personalizado, solo para ti. Entra por `/login?sem_css=1`, luego abre `/admin/marca?sem_css=1` escribiendo la dirección, borra el campo y guarda. Sin acceso a la pantalla, desde el servidor: `psql "$SUPABASE_DB_URL" -c "delete from public.platform_config where chave = 'APP_CUSTOM_CSS';"` — el CSS deja de aplicarse en hasta 30 segundos. Paso a paso en [`runbooks/css-personalizado.md`](runbooks/css-personalizado.md) (en portugués).
 
 El archivo se acepta **por sus bytes, no por su extensión**. Renombrar un `.svg` a `.png` no engaña: el sistema lee el contenido, lo rechaza y dice por qué. Esto no es quisquillosidad — SVG es XML y puede llevar script, que se ejecutaría si alguien abriera la imagen directamente por su dirección, en un bucket que es público por necesidad.
 
