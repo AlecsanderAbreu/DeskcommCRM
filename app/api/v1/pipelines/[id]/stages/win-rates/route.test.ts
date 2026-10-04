@@ -274,6 +274,50 @@ describe("GET /api/v1/pipelines/[id]/stages/win-rates", () => {
     expect(body.data.truncado).toBe(true);
   });
 
+  /**
+   * Ganho e perda só acumulam (perder move o negócio para a etapa `is_lost`, e
+   * `crm_leads` não arquiva). Sem o recorte por etapa de espera, 1000 ganhos
+   * antigos enchiam o teto e a Proposta sumia do bloco — calada.
+   */
+  it("tempo na etapa: ganho e perda acumulados não consomem o teto das etapas abertas", async () => {
+    authOk();
+    const db = makeDb({ stages: funil(), maxRows: 1000 });
+    for (let i = 0; i < 1000; i++) {
+      db.tabelas.crm_leads.push({ ...negocio(`g${i}`, "e3"), stage_changed_at: instante(100), created_at: instante(200) });
+    }
+    for (let i = 0; i < 5; i++) {
+      db.tabelas.crm_leads.push({ ...negocio(`a${i}`, "e2"), stage_changed_at: instante(2), created_at: instante(3) });
+    }
+    const { GET } = await import("./route");
+    const res = await GET(reqGet(), ctx);
+    const body = (await res.json()) as {
+      data: { tempo_na_etapa: { amostra: number; truncado: boolean; etapas: Array<{ etapa_id: string; quantidade: number }> } };
+    };
+    const bloco = body.data.tempo_na_etapa;
+    expect(bloco.etapas.find((l) => l.etapa_id === "e2")?.quantidade).toBe(5);
+    expect(bloco.amostra).toBe(5);
+    expect(bloco.truncado).toBe(false);
+  });
+
+  it("funil só com ganho e perda não lê crm_leads e devolve o bloco vazio", async () => {
+    authOk();
+    const db = makeDb({
+      stages: [
+        etapa({ id: "e3", name: "Pago", slug: "pago", position: 1000, is_won: true }),
+        etapa({ id: "e4", name: "Cancelado", slug: "cancelado", position: 2000, is_lost: true }),
+      ],
+    });
+    db.tabelas.crm_leads.push(negocio("g1", "e3"));
+    const from = vi.spyOn(db.client, "from");
+    const { GET } = await import("./route");
+    const res = await GET(reqGet(), ctx);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { tempo_na_etapa: { amostra: number; etapas: unknown[] } } };
+    expect(body.data.tempo_na_etapa.etapas).toEqual([]);
+    expect(body.data.tempo_na_etapa.amostra).toBe(0);
+    expect(from.mock.calls.map(([tabela]) => tabela)).not.toContain("crm_leads");
+  });
+
   it("funil sem etapa não lê o histórico", async () => {
     authOk();
     const db = makeDb({ stages: [] });

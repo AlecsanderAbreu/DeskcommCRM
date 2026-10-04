@@ -212,17 +212,24 @@ export async function GET(req: NextRequest, ctx: RouteCtx): Promise<Response> {
   // população e outra pergunta: quem está na coluna AGORA pode ter entrado há
   // um ano, fora de qualquer janela de dias. O filtro de org e de funil é o
   // mesmo das irmãs, e a RLS de `crm_leads` (`fn_can_view_lead`) fecha o resto.
-  const { data: negocios, error: erroNegocios } = await supabase
-    .from("crm_leads")
-    .select("stage_id, stage_changed_at, created_at")
-    .eq("organization_id", authz.org.orgId)
-    .eq("pipeline_id", id)
-    .limit(LIMITE_DE_NEGOCIOS);
+  // Só as colunas de espera: ganho e perda acumulam negócios para sempre e, sem
+  // este recorte, consumiriam o teto de 1000 antes das etapas abertas. Funil sem
+  // coluna de espera não tem o que ler (e `.in` vazio não vai ao PostgREST).
+  const etapasDeEspera = etapas.filter((e) => !e.is_won && !e.is_lost).map((e) => e.id);
+  const { data: negocios, error: erroNegocios } = etapasDeEspera.length
+    ? await supabase
+        .from("crm_leads")
+        .select("stage_id, stage_changed_at, created_at")
+        .eq("organization_id", authz.org.orgId)
+        .eq("pipeline_id", id)
+        .in("stage_id", etapasDeEspera)
+        .limit(LIMITE_DE_NEGOCIOS)
+    : { data: [], error: null };
   if (erroNegocios) {
     return fail("internal_error", t("Falha ao ler os negócios das etapas."), 500, { requestId });
   }
 
-  const idsDasEtapas = new Set(etapas.map((e) => e.id));
+  const idsDasEtapas = new Set(etapasDeEspera);
   // `created_at` é NOT NULL na tabela e `stage_changed_at` tem default + backfill
   // desde a 0071; `last_activity_at` NÃO entra na projeção — a rota nem o pede,
   // então não existe caminho por onde a última atividade vire tempo de etapa.
