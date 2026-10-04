@@ -20,7 +20,7 @@ import { requireRole } from "@/lib/auth/require-role";
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
-import { ORG_ID, OUTRA_ORG, PIPE, authOk, etapa, funil, makeDb } from "@/tests/helpers/stages-db-double";
+import { ORG_ID, OUTRA_ORG, PIPE, authOk, etapa, funil, makeDb, negocio } from "@/tests/helpers/stages-db-double";
 
 const ctx = { params: Promise.resolve({ id: PIPE }) };
 
@@ -155,6 +155,62 @@ describe("GET /api/v1/pipelines/[id]/stages/win-rates", () => {
     expect(body.data.taxas).toHaveLength(5);
     expect(vazia?.total).toBe(0);
     expect(vazia?.percentual).toBeNull();
+  });
+
+  /**
+   * #2032 — a etapa ATUAL é lida por `crm_leads.stage_changed_at`, com
+   * `created_at` de reserva; `last_activity_at` nem sai da projeção da rota.
+   *
+   * O número que prova: 216 h vêm do carimbo de 9 DIAS, não dos 720 h da
+   * criação de 30. Se a conta voltar a preferir a criação (ou a última
+   * atividade), a mediana deixa de ser 144 e este teste cai junto do do módulo.
+   */
+  it("tempo na etapa: stage_changed_at manda, created_at é reserva, outra org não entra", async () => {
+    authOk();
+    const db = makeDb({ stages: funil() });
+    db.tabelas.crm_leads.push(
+      { ...negocio("com-carimbo", "e2"), stage_changed_at: instante(9), created_at: instante(30) },
+      { ...negocio("sem-carimbo", "e2"), stage_changed_at: null, created_at: instante(3) },
+      {
+        ...negocio("intruso", "e2", { organization_id: OUTRA_ORG }),
+        stage_changed_at: instante(50),
+        created_at: instante(50),
+      },
+    );
+    const { GET } = await import("./route");
+    const res = await GET(reqGet(), ctx);
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as {
+      data: {
+        tempo_na_etapa: {
+          medida: string;
+          base: string;
+          amostra: number;
+          etapas: Array<{
+            etapa_id: string;
+            quantidade: number;
+            horas_media: number | null;
+            horas_mediana: number | null;
+            com_carimbo: number;
+            sem_carimbo: number;
+          }>;
+        };
+      };
+    };
+    const bloco = body.data.tempo_na_etapa;
+    // O bloco DIZ o que é: população diferente da `taxas` da mesma resposta.
+    expect(bloco.medida).toBe("etapa atual");
+    expect(bloco.base).toContain("AGORA");
+    expect(bloco.amostra).toBe(2);
+
+    const proposta = bloco.etapas.find((l) => l.etapa_id === "e2");
+    expect(proposta?.quantidade).toBe(2);
+    expect(proposta?.com_carimbo).toBe(1);
+    expect(proposta?.sem_carimbo).toBe(1);
+    // Mediana de 216 h (carimbo, 9 dias) e 72 h (reserva, 3 dias) = 144 h.
+    expect(proposta?.horas_mediana).toBeCloseTo(144, 0);
+    expect(proposta?.horas_media).toBeCloseTo(144, 0);
   });
 
   it("atividade de OUTRA organização não entra na conta", async () => {

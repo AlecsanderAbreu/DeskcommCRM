@@ -5,11 +5,15 @@
  *
  * O card do Kanban já está resolvido: o PR #1908 (follow-up da #1748) passou o
  * rodapé a ler `crm_leads.stage_changed_at`. Falta o mesmo na camada de
- * relatório — e os relatórios de tempo/quantidade por etapa ainda liam
- * `last_activity_at`, ou nem existiam. Este módulo é a camada clean/instrumental
- * que a #2032 entrega e que destrava as propostas de «Análise do funil» (#1750)
- * e «Taxa histórica de ganho por etapa» (#1753): a rota e a tela consomem daqui,
- * em vez de cada uma reimplementar a escolha da coluna.
+ * relatório — e os relatórios de tempo/quantidade por etapa NÃO EXISTIAM:
+ * zero leituras de `last_activity_at` em `lib/metrics`, `lib/reports`,
+ * `app/api/v1/metrics` e `app/api/v1/reports`. Este módulo é a camada de
+ * cálculo que a #2032 entrega e que destrava as propostas de «Análise do
+ * funil» (#1750) e «Taxa histórica de ganho por etapa» (#1753) — e quem já
+ * consome é justamente a rota e a tela da #1753
+ * (`app/api/v1/pipelines/[id]/stages/win-rates`), que publicam este número
+ * AO LADO da taxa histórica, com o nome de etapa atual, em vez de a tela
+ * reimplementar a escolha da coluna.
  *
  * ## As duas regras que este arquivo não deixa errar
  *
@@ -38,8 +42,10 @@
  * - **Não ordena etapas.** `position` mora em `crm_stages`, e este módulo não
  *   toca em banco: quem chama é que devolve na ordem do funil. A ordem daqui é
  *   a de primeira aparição na lista recebida.
- * - **Sem rota e sem tela.** A #2032 é a camada de cálculo; expor em
- *   `/api/v1/reports/` é o passo seguinte, e ele importa exatamente estas funções.
+ * - **Não é a taxa histórica.** Quem consome aqui — a rota `win-rates` da #1753 —
+ *   publica os dois números juntos e diz qual é qual: `taxas` é a passagem
+ *   reconstruída das atividades (quem TRAVEJOU a etapa na janela), este bloco é
+ *   a etapa ATUAL (quem está nela agora). Medida de uma não preenche a outra.
  *
  * Puro de propósito — sem cliente de banco, sem env, sem fuso: o relógio (`agora`)
  * é parâmetro, como em `lib/kanban/card-state.ts`, para que o teste não meça a
@@ -91,7 +97,7 @@ export function fonteDaAncora(lead: LeadEmMedicao): FonteDaAncora {
 }
 
 /** A data da entrada na etapa atual: carimbo, com `created_at` de reserva. */
-export function ancoraDaEtapa(lead: LeadEmMedicao): string {
+export function entradaNaEtapa(lead: LeadEmMedicao): string {
   return lead.stage_changed_at ?? lead.created_at;
 }
 
@@ -102,7 +108,7 @@ export function ancoraDaEtapa(lead: LeadEmMedicao): string {
  * problema do dado.
  */
 export function horasNaEtapa(lead: LeadEmMedicao, agora: Date): number {
-  const ancora = new Date(ancoraDaEtapa(lead)).getTime();
+  const ancora = new Date(entradaNaEtapa(lead)).getTime();
   if (Number.isNaN(ancora)) return 0;
   return Math.max(0, (agora.getTime() - ancora) / 3_600_000);
 }

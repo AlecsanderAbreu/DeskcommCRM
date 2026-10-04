@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agregarPorEtapa,
-  ancoraDaEtapa,
+  entradaNaEtapa,
   fonteDaAncora,
   horasNaEtapa,
   type EtapaMedida,
@@ -59,7 +59,7 @@ describe("tempo-da-etapa · de qual coluna vem o relógio", () => {
     const lead = linha();
 
     expect(fonteDaAncora(lead)).toBe("stage_changed_at");
-    expect(ancoraDaEtapa(lead)).toBe(MOVIDO_EM);
+    expect(entradaNaEtapa(lead)).toBe(MOVIDO_EM);
     expect(horasNaEtapa(lead, AGORA)).toBeCloseTo(216, 5);
   });
 
@@ -68,7 +68,7 @@ describe("tempo-da-etapa · de qual coluna vem o relógio", () => {
     const lead = linha({ stage_changed_at: null });
 
     expect(fonteDaAncora(lead)).toBe("created_at");
-    expect(ancoraDaEtapa(lead)).toBe(CRIADO_EM);
+    expect(entradaNaEtapa(lead)).toBe(CRIADO_EM);
     expect(horasNaEtapa(lead, AGORA)).toBeCloseTo(240, 5);
   });
 
