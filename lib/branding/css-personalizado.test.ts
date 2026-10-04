@@ -7,6 +7,7 @@ import {
   CHAVE_CSS_PERSONALIZADO,
   cssPersonalizadoDaInstalacao,
   invalidarCssPersonalizadoDaInstalacao,
+  validacaoDoCssDaInstalacao,
 } from "./css-personalizado";
 
 type EstadoMemo = typeof globalThis & {
@@ -36,6 +37,15 @@ describe("leitura do CSS personalizado da instalação", () => {
     invalidarCssPersonalizadoDaInstalacao();
     expect(await cssPersonalizadoDaInstalacao()).toBe(".login { color: #654321; }");
     expect(mocks.valorDaInstalacao).toHaveBeenCalledTimes(2);
+  });
+
+  it("memoiza o resultado VALIDADO, não só o texto: o parse roda uma vez por leitura", async () => {
+    mocks.valorDaInstalacao.mockResolvedValue({ valor: ".a { color: #123; }", fonte: "banco" });
+
+    const primeira = await validacaoDoCssDaInstalacao();
+    expect(primeira.css).toBe(":root:root .a { color: #123; }");
+    expect(await validacaoDoCssDaInstalacao()).toBe(primeira);
+    expect(mocks.valorDaInstalacao).toHaveBeenCalledTimes(1);
   });
 
   it("devolve texto vazio se a configuração não tem folha", async () => {

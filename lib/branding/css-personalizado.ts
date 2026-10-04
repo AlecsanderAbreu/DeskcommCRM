@@ -183,25 +183,48 @@ export function validarCssPersonalizado(entrada: string): ResultadoCss {
   return { css: raiz.toString(), erro: null, regras, declaracoes };
 }
 
-type CacheCss = { readonly valor: string; readonly expiraEm: number };
+type CacheCss = {
+  readonly valor: string;
+  readonly validacao: ResultadoCss;
+  readonly expiraEm: number;
+};
 type EstadoGlobal = typeof globalThis & {
   __cssPersonalizadoDaInstalacao?: CacheCss;
   __geracaoCssPersonalizadoDaInstalacao?: number;
 };
 
-/** Leitura memoizada: a folha é aplicada em toda rota, mas lida do banco poucas vezes. */
-export async function cssPersonalizadoDaInstalacao(): Promise<string> {
+/**
+ * Leitura memoizada: a folha é aplicada em toda rota, mas lida do banco poucas
+ * vezes. O memo guarda o resultado VALIDADO junto com o texto — o layout raiz
+ * pede a folha em toda tela, e o parse roda uma vez por leitura do banco.
+ */
+async function lerDaInstalacao(): Promise<CacheCss> {
   const global = globalThis as EstadoGlobal;
   const atual = global.__cssPersonalizadoDaInstalacao;
-  if (atual && atual.expiraEm > Date.now()) return atual.valor;
+  if (atual && atual.expiraEm > Date.now()) return atual;
 
   const geracao = global.__geracaoCssPersonalizadoDaInstalacao ?? 0;
   const { valor } = await valorDaInstalacao(CHAVE_CSS_PERSONALIZADO);
   const css = valor ?? "";
+  const lido: CacheCss = {
+    valor: css,
+    validacao: validarCssPersonalizado(css),
+    expiraEm: Date.now() + TTL_MEMO_MS,
+  };
   if ((global.__geracaoCssPersonalizadoDaInstalacao ?? 0) === geracao) {
-    global.__cssPersonalizadoDaInstalacao = { valor: css, expiraEm: Date.now() + TTL_MEMO_MS };
+    global.__cssPersonalizadoDaInstalacao = lido;
   }
-  return css;
+  return lido;
+}
+
+/** O texto gravado, como o administrador escreveu (o editor de `/admin/marca`). */
+export async function cssPersonalizadoDaInstalacao(): Promise<string> {
+  return (await lerDaInstalacao()).valor;
+}
+
+/** A folha gravada, já validada e escopada — o que o layout raiz aplica. */
+export async function validacaoDoCssDaInstalacao(): Promise<ResultadoCss> {
+  return (await lerDaInstalacao()).validacao;
 }
 
 export function invalidarCssPersonalizadoDaInstalacao(): void {

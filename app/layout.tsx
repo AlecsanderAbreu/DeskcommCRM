@@ -6,10 +6,8 @@ import { coresDaBarraDoNavegador } from "@/lib/branding/barra-do-navegador";
 import { MarcaDaInstalacaoProvider } from "@/lib/branding/contexto";
 import { cssDaMarca } from "@/lib/branding/css";
 import { iconeDaAba } from "@/lib/branding/icone";
-import {
-  cssPersonalizadoDaInstalacao,
-  validarCssPersonalizado,
-} from "@/lib/branding/css-personalizado";
+import { folhaPersonalizadaDaInstalacao } from "@/lib/branding/folha-personalizada";
+import { CABECALHO_SEM_CSS } from "@/lib/branding/sem-css-personalizado";
 import {
   marcaDaInstalacao,
   motivoDoFallback,
@@ -223,18 +221,15 @@ async function EstiloDaMarca() {
   return <style id="marca-instalacao" dangerouslySetInnerHTML={{ __html: css }} />;
 }
 
-/** CSS visual, escopado e validado do administrador da instalação. */
+/**
+ * CSS visual, escopado e validado do administrador da instalação. `?sem_css=1`
+ * desliga a folha para quem pediu (ver `lib/branding/sem-css-personalizado.ts`).
+ */
 async function EstiloCssPersonalizado() {
-  const fonte = await cssPersonalizadoDaInstalacao();
-  const validacao = validarCssPersonalizado(fonte);
-  if (validacao.erro) {
-    logger.warn("marca da instalação: CSS personalizado recusado; folha não aplicada", {
-      codigo: "custom_css_invalid",
-    });
-    return null;
-  }
-  if (!validacao.css) return null;
-  return <style id="marca-css-personalizado" dangerouslySetInnerHTML={{ __html: validacao.css }} />;
+  const desligada = (await headers()).get(CABECALHO_SEM_CSS) === "1";
+  const css = await folhaPersonalizadaDaInstalacao(desligada);
+  if (!css) return null;
+  return <style id="marca-css-personalizado" dangerouslySetInnerHTML={{ __html: css }} />;
 }
 
 /**
