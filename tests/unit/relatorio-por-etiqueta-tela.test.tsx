@@ -112,10 +112,12 @@ describe("relatório por etiqueta na tela", () => {
     expect(linhas[0]).toHaveTextContent("vip");
     expect(linhas[1]).toHaveTextContent("duvida");
 
-    // O "e daí" da linha: da etiqueta para a lista de conversas filtrada.
+    // O "e daí" da linha: da etiqueta para a lista de conversas filtrada — na
+    // aba Todas. Sem `filter=` o Inbox abre na Fila, que esconde as resolvidas
+    // e as que têm dono: a linha "vip, 8 resolvidas" levaria a uma lista vazia.
     const links = screen.getAllByTestId("link-de-etiqueta");
-    expect(links[0]).toHaveAttribute("href", "/app/inbox?tag=vip");
-    expect(links[1]).toHaveAttribute("href", "/app/inbox?tag=duvida");
+    expect(links[0]).toHaveAttribute("href", "/app/inbox?filter=all&tag=vip");
+    expect(links[1]).toHaveAttribute("href", "/app/inbox?filter=all&tag=duvida");
 
     // Espera legível, e `null` (não medido) é travessão — nunca zero.
     expect(linhas[0]).toHaveTextContent("12 min");

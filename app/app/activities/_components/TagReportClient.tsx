@@ -136,9 +136,12 @@ export function TagReportClient() {
                   <TableCell>
                     {/* O "e daí" da linha: lista que não leva ao trabalho é
                         decoração. Um marcador por vez (#1886 é o filtro de
-                        várias), então o link carrega UMA etiqueta. */}
+                        várias), então o link carrega UMA etiqueta.
+                        `filter=all` porque sem ele o Inbox abre na Fila, que
+                        esconde as resolvidas e as que têm dono — e a linha
+                        conta as duas. */}
                     <Link
-                      href={`/app/inbox?tag=${encodeURIComponent(linha.etiqueta)}`}
+                      href={`/app/inbox?filter=all&tag=${encodeURIComponent(linha.etiqueta)}`}
                       data-testid="link-de-etiqueta"
                       className="text-accent underline underline-offset-2"
                     >
