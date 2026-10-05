@@ -29,6 +29,7 @@
 // 4 e 5 ficam vermelhos (3 de 7) e os controles continuam verdes.
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { z } from "zod";
 
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ rpc: async () => ({ error: null }) }),
@@ -226,6 +227,30 @@ describe("crm_create_lead (MCP) — o mesmo escritor", () => {
 
     expect(erro).toMatchObject({ status: 422, code: "required_fields_missing" });
     expect(inseridos).toHaveLength(0);
+  });
+
+  // #2297, caminho 2: a chave faltava no `inputSchema` da ferramenta. O
+  // argumento passa pelo SHAPE, como o servidor MCP faz antes de chamar o
+  // handler — sem `custom_fields` declarado, o `z.object` descarta a chave aqui
+  // e a régua lá dentro recusa sem que o agente tivesse como evitar.
+  it("com `custom_fields` no argumento, a MESMA criação na etapa exigente passa", async () => {
+    const { cliente, inseridos } = criacao(EXIGENTE);
+
+    const argumento = z.object(crmCreateLead.inputSchema).parse({
+      pipeline_id: FUNIL_A,
+      stage_id: ETAPA,
+      title: "Negócio aberto pelo agente",
+      custom_fields: { concorrente: "ACME" },
+    });
+
+    await crmCreateLead.handler(argumento, {
+      supabase: cliente,
+      organizationId: ORG,
+      actor: { type: "user", id: "user-1" },
+      requestId: "req-1",
+    } as never);
+
+    expect(inseridos).toHaveLength(1);
   });
 });
 
