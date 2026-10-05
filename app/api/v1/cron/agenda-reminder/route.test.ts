@@ -328,3 +328,13 @@ describe("degrausPendentes — a véspera não sai no dia em que a reunião foi 
     expect(degrausPendentes({ ...base, timezone: null, criadoEm, agora: new Date("2026-10-05T17:00:00.000Z") })).toEqual([1440]);
   });
 });
+
+describe("vesperaNoDiaDaMarcacao — fuso ilegível não derruba a rodada", () => {
+  it("fuso inválido devolve false em vez de lançar (o cron é de todas as organizações)", async () => {
+    const { vesperaNoDiaDaMarcacao } = await import("./route");
+    const marcadoEm = new Date("2026-10-05T12:00:00Z");
+    const comeca = new Date("2026-10-06T17:00:00Z");
+    expect(() => vesperaNoDiaDaMarcacao(comeca, 1440, marcadoEm, "Brasilia")).not.toThrow();
+    expect(vesperaNoDiaDaMarcacao(comeca, 1440, marcadoEm, "Brasilia")).toBe(false);
+  });
+});

@@ -348,7 +348,16 @@ export function vesperaNoDiaDaMarcacao(
   timezone: string | null | undefined,
 ): boolean {
   if (!marcadoEm || !timezone || degrauMin < 1440) return false;
-  const dia = new Intl.DateTimeFormat("en-CA", { timeZone: timezone });
+  // `organizations.timezone` é texto livre (Zod só limita o tamanho): um fuso
+  // inválido faz o `Intl` lançar RangeError, e aqui isso derrubaria a rodada
+  // inteira do cron, de TODAS as organizações. Sem fuso legível a guarda fica
+  // fora do caminho — o mesmo de hoje sem ela.
+  let dia: Intl.DateTimeFormat;
+  try {
+    dia = new Intl.DateTimeFormat("en-CA", { timeZone: timezone });
+  } catch {
+    return false;
+  }
   return dia.format(new Date(comeca.getTime() - degrauMin * 60_000)) === dia.format(marcadoEm);
 }
 
