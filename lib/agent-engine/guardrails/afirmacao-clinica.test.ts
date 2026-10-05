@@ -25,6 +25,12 @@ const barra: Array<[string, string]> = [
   ['afirmacao_oncologica', 'Pela foto, parece ser um melanoma.'],
   ['afirmacao_oncologica', 'Fique tranquila, não é câncer.'],
   ['afirmacao_oncologica', 'Isso tem cara de carcinoma.'],
+  // o "se você" da pergunta condicional não pode desarmar o diagnóstico que vem junto
+  ['diagnostico', 'Se você tem coceira, você tem uma micose.'],
+  ['diagnostico', 'Você tem uma micose, se você tiver dúvida me chame.'],
+  ['afirmacao_oncologica', 'Se você está com dúvida: isso é um melanoma.'],
+  // dose líquida com o verbo continua sendo prescrição
+  ['prescricao', 'Tome 5 ml do xarope de 8 em 8 horas.'],
 ];
 
 const passa: string[] = [
@@ -40,11 +46,18 @@ const passa: string[] = [
   'Tome nota do endereço: Rua Santa Clara, 50.',
   'Pode usar o estacionamento do prédio.',
   'Passe na recepção 15 minutos antes.',
+  'Se você tem alergia a algum medicamento, avise a recepção.',
+  'No dia do laser, não passe creme nem maquiagem.',
+  'Não use pomada na região antes do procedimento.',
+  'Beba 500 ml de água antes do exame.',
   'Obrigada por mandar a foto. Ela ajuda na triagem, mas o diagnóstico é feito em consulta.',
   // outros nichos com as mesmas palavras
   'Você tem 10% de desconto na primeira compra.',
   'Use o cupom BEMVINDO no carrinho.',
   'Garanto a entrega até sexta.',
+  'O sérum de 30 ml sai por R$ 120.',
+  'O frasco de 200 ml do shampoo custa R$ 89.',
+  'O kit vem com 3 g de amostra.',
 ];
 
 describe('detectarAfirmacaoClinica', () => {

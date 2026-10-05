@@ -91,12 +91,19 @@ const HIPOTESE = new RegExp(
 
 const ARTIGO = String.raw`(?:(?:um|uma|uns|umas)\s+)?`;
 
+const VERBOS_DE_USO = String.raw`tome|tomar|pode\s+tomar|use|usar|pode\s+usar|aplique|aplicar|passe|passar|pode\s+passar`;
+const NAO_NEGADO = String.raw`(?<!(?:n[aã]o|nem|evite)\s+)`;
+
 const REGRAS: ReadonlyArray<{ categoria: CategoriaClinica; padrao: RegExp; hipoteseDesarma: boolean }> = [
   {
     categoria: 'diagnostico',
     padrao: new RegExp(
       [
-        String.raw`${palavra(String.raw`voc[eê]|vc`)}\s+` +
+        // "Se você tem alergia a…, avise" é pergunta condicional da recepção, não diagnóstico.
+        // O lookbehind fica no SUJEITO, não em HIPOTESE: em HIPOTESE, um "se você tiver
+        // dúvida" desarmaria a frase inteira e soltaria "Você tem uma micose, se você
+        // tiver dúvida me chame." (casos de controle no teste).
+        String.raw`(?<!${INICIO}se\s+)${palavra(String.raw`voc[eê]|vc`)}\s+` +
           String.raw`(?:tem|t[aá]\s+com|est[aá]\s+com|possui|deve\s+ter|provavelmente\s+tem|certamente\s+tem)\s+` +
           `${ARTIGO}${palavra(DOENCAS)}`,
         String.raw`${palavra(String.raw`seu\s+diagn[oó]stico\s+(?:[eé]|seria)`)}`,
@@ -111,10 +118,14 @@ const REGRAS: ReadonlyArray<{ categoria: CategoriaClinica; padrao: RegExp; hipot
     categoria: 'prescricao',
     padrao: new RegExp(
       [
-        String.raw`${palavra(String.raw`tome|tomar|pode\s+tomar|use|usar|pode\s+usar|aplique|aplicar|passe|passar|pode\s+passar`)}\s+` +
+        // Instrução negada ("não passe creme no dia do laser") é preparo de procedimento.
+        String.raw`${NAO_NEGADO}${palavra(VERBOS_DE_USO)}\s+` +
           String.raw`(?:(?:o|a|um|uma|esse|essa|este|esta)\s+)?${palavra(REMEDIOS)}`,
         palavra(String.raw`receito|prescrevo|vou\s+(?:te\s+)?receitar|vou\s+(?:te\s+)?prescrever`),
-        String.raw`${INICIO}\d+(?:[.,]\d+)?\s?(?:mg|mcg|ml|g)${FIM}`,
+        // Dose isolada só em mg/mcg: "frasco de 200 ml" e "3 g de amostra" são produto.
+        String.raw`${INICIO}\d+(?:[.,]\d+)?\s?(?:mg|mcg)${FIM}`,
+        // Dose líquida só com o verbo: "tome 5 ml do xarope".
+        String.raw`${NAO_NEGADO}${palavra(VERBOS_DE_USO)}\s+\d+(?:[.,]\d+)?\s?(?:ml|gotas)${FIM}`,
       ].join('|'),
       'iu',
     ),
