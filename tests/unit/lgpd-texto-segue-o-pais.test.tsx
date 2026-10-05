@@ -182,6 +182,9 @@ function pdfDe(
           email: "ana@x.test",
           phone_number: "+5511999998888",
           cpf: "52998224725",
+          // Onde a pergunta de roteiro do tipo `cpf` grava: é de lá que o PDF
+          // lê o valor que imprime mascarado (issue #2341).
+          custom_fields: { cpf: "52998224725" },
           source: "whatsapp",
           created_at: "2026-01-02T03:04:05.000Z",
           is_anonymized: false,
@@ -307,7 +310,7 @@ describe("data.json e PDF de acesso", () => {
     // O valor só vem da pergunta de roteiro do tipo `cpf`, validada como CPF.
     const { cheio } = await dataJson("PT", "Europe/Lisbon");
     const pdf = pdfDe(cheio, { contato: { cpf_informado_na_conversa: true } });
-    const i = pdf.indexOf("Informado na conversa (valor no arquivo de dados)");
+    const i = pdf.indexOf("Informado na conversa (***.***.*47-25)");
     expect(pdf.slice(i - 2, i)).toEqual(["CPF", ":"]);
     // O que está guardado na coluna, numa organização portuguesa, é o NIF.
     const guardado = pdfDe(cheio, { contato: { cpf_present: true } });
