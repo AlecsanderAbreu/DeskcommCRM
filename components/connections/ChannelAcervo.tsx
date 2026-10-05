@@ -11,6 +11,8 @@ import { apiClient } from "@/lib/api/client";
 
 interface Acervo {
   guardar_historico: boolean;
+  /** Só na resposta do PATCH: `false` = salvo, mas a sessão não foi reconfigurada agora. */
+  aplicado?: boolean;
 }
 
 /**
@@ -38,9 +40,11 @@ export function ChannelAcervo({ channelId }: { channelId: string }) {
     setBusy(true);
     setErro(false);
     try {
-      await apiClient.patch<{ data: Acervo }>(`/api/v1/channel-sessions/${channelId}/acervo`, { guardar_historico: valor });
+      const res = await apiClient.patch<{ data: Acervo }>(`/api/v1/channel-sessions/${channelId}/acervo`, { guardar_historico: valor });
       qc.setQueryData(["channel-acervo", channelId], { data: { guardar_historico: valor } });
-      toast.success(t("Opção de histórico salva."));
+      toast.success(res.data.aplicado === false
+        ? t("Opção salva; vale na próxima reconexão do número.")
+        : t("Opção de histórico salva."));
     } catch {
       setErro(true);
       void query.refetch();
@@ -52,16 +56,22 @@ export function ChannelAcervo({ channelId }: { channelId: string }) {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-2">
-        <Switch id={id} checked={ligado} disabled={busy || query.isFetching} onCheckedChange={(v) => void trocar(v)} />
+        <Switch id={id} checked={ligado} disabled={busy || query.isFetching || query.isError} onCheckedChange={(v) => void trocar(v)} />
         <Label htmlFor={id} className="cursor-pointer text-xs font-normal">
           {t("Guardar o histórico anterior à vinculação")}
         </Label>
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        {ligado
-          ? t("Acervo ligado: o canal passa a baixar e guardar as conversas que já existiam no aparelho. O acervo fica no servidor do canal, ocupa disco lá e não é apagado quando o CRM anonimiza um contato.")
-          : t("Acervo desligado: só as mensagens novas entram, como sempre.")}
-      </p>
+      {/* Leitura que falhou não é "desligado": mostrar o default aqui afirmaria um estado que ninguém leu. */}
+      {query.isError ? (
+        <p role="alert" className="text-[11px] text-destructive">{t("Não foi possível ler esta opção.")}</p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          {ligado
+            ? t("Acervo ligado: o servidor do canal guarda as conversas deste número. Num número que já estava pareado, guarda daqui em diante; o histórico anterior (cerca de 1 ano) só chega numa vinculação nova. Ocupa disco lá e não é apagado quando o CRM anonimiza um contato.")
+            : t("Acervo desligado: só as mensagens novas entram, como sempre.")}
+        </p>
+      )}
+      <p className="text-[11px] text-muted-foreground">{t("Ligar ou desligar reinicia a conexão por alguns segundos. Desligar num número já pareado pode apagar o que o canal já guardou.")}</p>
       {erro && (
         <p role="alert" className="text-[11px] text-destructive">
           {t("Não foi possível guardar esta opção.")}

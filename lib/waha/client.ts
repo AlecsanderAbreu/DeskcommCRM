@@ -371,8 +371,8 @@ export class WahaClient {
       .every(([key, value]) => (ignore as Record<string, unknown>)[key] === value);
     // Sessão que JÁ existe: `POST /api/sessions` responde 422 e a config não é
     // aplicada nesse caminho. Então quem ligou a opção em um número já pareado
-    // só consegue o acervo pela convergência — é o "ligar depois, sem
-    // desconectar" que a #999 pede. Sem a opção, o critério é o de sempre
+    // só consegue o acervo pela convergência (guardando daqui em diante: o
+    // fullSync é da vinculação). Sem a opção, o critério é o de sempre
     // e o store fica como estava (ver OpcoesDeAcervo).
     const acervoFalta = !acervoEstaConferido(creation.session.config, opcoes.guardarHistorico);
     if (!creation.created && (!filtersCurrent || acervoFalta)) await this.convergirConfigDaSessao(name, opcoes);

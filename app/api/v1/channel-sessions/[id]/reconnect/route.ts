@@ -174,8 +174,9 @@ export async function POST(
     // reescanear o QR mesmo que ela ainda estivesse boa.
     if (force) await waha.logoutSession(nomeParaOTransporte);
     // Com a opção de acervo ligada nesta conexão, o start também converge o
-    // store (é o caminho de ligar depois, sem re-parear o número). Desligada, a
-    // chamada é a de sempre, sem segundo argumento.
+    // store (num número já pareado, guarda daqui em diante). Desligada, a
+    // chamada é a de sempre, sem segundo argumento — e o store fica como o
+    // canal o tem: só o PATCH /acervo desliga.
     const opcoesAcervo = lerGuardarHistorico(session.metadata) ? { guardarHistorico: true } : undefined;
     const remote = (await (opcoesAcervo
       ? waha.startSession(nomeParaOTransporte, opcoesAcervo)

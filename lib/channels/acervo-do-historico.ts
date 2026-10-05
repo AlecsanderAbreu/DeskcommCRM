@@ -19,9 +19,13 @@ import { getWahaClient } from "@/lib/waha/client";
  * aplicada nesse caminho, então gravar a opção não liga nada por si. O que
  * liga é a convergência (`convergirConfigDaSessao`), que faz GET + PUT em cima
  * do que já está lá: ela preserva filtro, `webhooks` e o resto do `noweb` e
- * só grava o `store`. É o caminho de ligar (e desligar) depois, sem
- * desconectar: a credencial de pareamento fica no volume do canal e o PUT só
- * reinicia a sessão.
+ * só grava o `store`. A credencial de pareamento fica no volume do canal e o
+ * PUT só reinicia a sessão — mas, num número JÁ pareado, ligar guarda daqui em
+ * diante: o `fullSync` (cerca de 1 ano de histórico) só acontece na
+ * vinculação, como a própria #999 diz ("Ligar depois não resolve"). E a doc
+ * do NOWEB avisa: "Do not change the values after you scanned QR, it can lead
+ * to the loss of the chat history" — desligar depois de pareado pode apagar o
+ * que já está guardado. A tela diz as duas coisas.
  *
  * ─── Gravação: le-modifica-escreve, e por quê ──────────────────────────────
  *
@@ -58,8 +62,9 @@ export async function lerAcervoDoCanal(
 }
 
 /**
- * Grava a opção e já tenta aplicá-la na sessão que existe — é o "ligar depois
- * sem desconectar" da #999, num só clique.
+ * Grava a opção e já tenta aplicá-la na sessão que existe. Num número já
+ * pareado, ligar guarda daqui em diante (ver o cabeçalho). `guardar` aqui é
+ * SEMPRE explícito: este é o único caminho que pode desligar o store.
  *
  * `aplicado: false` NÃO é erro de gravação: a opção foi salva e vale na
  * próxima subida da sessão. Acontece quando o transporte não está configurado,
