@@ -22,13 +22,13 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Produtos sincronizados de uma integração (`origem` que não seja `manual` nem `planilha`) abrem o formulário **somente leitura**, com o aviso de que a edição vale na origem: a próxima sincronização sobrescreveria o que fosse mudado aqui. As fotos continuam editáveis pelo botão de sempre, porque a integração não mexe nelas.
 
-  Contribuição de @webtecnica.
+  Contribuição de @webtecnica (#2288, refs #2135).
 
 - **Cada intenção do roteador pode levar o negócio para o funil certo** Na tela do roteador, cada intenção ganha um campo opcional de funil de destino (e, se quiser, a etapa; sem etapa, vale a primeira etapa aberta do funil). Quando o roteador escolhe a intenção, o negócio do cliente vai para esse funil antes de o agente responder, e o agente passa a trabalhar no card do time certo. Até aqui o roteador só escolhia o agente, e o card ficava no funil de entrada.
 
   Sem destino configurado, nada muda: quem atualiza continua com o roteamento de antes. Se o cliente troca de assunto para outra intenção que tem destino, o card vai para o novo funil e o negócio anterior é encerrado como transferência, com o motivo "Levado para outro funil", que não conta como perda nas métricas. A linha do tempo registra que foi o roteador de intenção quem levou o card. Se o contato já tem um negócio aberto no funil de destino, nenhum card novo é criado.
 
-  Contribuição de @webtecnica (#2155).
+  Contribuição de @webtecnica (#2290, fecha #2155).
 
 - **Tempo na etapa (quem está nela agora) na tela de etapas, medido por stage_changed_at (#2032)** A tela de etapas passa a mostrar, ao lado da taxa histórica de ganho (#1753), quanto tempo os negócios estão NA etapa AGORA — medido pela ENTRADA do negócio na etapa (`crm_leads.stage_changed_at`, carimbada pelo trigger `trg_stamp_stage_changed_at` desde a migration 0071), com `created_at` de reserva para o lead sem carimbo. `last_activity_at` não entra na conta: é tempo sem resposta, e uma nota na conversa zerava o relógio de um negócio parado há semanas. É a mesma escolha do card do Kanban desde o #1908.
 
@@ -36,13 +36,15 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Sete testes do módulo cobrem os três casos da issue, inclusive o de `last_activity_at` mais recente ser ignorado; a rota e a tela têm teste próprio, e etapa vazia não ganha «0 h».
 
-  Contribuição de @webtecnica (#2032).
+  Contribuição de @webtecnica (#2225, fecha #2032).
 
 ### Corrigido
 
 - **Instalação single-server atrás de um Traefik próprio ganha rota para as seis APIs do Supabase** Quem já tem um Traefik ocupando as portas 80/443 (em modo host, como na Hostinger; Traefik em bridge, como Coolify/Dokploy, ainda não é coberto) e instala o modo single-server com `REVERSE_PROXY=traefik` consegue concluir a instalação, desde que o entrypoint HTTPS desse Traefik se chame `websecure` ou que `TRAEFIK_ENTRYPOINT` seja exportado com o nome dele (a rota do Supabase lê o entrypoint só do ambiente; com outro nome, como `https`, ela é ignorada pelo Traefik): o Caddyfile do modo Caddy roteava `/auth/v1`, `/rest/v1`, `/realtime/v1`, `/storage/v1`, `/functions/v1` e `/graphql/v1` para o Envoy do Supabase, e o overlay do Traefik não tinha essa regra — o Traefik entregava esses caminhos ao app, que devolvia 404, e o instalador parava em "NEXT_PUBLIC_SUPABASE_ANON_KEY inválido". As seis prefixos agora viram etiquetas de rota no `api-gw`, ligadas só quando o instalador grava `TRAEFIK_ENABLE=true` no `.env` do Supabase, com prioridade acima da rota geral do app e abaixo do bloqueio do webhook do WAHA.
 
   Para quem instala em Caddy — a maioria — nada muda: a rota nasce desligada (`traefik.enable=false`) e nenhuma variável nova do produto é lida. Para quem já instalou em Caddy não há efeito visível (o contêiner do Envoy é recriado uma vez na atualização), e para quem já instalou atrás de Traefik basta rodar de novo o `install-single-server.sh` com `REVERSE_PROXY=traefik` no ambiente, que regrava o `.env` do Supabase e recria o contêiner do Envoy com a rota.
+
+  Contribuição de @webtecnica (#2289, fecha #2099).
 
 - **O assistente para de prometer retorno ao cliente sem que alguém fique responsável** Medido em produção em 16 de setembro. O assistente escreveu ao cliente: *"Vou encaminhar as informações do site imobiliário para análise e te retorno com a proposta."* O cliente saiu da conversa esperando um orçamento — e ninguém ficou devendo nada, porque o sistema não registrou nada: nenhum caso para alguém resolver, nenhum retorno marcado, nenhum aviso na Central.
 
@@ -52,7 +54,9 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Quando quem promete voltar é o próprio assistente (*"Combinado! Te retorno amanhã de manhã."*), marcar o retorno na agenda de follow-up também resolve: se o assistente agendou o retorno naquele mesmo atendimento, a mensagem sai sem precisar de caso. Isso vale só para a promessa do assistente. Se a frase diz que alguém da empresa vai agir (a equipe, uma análise, o responsável, um setor), o caso continua obrigatório, com ou sem retorno agendado. Na dúvida, por exemplo quando a resposta do classificador vem incompleta, vale a regra mais rígida: o caso é exigido.
 
-  Um detalhe que vale saber na hora de decidir: a camada que faz a segunda pergunta segue a escolha que já existe na tela do assistente, no painel de segurança, e só o administrador da empresa a muda. Desligando, o reconhecimento volta a ser só por palavra — isto é, aquelas cinco frases voltam a passar. Crédito: @paulolimajr77.
+  Um detalhe que vale saber na hora de decidir: a camada que faz a segunda pergunta segue a escolha que já existe na tela do assistente, no painel de segurança, e só o administrador da empresa a muda. Desligando, o reconhecimento volta a ser só por palavra — isto é, aquelas cinco frases voltam a passar.
+
+  Contribuição de @paulolimajr77 (#1873).
 
 - **A catraca do espanhol passa a enxergar a chave montada em runtime e o t() sobre variável** O gate que cobra a tradução em espanhol só reconhecia texto escrito no código (`t("literal")`) e tabela resolvível (`t(TABELA[k])`): quando a chave é montada em runtime (``t(`Meta de ${x} batida`)``) ou vem de uma variável que ninguém consegue ler (`t(rotulo)`), o gate ficava verde mesmo sem nada em espanhol — e, como `traduzir()` devolve a própria chave quando ela falta, a frase saía em português para quem escolheu espanhol. A catraca agora cobre as duas formas, apontando arquivo:linha de cada uma.
 
@@ -66,7 +70,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   Nada muda para quem não configurou `obrigatorio_em` num campo do funil: a regra continua opt-in, e uma leitura indisponível das configurações deixa a criação acontecer como antes. Na transferência entre funis a recusa acontece antes de clonar e de fechar a origem, então o negócio continua aberto no funil de onde saiu.
 
-  Contribuição de @webtecnica (#2295).
+  Contribuição de @webtecnica (#2295, fecha #1710).
 
 - **Agente criado pela API sem `version`, ou duplicado de um agente antigo sem versão, nasce com rascunho v1 editável na tela** Uma integração que criava agente por `POST /api/v1/ai/agents` sem o campo `version`, e a duplicação de um agente antigo que nunca teve versão, gravavam um agente sem nenhuma versão, que nem o atendimento do CRM nem o agent-engine enxergam: ele existia na lista e nunca respondia.
 
@@ -74,11 +78,11 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   A resposta da API para o formato sem `version` continua sendo a linha do agente, e o modelo omitido continua sendo `anthropic/claude-sonnet-5`. Muda o valor de `kind`, que passa de `rag_bot` para `mcp_agent`. Os agentes antigos que já existem não são alterados.
 
-  Contribuição de @webtecnica (#2296).
+  Contribuição de @webtecnica (#2296, fecha #1357).
 
 - **O diálogo de excluir contato avisa do compromisso na Agenda antes do clique** Ao abrir "Excluir contato?", a tela agora consulta o que vai barrar a exclusão e, se o contato tem compromisso na Agenda, diz isso já no diálogo, com um link para abrir a Agenda. Antes o aviso só aparecia depois de tentar excluir. Sem compromisso, o diálogo continua igual e a exclusão segue normalmente. A tela usa a mesma contagem que a exclusão.
 
-  Contribuição de @webtecnica (#1925, continuação do #1949).
+  Contribuição de @webtecnica (#2293, fecha #1925, continuação do #1949).
 
 - **O item "demanda aberta sem próximo passo" do Radar vira link, e o caso cancelado ou resolvido marca um próximo passo na demanda que ele abriu** No Radar de risco, o item "demanda aberta sem próximo passo" deixava de ser só
   texto: agora é um link para a conversa vigente da demanda (ou, sem conversa,
@@ -95,7 +99,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
   Demanda antes presa em `em_atendimento` num caso rescindido não é
   retroativamente corrigida por esta versão. Sem ação necessária.
 
-  Contribuição de @webtecnica (#2056).
+  Contribuição de @webtecnica (#2056, fecha #2035).
 
 - **As recusas da régua de campos obrigatórios agora chegam a quem precisa ver** Com a régua na criação de negócio (#2295), quatro caminhos recusavam sem que a pessoa certa visse — ou deixavam um resto. Os quatro passam a se comportar assim:
 
@@ -106,7 +110,7 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   A régua não afrouxa em nenhum dos quatro: a isenção da rota de captação (`exigirCamposDaEtapa: false`, decisão do #2295) continua intacta, e nenhum caminho passa a criar o que a régua recusava.
 
-  Contribuição de @webtecnica (#2297).
+  Contribuição de @webtecnica (#2302, fecha #2297).
 
 - **O banco recusa nome de sessão WAHA acima do teto de 54, em vez de só o teste conferir** O teto de 54 caracteres que o WAHA impõe no nome da sessão era conferido em três lugares de código — o teste de banco, o teste unitário e a guarda antes de chamar o WhatsApp — e em nenhum deles dentro da escrita da linha. Um INSERT direto (um script, o PostgREST, ou uma migration que copiasse o corpo antigo) gravava um nome acima do teto sem que nada recusasse, e o erro só aparecia quando o operador tentava conectar o número, com o card preso em "Parado".
 
@@ -114,15 +118,17 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
   De quebra, o teste de tela de pré-go-live deixa de montar `prego_` à mão e passa a usar o mesmo gerador que o banco usa, com o formato real conferido.
 
-  Contribuição de @webtecnica (#686).
+  Contribuição de @webtecnica (#2301, fecha #686).
 
 - **Ligação telefônica de contato bloqueado é recusada e aparece como "Cancelada"** Quem mandou "PARAR" não recebe mais ligação da IA: no telefone (SIP), a chamada de entrada de contato bloqueado é desligada na hora, sem virar negócio, sem tocar aviso para a equipe e sem carimbar a linha do tempo — recusar é não-interação. A linha fica gravada no histórico e na tela de chamadas como "Cancelada", o status existente mais próximo de recusa (um rótulo próprio pode vir em PR seguinte), para a equipe saber que a ligação existiu sem precisar agir. No WhatsApp a ligação não é recusada: a perdida de bloqueado só deixa de gerar aviso e linha do tempo, e a atendida por alguém da equipe continua na linha do tempo. A saída (discar para bloqueado) já era recusada e continua igual; falha ao ler o bloqueio deixa a chamada passar, nunca derruba ligação legítima por instabilidade.
 
-  Contribuição de @paulolimajr77.
+  Contribuição de @paulolimajr77 (#2299).
 
 - **O WAHA passa a assinar as entregas de webhook e a exigência de assinatura passa a funcionar** O compose entregava o segredo ao contêiner do WAHA numa variável que não existe na documentação dele (`WHATSAPP_HOOK_HMAC` em vez de `WHATSAPP_HOOK_HMAC_KEY`), então o WAHA ignorava e nunca assinava nada — e ligar "Exigir assinatura nas entregas do canal" cortava a entrada de mensagens com `401 signature_required`.
 
   Agora o nome é o exato da documentação (nos três composes e no runbook). Na atualização o contêiner do WAHA é recriado e passa a mandar `X-Webhook-Hmac` em toda entrega; quem tem a exigência ligada volta a receber mensagens, agora com `valid_signature = true` no log. Nenhuma ação do operador: o segredo é o mesmo, só o nome da variável mudou.
+
+  Contribuição de @paulolimajr77 (#2268).
 
 ## [1.72.0] — 2026-10-04
 
