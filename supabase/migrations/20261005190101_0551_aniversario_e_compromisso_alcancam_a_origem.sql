@@ -1,7 +1,7 @@
 -- manifest: **O aniversário (`contact.birthday`) e os seis `appointment.*` voltam a alcançar a origem do atendimento (issue #2326).** O `fn_service_event_origin` só conhecia seis tipos de evento e o carimbo do `emit_event` só cobria quatro: todo gatilho fora da lista terminava a ação de WhatsApp em `service_boundary_stale`, sem erro em lugar nenhum. As duas pontas agora leem a MESMA tabela `(tipo, entidade) → contato` (`fn_service_event_contact`), que ganha `contact.birthday` e os seis `appointment.*`; `lead.created/stage_changed/tag_added` e `contact.tag_added` passam a ler dela sem mudança de comportamento. Idempotente: `create or replace`; apêndice igual no fim do `baseline.sql`.
 
 -- ============================================================================
--- 0544 — O ANIVERSÁRIO E O COMPROMISSO ALCANÇAM A ORIGEM (#2326)
+-- 0551 — O ANIVERSÁRIO E O COMPROMISSO ALCANÇAM A ORIGEM (#2326)
 --
 -- O defeito medido na #2326: uma regra de automação cujo gatilho é
 -- `contact.birthday` ou um dos seis `appointment.*` e cuja ação é enviar

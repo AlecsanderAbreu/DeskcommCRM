@@ -44888,11 +44888,11 @@ create trigger trg_teto_nome_de_sessao_waha before insert or update on public.ch
 notify pgrst,'reload schema';
 
 
--- ---- #2326: o aniversário e o compromisso alcançam a origem (migration 0544) ----
+-- ---- #2326: o aniversário e o compromisso alcançam a origem (migration 0551) ----
 -- O gatilho de aniversário (`contact.birthday`) e os seis `appointment.*` não estavam nem na
 -- resolução de origem (`fn_service_event_origin`) nem no carimbo do `emit_event`, e a ação de
 -- WhatsApp terminava em `service_boundary_stale`. As duas pontas passam a ler a MESMA tabela
--- `(tipo, entidade) → contato` (`fn_service_event_contact`). Cabeçalho da 0544 para o racional inteiro.
+-- `(tipo, entidade) → contato` (`fn_service_event_contact`). Cabeçalho da 0551 para o racional inteiro.
 create or replace function public.fn_service_event_contact(p_org uuid,p_event_type text,p_entity_kind text,p_entity_id uuid)
 returns table(contact_id uuid,suportado boolean) language plpgsql stable security definer set search_path=public as $$
 begin

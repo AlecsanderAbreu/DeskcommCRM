@@ -678,7 +678,7 @@ describe("send_whatsapp_message — gate de recusa de consentimento (achado 2026
  * As duas pontas leem agora a mesma tabela `(tipo, entidade) → contato`
  * (`fn_service_event_contact`), e estes dois casos provam os dois caminhos: o
  * aniversário dispara a AÇÃO inteira e os seis `appointment.*` resolvem a
- * FRONTEIRA. Sem o conserto da 0544, os dois reprovam — o primeiro com
+ * FRONTEIRA. Sem o conserto da 0551, os dois reprovam — o primeiro com
  * `failed`/`service_boundary_stale` e o segundo com
  * `service_event_origin_unsupported`.
  */
