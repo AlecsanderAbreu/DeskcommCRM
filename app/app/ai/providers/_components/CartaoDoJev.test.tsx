@@ -1407,9 +1407,9 @@ describe("modo independente do roteador", () => {
     const d = comRoteador();
     d.config.modo_roteador = "sob_demanda";
     montar(d);
-    expect(screen.getByTestId("jev-decide-roteador")).toHaveTextContent("A IA tradicional só entra em caso de falha");
+    expect(screen.getByTestId("jev-decide-roteador")).toHaveTextContent("A IA de sempre só entra em caso de falha");
     expect(screen.getByTestId("jev-decide-roteador")).not.toHaveTextContent("nunca só o Jev");
-    expect(jevNoPonto(d, "intent_router")).toEqual({ decide: "O JEV escolhe primeiro. A IA tradicional só entra em caso de falha, baixa confiança ou intenção inválida." });
+    expect(jevNoPonto(d, "intent_router")).toEqual({ decide: "O Jev escolhe primeiro. A IA de sempre só entra em caso de falha, baixa confiança ou intenção inválida." });
   });
 
   it("oferece comparar ou chamar a reserva sob demanda, e grava a escolha", async () => {
@@ -1425,7 +1425,7 @@ describe("modo independente do roteador", () => {
   it("sem a IA de sempre (decisão B), a opção sob demanda não liga, e o cartão diz por quê", () => {
     montar(comRoteador(true, false));
     const modo = screen.getByLabelText("Como o roteador consulta as IAs");
-    expect(within(modo).getByRole("option", { name: "JEV; IA tradicional só como reserva" })).toBeDisabled();
+    expect(within(modo).getByRole("option", { name: "Jev; IA de sempre só como reserva" })).toBeDisabled();
     expect(screen.getByTestId("jev-modo-roteador-sem-ia")).toHaveTextContent("Sem a sua IA de sempre, o Jev não escolhe o agente sozinho");
   });
 

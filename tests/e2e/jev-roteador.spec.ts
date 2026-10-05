@@ -370,7 +370,7 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       await page.getByRole("alertdialog").getByRole("button", { name: "Deixar o Jev decidir" }).click();
       await expect(cartao.getByTestId("jev-tarefa-roteador")).toHaveAttribute("data-estado", "decidindo");
       await page.getByLabel("Como o roteador consulta as IAs").selectOption("sob_demanda");
-      await expect(page.getByText("A IA tradicional só é chamada se o JEV falhar ou estiver inseguro.")).toBeVisible();
+      await expect(page.getByText("A IA de sempre só é chamada se o Jev falhar ou estiver inseguro.")).toBeVisible();
       const leitura = await page.request.get("/api/v1/ai/jev");
       expect((await leitura.json()).data.config.modo_roteador).toBe("sob_demanda");
       await page.evaluate(() => window.scrollTo(0, 0));
@@ -385,7 +385,7 @@ test.describe("Jev no roteador — Testar classificação, pela tela", () => {
       expect((await previa.json()).data.ia_consultada).toBe(false);
       await expect(page.getByTestId("teste-agente-que-atenderia")).toContainText(`Suporte Jev ${sufixo}`);
       await expect(page.getByTestId("teste-escolha-da-ia")).toContainText("Não foi necessário consultar");
-      await expect(page.getByTestId("teste-quem-decide")).toContainText("O JEV decidiu sozinho");
+      await expect(page.getByTestId("teste-quem-decide")).toContainText("O Jev decidiu sozinho");
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: test.info().outputPath("jev-roteador-contexto.png"), fullPage: true });
       await abrirOCartao(page);

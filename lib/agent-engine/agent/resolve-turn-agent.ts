@@ -369,7 +369,7 @@ export async function resolveTurnAgent(
       deps.jev,
     );
 
-    // Em comparação, a classificação convencional começa em paralelo com o Jev.
+    // Em comparação, a classificação da IA de sempre começa em paralelo com o Jev.
     // Sob demanda, só há esta chamada se o Jev não trouxer intenção confiável.
     const modo = await (jev.modo ?? Promise.resolve('comparacao'));
     const estadoLido = await jev.estado;

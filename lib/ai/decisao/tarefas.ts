@@ -193,7 +193,7 @@ export const TAREFA_DA_MANIPULACAO = {
  * nunca o Jev (R2). Só roda onde há um roteador ativo: sem ele o turno não
  * classifica nada (`tarefaSemRoteador`).
  */
-export const ROTEADOR_SOB_DEMANDA = "O JEV escolhe primeiro. A IA tradicional só entra em caso de falha, baixa confiança ou intenção inválida.";
+export const ROTEADOR_SOB_DEMANDA = "O Jev escolhe primeiro. A IA de sempre só entra em caso de falha, baixa confiança ou intenção inválida.";
 /**
  * Por que o Jev não roteia sozinho nesta empresa (decisão B do doc 89, R2 do
  * DEC-012): a mesma frase na recusa do PATCH e no cartão.

@@ -1,4 +1,4 @@
-/** Janela do classificador de intenção, compartilhada pela IA convencional e pelo Jev.
+/** Janela do classificador de intenção da IA de sempre. O Jev recebe só a mensagem atual (R4).
  * Não é a memória do agente que conversa: serve só para desambiguar a mensagem atual.
  */
 export const CLASSIFIER_CONTEXT_MESSAGES = 4;

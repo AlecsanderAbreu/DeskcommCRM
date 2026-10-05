@@ -1214,7 +1214,7 @@ describe("o Jev por tarefa na rota", () => {
 });
 
 
-describe("modo JEV com reserva sob demanda", () => {
+describe("modo Jev com reserva sob demanda", () => {
   it("instalação existente continua comparando até o admin escolher, e a mudança é auditada", async () => {
     estado.settings.jev = { ligado: true, aceite: ACEITE_ANTIGO,
       tarefas: { roteador: { estado: "decidindo" } } };

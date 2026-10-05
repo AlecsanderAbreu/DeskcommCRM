@@ -24,11 +24,11 @@ const resposta = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('aba de resultados do roteamento', () => {
-  it('JEV independente aparece sem concordância inventada e com contexto/custo', async () => {
+  it('Jev independente aparece sem concordância inventada e com contexto/custo', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: resposta }), { status: 200 })));
     render(<RoteamentoResultados />);
     const linha = await screen.findByTestId(`roteamento-${caso.id}`);
-    expect(linha).toHaveTextContent('JEV; reserva sob demanda');
+    expect(linha).toHaveTextContent('Jev; reserva sob demanda');
     expect(linha).toHaveTextContent('Janela de histórico: 8');
     expect(screen.getByRole('option', { name: 'Atendimento principal' })).toHaveValue(caso.router_id);
     expect(screen.getByRole('link', { name: 'Abrir conversa' })).toHaveAttribute('href', `/app/inbox?id=${caso.conversation_id}`);

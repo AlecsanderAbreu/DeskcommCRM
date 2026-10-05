@@ -377,7 +377,7 @@ describe("POST /api/v1/ai/routers/:id/test", () => {
       expect(d.jev).toMatchObject({ estado: "decidindo", agent_id: SUPORTE, decide: true });
     });
 
-    it("sob demanda: Jev confiável decide sem chamar nem cobrar a IA tradicional", async () => {
+    it("sob demanda: Jev confiável decide sem chamar nem cobrar a IA de sempre", async () => {
       roteadorComDoisMembros();
       jevCom("decidindo", escolhaDoJev("suporte", 0.91, "decidindo"), "sob_demanda");
       const d = await testar();

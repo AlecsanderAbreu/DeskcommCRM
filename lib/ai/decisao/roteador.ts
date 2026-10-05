@@ -4,7 +4,7 @@
  *
  * Com um roteador de intenção ativo no número, cada mensagem nova do cliente
  * passa por um classificador que escolhe a intenção (`intent_router`), e a
- * intenção escolhe o agente. Em comparação, Jev e IA convencional recebem a
+ * intenção escolhe o agente. Em comparação, Jev e IA de sempre recebem a
  * mesma pergunta em paralelo. No modo sob demanda, o Jev responde primeiro.
  *
  * ═══ O QUE ELE PODE, EM CADA ESTADO ═══
@@ -348,7 +348,7 @@ export async function registrarRoteadorDoJev(pool: pg.Pool, r: RegistroDoRoteado
   }
 }
 
-/** A consulta ao Jev no roteador; o turno escolhe quando chamar a IA convencional. */
+/** A consulta ao Jev no roteador; o turno escolhe quando chamar a IA de sempre. */
 export interface JevNoRoteador {
   /**
    * O estado da tarefa, lido do banco — rápido, e é ele que diz se o turno
@@ -356,7 +356,7 @@ export interface JevNoRoteador {
    * quando a mensagem vem vazia).
    */
   estado: Promise<EstadoDaTarefa>;
-  /** No modo sob demanda, o classificador convencional só roda se a escolha do Jev não bastar. */
+  /** No modo sob demanda, o classificador da IA de sempre só roda se a escolha do Jev não bastar. */
   modo?: Promise<"comparacao" | "sob_demanda">;
   /** A escolha dele, ou `null` quando não opinou. Nunca rejeita. */
   escolha: Promise<EscolhaDoJev | null>;

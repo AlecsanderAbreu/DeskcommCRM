@@ -602,7 +602,7 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
     expect(jev.jev.observar.mock.calls[0]![0]).toMatchObject({ decidiu: false, aIaCobriu: true });
   });
 
-  it('sob demanda: escolha confiável do Jev roteia sem chamar a IA tradicional', async () => {
+  it('sob demanda: escolha confiável do Jev roteia sem chamar a IA de sempre', async () => {
     const jev = jevFalso('decidindo', Promise.resolve(escolha('suporte', 0.9, 'decidindo')), 'sob_demanda');
     const { out, classifyIntent } = await rodar({ daIa: { intentName: 'vendas', confidence: 0.99 }, jev });
     expect(out.config?.agentId).toBe('agent-suporte');
@@ -610,7 +610,7 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
     expect(jev.jev.observar.mock.calls[0]![0]).toMatchObject({ decidiu: true, vereditoDaIa: null });
   });
 
-  it('sob demanda: falha ou confiança baixa chama a IA tradicional uma vez', async () => {
+  it('sob demanda: falha ou confiança baixa chama a IA de sempre uma vez', async () => {
     for (const resposta of [null, escolha('suporte', 0.3, 'decidindo')]) {
       const jev = jevFalso('decidindo', Promise.resolve(resposta), 'sob_demanda');
       const { out, classifyIntent } = await rodar({ daIa: { intentName: 'vendas', confidence: 0.95 }, jev });

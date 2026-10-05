@@ -16,7 +16,7 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
  * o resultado cairia no fallback/genérico em produção.
  *
  * Com a tarefa do roteador do Jev rodando, o Jev responde a mesma frase ao mesmo
- * tempo no modo comparação. Sob demanda, só consulta a IA convencional se o
+ * tempo no modo comparação. Sob demanda, só consulta a IA de sempre se o
  * Jev não tiver intenção confiável. A tela distingue reserva não consultada
  * de falha de resposta. Nada disso vira
  * observação (R5): uma frase digitada por quem configura não é concordância de

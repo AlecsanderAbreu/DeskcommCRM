@@ -48,7 +48,7 @@ async function pedir(query = '') {
 }
 
 describe('resultados do roteamento', () => {
-  it('JEV independente sem reserva conta uma decisão, sem inventar comparação', async () => {
+  it('Jev independente sem reserva conta uma decisão, sem inventar comparação', async () => {
     linhas = [caso()];
     chamadas = [{ job_id: JOB, provider: 'typesafe', cost_cents: .01, model: 'jev-1' }];
     const { status, body } = await pedir();

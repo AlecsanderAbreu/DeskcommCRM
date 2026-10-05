@@ -1091,15 +1091,15 @@ function Ligado({
                 <select id="jev-router-mode" className="block rounded-md border bg-background p-2 text-sm"
                   value={roteadorSobDemanda(dados) ? "sob_demanda" : "comparacao"} disabled={!dados.pode_editar || enviando}
                   onChange={(e) => void mudar({ modo_roteador: e.target.value }, t("Modo do roteador salvo."))}>
-                  <option value="comparacao">{t("Comparar JEV e IA tradicional")}</option>
-                  <option value="sob_demanda" disabled={dados.roteador_tem_ia_de_sempre !== true}>{t("JEV; IA tradicional só como reserva")}</option>
+                  <option value="comparacao">{t("Comparar o Jev e a IA de sempre")}</option>
+                  <option value="sob_demanda" disabled={dados.roteador_tem_ia_de_sempre !== true}>{t("Jev; IA de sempre só como reserva")}</option>
                 </select>
                 {dados.roteador_tem_ia_de_sempre !== true ? (
                   <p className="text-muted-foreground" data-testid="jev-modo-roteador-sem-ia">{t(ROTEADOR_SOB_DEMANDA_SEM_IA)}</p>
                 ) : (
                   <p className="text-muted-foreground">{roteadorSobDemanda(dados)
-                    ? t("A IA tradicional só é chamada se o JEV falhar ou estiver inseguro.")
-                    : t("As duas IAs respondem; a escolha do JEV decide.")}</p>
+                    ? t("A IA de sempre só é chamada se o Jev falhar ou estiver inseguro.")
+                    : t("As duas IAs respondem; a escolha do Jev decide.")}</p>
                 )}
                 <Link href="/app/ai/runs?tab=roteamento" className="underline underline-offset-4">{t("Ver resultados do roteamento")}</Link>
               </div>
