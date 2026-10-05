@@ -57,6 +57,7 @@ import {
 } from "@/lib/lgpd/email-delivery";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { marcaDaSaida } from "@/lib/branding/saida";
+import { perfilDaOrganizacao } from "@/lib/legal/perfil-do-pais";
 
 const MAX_ATTEMPTS = 3;
 const BUCKET = "lgpd-exports";
@@ -276,6 +277,10 @@ export async function processLgpdExport(event: EventRow): Promise<HandlerResult>
         signedUrl: signed.signedUrl,
         expiresAt,
         marca: await marcaDaSaida(orgId),
+        // O país decide a lei e o idioma do e-mail; o fuso vem do coletor, que
+        // só o põe no payload fora do Brasil (doc 88).
+        perfil: await perfilDaOrganizacao(admin, orgId),
+        fuso: data.fuso,
       });
       messageId = sent.messageId;
     } catch (err) {

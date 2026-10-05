@@ -95,10 +95,16 @@ interface Props {
   unsignedWarning?: boolean;
 }
 
-function fmtDate(s: string | null | undefined): string {
+/**
+ * Sem `fuso` (Brasil) a data sai como sempre saiu. Com `fuso` (organização
+ * fora do Brasil) sai no fuso DELA e com o nome do fuso escrito: um horário de
+ * São Paulo apresentado como local erra 3 a 4 h em Lisboa (doc 88).
+ */
+function formatarData(s: string | null | undefined, fuso?: string): string {
   if (!s) return "—";
   try {
-    return new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    if (!fuso) return new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    return new Date(s).toLocaleString("pt-PT", { timeZone: fuso, timeZoneName: "short" });
   } catch {
     return s;
   }
@@ -144,6 +150,8 @@ const noticeStatus: Record<string, string> = {
 
 export function LgpdExportPdf({ data, unsignedWarning }: Props): React.ReactElement {
   const shortId = data.request_id.slice(0, 8);
+  // ponytail: o nome antigo, já preso ao fuso deste documento — as ~25 chamadas abaixo não mudam.
+  const fmtDate = (s: string | null | undefined) => formatarData(s, data.fuso);
 
   return (
     <Document>
@@ -155,7 +163,7 @@ export function LgpdExportPdf({ data, unsignedWarning }: Props): React.ReactElem
             {/* A lei vem do PERFIL do país da organização (issue #1033): país
                 sem citação revisada não cita lei nenhuma — citar a errada é
                 pior do que não citar artigo nenhum. */}
-            Base legal: {data.lei_citada ?? "não declarada (país sem citação revisada)"} ·
+            {`${data.lei_rotulo ?? "Base legal"}: `}{data.lei_citada ?? "não declarada (país sem citação revisada)"} ·
             Solicitação #{shortId}
           </Text>
         </View>
