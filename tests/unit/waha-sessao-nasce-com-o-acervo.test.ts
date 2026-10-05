@@ -180,7 +180,7 @@ describe("ligar (e desligar) depois, sem desconectar", () => {
     });
   });
 
-  it("desligar depois tira o acervo pelo mesmo caminho, sem apagar filtro nem webhook", async () => {
+  it("desligar depois (false EXPLÍCITO, o PATCH da tela) tira o acervo pelo mesmo caminho, sem apagar filtro nem webhook", async () => {
     const { chamadas } = instrumentarWaha({
       name: "s1",
       status: "WORKING",
@@ -188,7 +188,7 @@ describe("ligar (e desligar) depois, sem desconectar", () => {
       config: { ignore: CONVERSAS_IGNORADAS, noweb: ACERVO, webhooks: WEBHOOKS },
     });
 
-    const aplicou = await CLIENTE().convergirConfigDaSessao("s1");
+    const aplicou = await CLIENTE().convergirConfigDaSessao("s1", { guardarHistorico: false });
 
     expect(aplicou).toBe(true);
     const put = chamadas.find((c) => c.metodo === "PUT");
@@ -244,5 +244,40 @@ describe("ligar (e desligar) depois, sem desconectar", () => {
       noweb: ACERVO,
       webhooks: WEBHOOKS,
     });
+  });
+});
+
+describe("sem a opção, o store fica como o canal o encontrou", () => {
+  // A reconexão de quem NÃO tem `metadata.guardar_historico` chama startSession
+  // sem a opção. A sessão pode ter o store ligado por fora — o repórter da #999
+  // mediu assim, a janela do #1000 criou assim, o painel do canal liga assim. A
+  // doc do NOWEB: "Do not change the values after you scanned QR, it can lead
+  // to the loss of the chat history". Ausente não é `false`: só a tela desliga.
+  it("store ligado por fora + reconexão sem a opção = nenhum PUT", async () => {
+    const { chamadas } = instrumentarWaha({
+      name: "s1",
+      status: "STOPPED",
+      engine: "NOWEB",
+      config: { ignore: CONVERSAS_IGNORADAS, noweb: ACERVO },
+    });
+
+    const resultado = await CLIENTE().startSession("s1");
+
+    expect(resultado.status).toBe("WORKING");
+    expect(chamadas.some((c) => c.metodo === "PUT")).toBe(false);
+  });
+
+  it("sessão legada sem filtro + store ligado por fora: o PUT grava o filtro e preserva o store", async () => {
+    const { chamadas } = instrumentarWaha({
+      name: "s1",
+      status: "STOPPED",
+      engine: "NOWEB",
+      config: { noweb: ACERVO, webhooks: WEBHOOKS },
+    });
+
+    await CLIENTE().startSession("s1");
+
+    const put = chamadas.find((c) => c.metodo === "PUT");
+    expect(put?.corpo?.config).toEqual({ ignore: CONVERSAS_IGNORADAS, noweb: ACERVO, webhooks: WEBHOOKS });
   });
 });

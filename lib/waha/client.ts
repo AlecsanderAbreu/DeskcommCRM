@@ -99,9 +99,17 @@ export const ACERVO_DO_HISTORICO = {
  *
  * `undefined`/`{}` = o corpo continua idêntico ao de antes da #999. O nome da
  * opção é o do botão na tela, para o leitor do chamador reconhecer a decisão.
+ *
+ * Três estados, não dois: `true` liga, `false` desliga, e AUSENTE não toca no
+ * `store` — deixa como encontrou. A reconexão de quem não tem a chave no
+ * `metadata` chega sem a opção, e a sessão dela pode ter o store ligado por
+ * fora (pelo painel do canal, ou criada enquanto o #1000 esteve na main). A
+ * doc do NOWEB avisa: "Do not change the values after you scanned QR, it can
+ * lead to the loss of the chat history". Desligar só com `false` explícito,
+ * que vem do PATCH /acervo — escolha de quem administra, na tela.
  */
 export interface OpcoesDeAcervo {
-  /** Guarda o acervo do número (`config.noweb.store`) nesta conexão. */
+  /** Guarda (`true`) ou desliga (`false`) o acervo; ausente = não mexe. */
   guardarHistorico?: boolean;
 }
 
@@ -122,13 +130,14 @@ function storeDaSessao(config: Record<string, unknown> | null | undefined) {
  * os lados: ela decide se a convergência precisa de um PUT, e um PUT reinicia
  * a sessão — ninguém pode pagar restart por uma opção que não mudou.
  */
-function acervoEstaConferido(config: Record<string, unknown> | null | undefined, guardar: boolean): boolean {
+function acervoEstaConferido(config: Record<string, unknown> | null | undefined, guardar: boolean | undefined): boolean {
+  if (guardar === undefined) return true;
   const ligado = storeDaSessao(config)?.enabled === true;
   return guardar ? ligado : !ligado;
 }
 
 /** Grava (ou desliga) o acervo na config que vai no PUT, sem tocar no resto do `noweb`. */
-function aplicarAcervoNaConfig(config: Record<string, unknown>, guardar: boolean): void {
+function aplicarAcervoNaConfig(config: Record<string, unknown>, guardar: boolean | undefined): void {
   if (acervoEstaConferido(config, guardar)) return;
   const atual = config.noweb;
   const noweb = atual && typeof atual === "object" && !Array.isArray(atual)
@@ -363,8 +372,9 @@ export class WahaClient {
     // Sessão que JÁ existe: `POST /api/sessions` responde 422 e a config não é
     // aplicada nesse caminho. Então quem ligou a opção em um número já pareado
     // só consegue o acervo pela convergência — é o "ligar depois, sem
-    // desconectar" que a #999 pede. Sem a opção, o critério é o de sempre.
-    const acervoFalta = !acervoEstaConferido(creation.session.config, opcoes.guardarHistorico === true);
+    // desconectar" que a #999 pede. Sem a opção, o critério é o de sempre
+    // e o store fica como estava (ver OpcoesDeAcervo).
+    const acervoFalta = !acervoEstaConferido(creation.session.config, opcoes.guardarHistorico);
     if (!creation.created && (!filtersCurrent || acervoFalta)) await this.convergirConfigDaSessao(name, opcoes);
     return this.startExistingSession(name);
   }
@@ -488,7 +498,7 @@ export class WahaClient {
       // à ORDEM das chaves, então o dia em que o WAHA devolver o mesmo objeto
       // com as chaves noutra sequência, esta guarda passa a dizer "mudou" e a
       // sessão reinicia a cada reconexão — sem que nada tenha mudado.
-      const guardarHistorico = opcoes.guardarHistorico === true;
+      const guardarHistorico = opcoes.guardarHistorico;
       const filtroConferido = Object.entries(CHAVES_DO_FILTRO_FIXAS).every(([k, v]) => ignoreAtual[k] === v);
       // O acervo entra na MESMA régua do filtro: sem isto, quem ligou a opção em
       // um número já pareado nunca teria o PUT (o filtro já estava certo), e
