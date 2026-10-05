@@ -8,7 +8,7 @@
  * sobrescreve. Nenhum dos dois serve como "desliguei este canal": o primeiro é
  * destrutivo, o segundo é alheio à vontade do operador. O `disabled` é a
  * intenção declarada — gravado pela tela via `fn_definir_canal_desativado`
- * (migration 0543), que troca só esta chave sem tocar no resto do `metadata`.
+ * (migration 0545), que troca só esta chave sem tocar no resto do `metadata`.
  *
  * Lei do produto: **desativado nunca entra na inbox** — a entrega é gravada,
  * mas não aparece na lista, não dispara IA e não gera follow-up. Reativou,
