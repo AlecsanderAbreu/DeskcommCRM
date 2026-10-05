@@ -599,6 +599,45 @@ async function semDerrubarOTurno<T>(
   }
 }
 
+/**
+ * Quem pode entrar no convite do Google pela mão do agente: só quem é USUÁRIO
+ * ATIVO desta organização (decisão do mantenedor no #2077, issue #2062).
+ *
+ * O agente escreve o que o cliente dita. Um e-mail de cliente ou de terceiro no
+ * convite faria o Google mandar, em nome do negócio, um convite a quem o
+ * negócio nunca escolheu. O caso que a issue pede — o consultor que conduz a
+ * reunião — é sempre alguém da equipe. (Convidado externo com confirmação
+ * humana ficou como pedido futuro.)
+ *
+ * A conferência é contra os membros da organização do TURNO
+ * (`ctx.organizationId`), nunca do input, e nunca olha outras organizações: a
+ * recusa é a mesma para e-mail desconhecido e para membro de outra empresa.
+ */
+const DESCRICAO_DO_CONVIDADO =
+  "e-mail de alguém DA EQUIPE (usuário desta empresa) que também participa do compromisso — por " +
+  "exemplo, o consultor que conduz a reunião. E-mail de cliente ou de terceiro é RECUSADO: o contato " +
+  "atendido já entra no convite pelo e-mail da ficha, quando ele existe.";
+
+async function convidadoEhDaEquipe(ctx: McpContext, email: string): Promise<boolean> {
+  const { data, error } = await ctx.supabase
+    .from("user_organizations")
+    .select("user_id")
+    .eq("organization_id", ctx.organizationId)
+    .is("revoked_at", null);
+  if (error) throw new ApiError(500, "internal_error", undefined, ctx.requestId, error.message);
+  const alvo = email.trim().toLowerCase();
+  // ponytail: uma leitura de auth por membro; equipe de self-host é pequena. Se
+  // crescer, troque por uma função que cruze `auth.users` no banco.
+  const emails = await Promise.all(
+    ((data ?? []) as Array<{ user_id: string }>).map(async (m) => {
+      const r = await ctx.supabase.auth.admin.getUserById(m.user_id);
+      if (r.error) throw new ApiError(500, "internal_error", undefined, ctx.requestId, r.error.message);
+      return r.data.user?.email?.trim().toLowerCase();
+    }),
+  );
+  return emails.includes(alvo);
+}
+
 const marcarShape = {
   event_type_slug: z.string().min(1).describe("o identificador legível do tipo de atendimento"),
   starts_at: z.string().datetime({ offset: true }).describe("o instante exato do início, vindo de `crm_find_free_slots`"),
@@ -625,11 +664,7 @@ const marcarShape = {
     .email()
     .max(320)
     .optional()
-    .describe(
-      "e-mail de um CONVIDADO EXTERNO ao compromisso (acompanhante, responsável, outro participante). " +
-        "NÃO é o e-mail de quem é atendido: o contato entra no convite do Google pelo e-mail da ficha, " +
-        "quando ele existe. Este campo é para a OUTRA pessoa, e é ela que aparece na reunião.",
-    ),
+    .describe(DESCRICAO_DO_CONVIDADO),
 };
 
 export const crmBookAppointment: McpToolDefinition<typeof marcarShape> = {
@@ -658,6 +693,16 @@ export const crmBookAppointment: McpToolDefinition<typeof marcarShape> = {
           marcado: false,
           motivo: "tipo_desconhecido",
           mensagem: `não existe atendimento chamado "${input.event_type_slug}". Pergunte que tipo de atendimento a pessoa quer.`,
+        };
+      }
+      if (input.guest_email !== undefined && !(await convidadoEhDaEquipe(ctx, input.guest_email))) {
+        return {
+          marcado: false,
+          motivo: "convidado_fora_da_equipe",
+          mensagem:
+            "NADA foi marcado: o convite só pode incluir e-mail de alguém da equipe desta empresa. " +
+            "Marque de novo SEM `guest_email` e, se a pessoa quer outro participante, diga que a " +
+            "equipe inclui no convite.",
         };
       }
       const r = await marcarAgendamentoHandler(
@@ -789,11 +834,7 @@ const consultarEMarcarShape = {
     .email()
     .max(320)
     .optional()
-    .describe(
-      "e-mail de um CONVIDADO EXTERNO ao compromisso (acompanhante, responsável, outro participante). " +
-        "NÃO é o e-mail de quem é atendido: o contato entra no convite do Google pelo e-mail da ficha, " +
-        "quando ele existe. Este campo é para a OUTRA pessoa, e é ela que aparece na reunião.",
-    ),
+    .describe(DESCRICAO_DO_CONVIDADO),
 };
 
 /**
