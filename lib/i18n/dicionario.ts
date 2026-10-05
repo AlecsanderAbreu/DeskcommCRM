@@ -5480,6 +5480,12 @@ export const DICIONARIO: Traducoes = {
   "Os dados chegaram, mas o lead não pôde ser criado — confira se o funil e a etapa da fonte ainda existem.": {
     es: "Los datos llegaron, pero no se pudo crear el lead. Revisa que el embudo y la etapa de la fuente sigan existiendo.",
   },
+  "Os dados chegaram, mas a régua de campos obrigatórios recusou o negócio: a etapa do funil exige um campo que o formulário não trouxe.": {
+    es: "Los datos llegaron, pero la regla de campos obligatorios rechazó el negocio: la etapa del embudo exige un campo que el formulario no trajo.",
+  },
+  "Os dados chegaram, mas a criação do negócio falhou por outro motivo — não é nem o funil nem a etapa da fonte.": {
+    es: "Los datos llegaron, pero la creación del negocio falló por otro motivo: no es el embudo ni la etapa de la fuente.",
+  },
   "Virou lead": { es: "Se convirtió en lead" },
   Reenvio: { es: "Reenvío" },
   "Não entrou": { es: "No entró" },
@@ -7834,6 +7840,9 @@ export const DICIONARIO: Traducoes = {
   "Variar o texto das mensagens iguais": { es: "Variar el texto de los mensajes iguales" },
   "Não prometer preço ou prazo por conta própria": { es: "No prometer precio o plazo por cuenta propia" },
   "Conferir promessas em texto livre": { es: "Verificar promesas en texto libre" },
+  "Não fazer afirmação clínica": { es: "No hacer afirmaciones clínicas" },
+  "Barra a mensagem em que o assistente diz o que a pessoa tem, indica remédio ou dose, garante resultado ou afirma que uma lesão é câncer.": { es: "Bloquea el mensaje en el que el asistente dice lo que la persona tiene, indica un medicamento o una dosis, garantiza un resultado o afirma que una lesión es cáncer." },
+  "Não custa nada e reconhece frases em português e espanhol. Só serve para saúde: em outros negócios pode barrar frases normais, como \"passe o creme hidratante\".": { es: "No cuesta nada y reconoce frases en portugués y español. Solo sirve para salud: en otros negocios puede bloquear frases normales, como \"aplica la crema hidratante\"." },
   "Não prometer atendimento humano que não existe": { es: "No prometer atención humana que no existe" },
   "Não falar a nossa língua com o seu cliente": { es: "No hablar nuestro idioma con tu cliente" },
   "Dizer que é um assistente quando perguntam": { es: "Decir que es un asistente cuando preguntan" },
@@ -8761,6 +8770,15 @@ export const DICIONARIO: Traducoes = {
     es: "Muestra limitada: esta cifra cubre solo una parte del período.",
   },
   "Falha ao ler o histórico de etapas.": { es: "Error al leer el historial de etapas." },
+  "Falha ao ler os negócios das etapas.": { es: "Error al leer los negocios de las etapas." },
+  // ─── Tempo na etapa ATUAL (#2032), ao lado da taxa da #1753 ──────────────
+  "nesta etapa agora": { es: "en esta etapa ahora" },
+  "mediana de {horas} h desde a entrada (stage_changed_at)": {
+    es: "mediana de {horas} h desde la entrada (stage_changed_at)",
+  },
+  "Amostra limitada: este número cobre só parte dos negócios abertos do funil.": {
+    es: "Muestra limitada: esta cifra cubre solo una parte de los negocios abiertos del embudo.",
+  },
   "Ver o porquê.": { es: "Ver el porqué." },
   "ver a mensagem": { es: "ver el mensaje" },
   "registro que sustenta": { es: "registro que sustenta" },
@@ -8797,6 +8815,10 @@ export const DICIONARIO: Traducoes = {
   },
   "Não tem conta?": { es: "¿No tienes cuenta?" },
   "Recuperar senha": { es: "Recuperar contraseña" },
+  "Confirmar acesso": { es: "Confirmar acceso" },
+  "Para sua segurança, confirme que foi você quem abriu este link.": { es: "Por tu seguridad, confirma que fuiste tú quien abrió este enlace." },
+  "Link inválido ou incompleto": { es: "Enlace inválido o incompleto" },
+  "Peça um novo link para continuar.": { es: "Pide un nuevo enlace para continuar." },
   "Informe seu e-mail e enviaremos um link de redefinição": {
     es: "Indica tu correo y te enviaremos un enlace para restablecer tu contraseña",
   },
@@ -10179,6 +10201,16 @@ export const DICIONARIO: Traducoes = {
     es: "Las respuestas a los clientes están esperando. Recarga el saldo en la cuenta del proveedor: salen solas cuando vuelva el saldo, durante hasta 6 horas. Después de eso, la conversación que no se respondió aparece aquí en la Central.",
   },
   "Revisar credencial": { es: "Revisar credencial" },
+  // ─── lib/agent-engine/agent/aviso-de-destino-recusado.ts (#2297) ───
+  "Transferência para o funil da intenção recusada": {
+    es: "Transferencia al embudo de la intención rechazada",
+  },
+  "O negócio continua ABERTO no funil de origem: a recusa não encerra nem move nada.": {
+    es: "El negocio sigue ABIERTO en el embudo de origen: el rechazo no lo cierra ni lo mueve.",
+  },
+  "A etapa de destino exige campos obrigatórios que este negócio não tem. Abra o negócio, preencha o que falta e refaça a ação.": {
+    es: "La etapa de destino exige campos obligatorios que este negocio no tiene. Abre el negocio, completa lo que falta y repite la acción.",
+  },
   // ─── lib/leads/aviso-de-etapa.ts + editor de etapas (migration 0440) ───
   "Negócio entrou em": { es: "Negocio entró en" },
   "Abra o negócio para dar o próximo passo. Este aviso foi pedido na configuração da etapa.": {
@@ -14248,6 +14280,19 @@ export const DICIONARIO: Traducoes = {
   "Aplique etiquetas às conversas ou aumente o período — é por etiqueta que se vê qual assunto ocupa a operação.": { es: "Aplica etiquetas a las conversaciones o amplía el período: es por etiqueta cómo se ve qué asunto ocupa la operación." },
   "O que mais ocupou a operação": { es: "Lo que más ocupó la operación" },
   "O período passou do limite de leitura: os números contam só as conversas mais recentes.": { es: "El período superó el límite de lectura: los números cuentan solo las conversaciones más recientes." },
+  "Guardar o histórico anterior à vinculação": { es: "Guardar el historial anterior al vínculo" },
+  "Acervo ligado: o servidor do canal guarda as conversas deste número. Num número que já estava pareado, guarda daqui em diante; o histórico anterior (cerca de 1 ano) só chega numa vinculação nova. Ocupa disco lá e não é apagado quando o CRM anonimiza um contato.": {
+    es: "Acervo activo: el servidor del canal guarda las conversaciones de este número. En un número que ya estaba vinculado, guarda de aquí en adelante; el historial anterior (cerca de 1 año) solo llega en una vinculación nueva. Ocupa disco allí y no se borra cuando el CRM anonimiza un contacto.",
+  },
+  "Ligar ou desligar reinicia a conexão por alguns segundos. Desligar num número já pareado pode apagar o que o canal já guardou.": {
+    es: "Activar o desactivar reinicia la conexión por algunos segundos. Desactivar en un número ya vinculado puede borrar lo que el canal ya guardó.",
+  },
+  "Opção salva; vale na próxima reconexão do número.": { es: "Opción guardada; vale en la próxima reconexión del número." },
+  "Não foi possível ler esta opção.": { es: "No fue posible leer esta opción." },
+  "Acervo desligado: só as mensagens novas entram, como sempre.": { es: "Acervo desactivado: solo entran los mensajes nuevos, como siempre." },
+  "Opção de histórico salva.": { es: "Opción de historial guardada." },
+  "Não foi possível guardar esta opção.": { es: "No fue posible guardar esta opción." },
+
 };
 
 /**

@@ -44495,6 +44495,42 @@ end; $$;
 
 revoke execute on function public.fn_service_status(uuid,uuid,text,bigint) from public,anon,authenticated;
 grant execute on function public.fn_service_status(uuid,uuid,text,bigint) to service_role;
+-- ---- classificador do roteador nasce "Automático" (migration 0530) ----
+--
+-- `ai_routers.config` semeava `'classifier_model', 'claude-haiku-4-5'`: id fixo
+-- do Anthropic num produto multi-provedor. Numa organização configurada na
+-- OpenRouter, ele vencia o padrão da organização (precedência 3 de
+-- `decidirBinding`, `lib/ai/pontos/resolver.ts`) e ia para o endpoint errado —
+-- medido em 2026-10-02: 400 `claude-haiku-4-5 is not a valid model ID`, três
+-- vezes, e TODO turno caía no fallback do roteador. Na OpenRouter o modelo é
+-- `anthropic/claude-haiku-4.5`, com PONTO (catálogo público, 464 ids).
+--
+-- O default perde só `classifier_model` (`sticky` e `min_confidence` ficam): o
+-- roteador nasce em "Automático" e o seam resolve pelo painel de provedores,
+-- senão pelo padrão da organização. A cura só alcança a linha com a forma exata
+-- do seed E que quebrava: `classifier_model = 'claude-haiku-4-5'` (o único id
+-- semeado — `anthropic/claude-haiku-4-5` é escolha válida da Requesty, 0410),
+-- `classifier_provider` ausente (a tela grava os dois juntos) e organização fora
+-- do Anthropic (regra de `llmSettingsSchema`: provedor ausente, não-texto ou
+-- vazio vale 'anthropic'; lá o alias resolve, 0104, e o Haiku fica). Texto da
+-- cura idêntico ao da migration; o invariante executa ESTE bloco. Idempotente;
+-- não cria função, mas entra antes da varredura como todo apêndice.
+
+alter table public.ai_routers
+  alter column config set default jsonb_build_object(
+    'sticky', true,
+    'min_confidence', 0.6);
+
+update public.ai_routers r
+set config = r.config - 'classifier_model'
+from public.organizations o
+where o.id = r.organization_id
+  and r.config->>'classifier_model' = 'claude-haiku-4-5'
+  and coalesce(r.config->>'classifier_provider', '') = ''
+  and coalesce(
+        case when jsonb_typeof(o.settings->'llm'->'provider') = 'string'
+             then nullif(o.settings->'llm'->>'provider', '') end,
+        'anthropic') <> 'anthropic';
 
 -- ---- a anotação simultânea não apaga a outra (migration 0502) ----
 -- 0502 — duas anotações ao mesmo tempo não apagam uma à outra.
@@ -44762,6 +44798,94 @@ drop trigger if exists trg_starts_at_marked_at on public.calendar_appointments;
 create trigger trg_starts_at_marked_at
   before update of starts_at on public.calendar_appointments
   for each row execute function public.fn_starts_at_marked_at();
+
+-- ---------------------------------------------------------------------------
+-- ---- a demanda do caso encerrado ganha próximo passo (migration 0505, #2035) ----
+-- A IA abre um caso por handoff e esse caso abre uma demanda (`origem='handoff'`,
+-- `agent_case_id` preenchido, `estado='em_atendimento'`). Quando o caso chega a
+-- `resolved`/`cancelled`, a demanda ligada ficava ABERTA e SEM PRÓXIMO PASSO para
+-- sempre — sem ninguém ter por onde agir (issue #2035). Aqui a garantia é da
+-- TABELA (mesma razão da 0148: o caso tem 5 escritores): a virada de status
+-- preenche o próximo passo da demanda ligada, NO ESPELHO do que `fn_service_status`
+-- faz quando a conversa vai a estado terminal — e NÃO decide o desfecho (0222:
+-- "O sistema não pode ser o único a decidir que uma demanda acabou").
+-- `escalated` não dispara; guardas `proximo_passo is null` e `fechada_em is null`
+-- = idempotente; `organization_id` sempre de `new` = tenant-safe.
+create or replace function public.fn_demanda_marca_proximo_passo_com_o_caso()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $fn$
+begin
+  if new.status not in ('resolved','cancelled') then
+    -- 'awaiting_human', 'awaiting_lead' e 'escalated' não encerram o caso:
+    -- o problema do contato segue em trabalho e a demanda continua como está.
+    return new;
+  end if;
+
+  -- O MESMO gesto de `fn_service_status` quando a conversa vai a estado
+  -- terminal: o sistema não decide que a demanda acabou, ele garante que ela
+  -- não fique sem próximo passo. As duas guardas tornam a escrita inofensiva —
+  -- o `where` casando zero linhas não dispara nem o bump de `revision`.
+  update public.demandas
+     set proximo_passo = 'Revisar o caso encerrado e registrar o desfecho da demanda'
+   where organization_id = new.organization_id
+     and agent_case_id   = new.id
+     and proximo_passo   is null
+     and fechada_em      is null;
+
+  return new;
+end;
+$fn$;
+
+-- ⚠️ AS DUAS ORIGENS DE EXECUTE (doutrina, item 9): público dá a qualquer
+-- função nova ao criá-la (revoke from anon não remove) e o default ACL do
+-- baseline dá a anon (revoke from public não remove). O PostgREST não pode
+-- alcançar esta função como RPC.
+revoke execute on function public.fn_demanda_marca_proximo_passo_com_o_caso() from public, anon;
+revoke execute on function public.fn_demanda_marca_proximo_passo_com_o_caso() from authenticated;
+
+drop trigger if exists trg_demanda_marca_proximo_passo_com_o_caso on public.agent_cases;
+create trigger trg_demanda_marca_proximo_passo_com_o_caso
+  after update of status on public.agent_cases
+  for each row
+  when (old.status is distinct from new.status
+        and new.status in ('resolved','cancelled'))
+  execute function public.fn_demanda_marca_proximo_passo_com_o_caso();
+
+notify pgrst, 'reload schema';
+
+-- ---- teto do nome de sessão WAHA recusado pelo banco (migration 0543, #686) ----
+--
+-- O `@MaxLength(54)` do WAHA ficava conferido no teste de banco, no teste
+-- unitário e na guarda antes do transporte — em nenhum deles dentro do INSERT.
+-- Um INSERT direto gravava `waha_session_name` acima do teto sem que nada
+-- recusasse, e o 400 só aparecia contra o WAHA de verdade no primeiro Conectar.
+--
+-- A recusa olha o nome que está sendo ESCRITO: linha antiga acima do teto segue
+-- atualizável (status, metadata, lease) enquanto o nome não muda; o que cai é
+-- nome NOVO acima de 54, inclusive um rename para cima. Idempotente — `create
+-- or replace` + `drop trigger if exists` — porque o kit self-host aplica este
+-- arquivo de novo a cada update.
+create or replace function public.fn_teto_nome_de_sessao_waha() returns trigger
+language plpgsql security definer set search_path=public as $$
+begin
+ if length(coalesce(new.waha_session_name,'')) > 54 then
+  if tg_op = 'INSERT' then
+   raise exception 'waha_session_name_acima_do_teto: % caracteres; o WAHA aceita no máximo 54', length(new.waha_session_name) using errcode='22023';
+  elsif new.waha_session_name is distinct from old.waha_session_name then
+   raise exception 'waha_session_name_acima_do_teto: % caracteres; o WAHA aceita no máximo 54', length(new.waha_session_name) using errcode='22023';
+  end if;
+ end if;
+ return new;
+end;$$;
+revoke all on function public.fn_teto_nome_de_sessao_waha() from public,anon,authenticated;
+drop trigger if exists trg_teto_nome_de_sessao_waha on public.channel_sessions;
+create trigger trg_teto_nome_de_sessao_waha before insert or update on public.channel_sessions
+ for each row execute function public.fn_teto_nome_de_sessao_waha();
+
+notify pgrst,'reload schema';
 
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --

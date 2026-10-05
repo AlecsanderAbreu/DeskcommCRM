@@ -219,6 +219,18 @@ const createInputShape = {
     .optional(),
   tags: z.array(z.string()).optional(),
   source: z.string().optional(),
+  /**
+   * Os campos que o DONO declarou em `pipeline.settings.fields` (#2297).
+   *
+   * Sem esta chave a ferramenta não tem como criar um negócio numa etapa
+   * exigente nem quando o agente JÁ SABE o valor: `z.object` descarta a chave
+   * que não declarou, o valor morria antes do `createLeadHandler` — quem
+   * pergunta a régua —, e a recusa (422 `required_fields_missing`) acontecia
+   * sem que houvesse como evitá-la. Mesmo desenho do `crm_update_lead`, que já
+   * declarava a chave; o schema de criação do REST continua sem ela porque lá
+   * ela é gerida pelo servidor (o valor entra por fora do `parse`, no handler).
+   */
+  custom_fields: z.record(z.string(), z.unknown()).optional(),
 };
 
 export const crmCreateLead: McpToolDefinition<typeof createInputShape> = {
@@ -246,6 +258,16 @@ export const crmCreateLead: McpToolDefinition<typeof createInputShape> = {
       tags: input.tags ?? [],
       source: input.source ?? "ai_agent",
     });
+    // #2234 na CRIAÇÃO (#2302): a mesma conferência do `crm_update_lead`. Sem
+    // ela, a chave nova deixava a IA cumprir a régua da etapa com um valor que
+    // o cliente não disse. O campo recusado sai do insert; se a etapa o exige,
+    // a régua devolve o 422 — coerente: o cliente não disse.
+    const conferencia = await conferirCamposPersonalizados(
+      ctx,
+      { pipelineId: input.pipeline_id },
+      input.custom_fields,
+    );
+    const custom_fields = conferencia.custom_fields ?? input.custom_fields;
     const lead = await createLeadHandler(
       ctx.supabase,
       {
@@ -253,9 +275,26 @@ export const crmCreateLead: McpToolDefinition<typeof createInputShape> = {
         actor: ctx.actor,
         requestId: ctx.requestId,
       },
-      parsed,
+      // `custom_fields` entra POR FORA do `createLeadSchema.parse`, que é o
+      // mesmo lugar de onde ele sairia: o schema de criação não declara a chave
+      // (server-managed no REST) e o `parse` descarta o que não declara. É a
+      // interseção que o webhook de captação também monta. Sem isto o argumento
+      // do agente morria aqui dentro, antes da régua que ele precisa satisfazer
+      // (#2297, caminho 2).
+      {
+        ...parsed,
+        ...(custom_fields === undefined ? {} : { custom_fields }),
+      },
     );
-    return { lead };
+    return {
+      lead,
+      ...(conferencia.recusados.length > 0
+        ? {
+            campos_nao_gravados: conferencia.recusados,
+            erro_de_ensino: conferencia.recusados.map((r) => r.mensagem).join(" "),
+          }
+        : {}),
+    };
   },
 };
 
@@ -312,7 +351,7 @@ export const crmUpdateLead: McpToolDefinition<typeof updateInputShape> = {
     // dinheiro em código, o degrau 2 pergunta ao Jev o que sobrou, e o que o
     // cliente não disse volta como ERRO DE ENSINO para o modelo, com os outros
     // campos da mesma chamada seguindo gravando (`lib/mcp/conferencia-de-campos`).
-    const conferencia = await conferirCamposPersonalizados(ctx, lead_id, parsed.custom_fields);
+    const conferencia = await conferirCamposPersonalizados(ctx, { leadId: lead_id }, parsed.custom_fields);
     const lead = await updateLeadHandler(
       ctx.supabase,
       {
