@@ -46806,11 +46806,9 @@ language plpgsql security definer set search_path=public as $$
 begin
  if length(coalesce(new.waha_session_name,'')) > 54 then
   if tg_op = 'INSERT' then
-   raise exception 'waha_session_name_acima_do_teto' using errcode='22023',
-    detail='waha_session_name com ' || length(new.waha_session_name) || ' caracteres; o WAHA aceita no máximo 54';
+   raise exception 'waha_session_name_acima_do_teto: % caracteres; o WAHA aceita no máximo 54', length(new.waha_session_name) using errcode='22023';
   elsif new.waha_session_name is distinct from old.waha_session_name then
-   raise exception 'waha_session_name_acima_do_teto' using errcode='22023',
-    detail='waha_session_name com ' || length(new.waha_session_name) || ' caracteres; o WAHA aceita no máximo 54';
+   raise exception 'waha_session_name_acima_do_teto: % caracteres; o WAHA aceita no máximo 54', length(new.waha_session_name) using errcode='22023';
   end if;
  end if;
  return new;

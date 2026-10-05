@@ -120,7 +120,9 @@ describe("o teto do nome de sessão mora no banco, não só no teste", () => {
   it("a recusa existe: INSERT e rename acima do teto caem, com o 22023 da reserva", () => {
     expect(sqlDaMigration).toContain("-- manifest:");
     expect(sqlDaMigration).toContain("before insert or update on public.channel_sessions");
-    expect(sqlDaMigration).toContain("raise exception 'waha_session_name_acima_do_teto' using errcode='22023'");
+    expect(sqlDaMigration).toContain(
+      "raise exception 'waha_session_name_acima_do_teto: % caracteres; o WAHA aceita no máximo 54', length(new.waha_session_name) using errcode='22023'",
+    );
     expect(sqlDaMigration).toContain("if tg_op = 'INSERT' then");
     expect(sqlDaMigration).toContain("is distinct from old.waha_session_name");
   });

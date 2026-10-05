@@ -4,7 +4,7 @@ import { Pool } from "pg";
 import { TETO_NOME_DE_SESSAO_WAHA } from "../../lib/channels/nome-da-sessao";
 
 if (!process.env.TEST_DB_CONTAINER) throw new Error("Rode via pnpm test:db");
-const pool = new Pool({ connectionString: `postgresql://postgres:***@127.0.0.1:${process.env.TEST_DB_PORT}/postgres` });
+const pool = new Pool({ connectionString: `postgresql://postgres:postgres@127.0.0.1:${process.env.TEST_DB_PORT}/postgres` });
 afterAll(() => pool.end());
 
 /** O nome de 69 caracteres que a 0228/0230 gravavam — o que a recusa tem de deixar viver. */
