@@ -109,12 +109,12 @@ export function renderizar(
     switch (chave) {
       case "nome": {
         if (nome === "") return marcarFalta(faltando, "nome", literal);
-        return nome;
+        return blindar(nome);
       }
       case "primeiro_nome": {
         const primeiro = nome.split(/\s+/)[0] ?? "";
         if (primeiro === "") return marcarFalta(faltando, "primeiro_nome", literal);
-        return primeiro;
+        return blindar(primeiro);
       }
       case "saudacao": {
         // Sem instante, a saudação fica literal: quem renderiza a PRÉVIA não
@@ -131,7 +131,7 @@ export function renderizar(
           // Sem valor = FALTA, igual a `{{nome}}` sem nome: o literal fica
           // visível na prévia e quem chama tira a pessoa da lista.
           if (valor === null) return marcarFalta(faltando, chave, literal);
-          return valor;
+          return blindar(valor);
         }
         desconhecidas.add(bruto);
         return literal;
@@ -139,7 +139,27 @@ export function renderizar(
     }
   });
 
-  return { texto, faltando: [...faltando], desconhecidas: [...desconhecidas] };
+  // A renderização com instante é a FINAL (envio e envio de teste): só aqui a
+  // blindagem sai. Sem instante (preparação), ela fica no corpo congelado e
+  // protege o valor da segunda passada que o envio faz — ver `blindar`.
+  const final = quando ? texto.replaceAll(CHAVE_BLINDADA, "{") : texto;
+  return { texto: final, faltando: [...faltando], desconhecidas: [...desconhecidas] };
+}
+
+/**
+ * Valor do cadastro entra no texto como DADO, nunca como template.
+ *
+ * O corpo é renderizado DUAS vezes: na preparação (nome e campos, congelados em
+ * `rendered_body`) e no envio (`rodada.ts`, pela saudação). Um campo com
+ * `{{saudacao}} {{nome}}` dentro seria lido na segunda passada como token e
+ * sairia "Boa tarde Ana" — texto que o operador nunca escreveu nem viu na
+ * prévia. O WORD JOINER depois de cada `{` faz o `TOKEN` não casar (ele não é
+ * `\s`), é invisível, e a renderização final o tira.
+ */
+const CHAVE_BLINDADA = "{\u2060";
+
+function blindar(valor: string): string {
+  return valor.replaceAll("{", CHAVE_BLINDADA);
 }
 
 function marcarFalta(destino: Set<string>, variavel: string, literal: string): string {

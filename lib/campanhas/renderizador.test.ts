@@ -175,3 +175,38 @@ describe("campos personalizados na campanha", () => {
     expect(camposUsadosNoTexto("oi {{lead}}")).toEqual({ lead: false, contato: false });
   });
 });
+
+describe("o valor do cadastro sai LITERAL, mesmo com o corpo renderizado duas vezes", () => {
+  // As duas passadas reais: a preparação congela (sem instante) e o envio
+  // (`rodada.ts`) renderiza o congelado de novo, só com nome e instante.
+  const VALOR = "{{saudacao}} {{nome}} {{lead.outro}} $& $1";
+  const envio = (congelado: string) =>
+    renderizar(congelado, { nome: "Ana Souza" }, { agora: TARDE, fuso: FUSO });
+
+  it("campo com sintaxe de token chega ao contato como foi gravado", () => {
+    const prep = renderizar("Oi {{nome}}, {{lead.gancho}}", { nome: "Ana Souza", lead: { gancho: VALOR } });
+    expect(prep.faltando).toEqual([]);
+    const saida = envio(prep.texto);
+    expect(saida.texto).toBe(`Oi Ana Souza, ${VALOR}`);
+    expect(saida.faltando).toEqual([]);
+    expect(saida.texto).not.toContain("⁠");
+  });
+
+  it("a saudação do TEXTO continua resolvida no envio — o par do 'não reinterprete'", () => {
+    const prep = renderizar("{{saudacao}}, {{contato.link_previa}}", {
+      nome: null,
+      contato: { link_previa: "{{saudacao}}" },
+    });
+    expect(envio(prep.texto).texto).toBe("Boa tarde, {{saudacao}}");
+  });
+
+  it("nome do cadastro com sintaxe de token também sai literal", () => {
+    const prep = renderizar("Oi {{nome}}!", { nome: "{{saudacao}}" });
+    expect(renderizar(prep.texto, { nome: null }, { agora: TARDE, fuso: FUSO }).texto).toBe("Oi {{saudacao}}!");
+  });
+
+  it("no envio de teste (uma passada só, com instante) o valor também sai literal", () => {
+    const r = renderizar("{{lead.gancho}}", { nome: null, lead: { gancho: VALOR } }, { agora: TARDE, fuso: FUSO });
+    expect(r.texto).toBe(VALOR);
+  });
+});
