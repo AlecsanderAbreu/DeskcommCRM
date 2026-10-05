@@ -139,7 +139,17 @@ describe("o teto do nome de sessão mora no banco, não só no teste", () => {
     // O kit self-host aplica o baseline, não a migration: corpo que existe só
     // num dos dois lados é corpo que não roda em instalação nenhuma.
     expect(corpo.length).toBeGreaterThan(300);
-    expect(baseline.trimEnd().endsWith(corpo)).toBe(true);
+    // O apêndice fica ACIMA do bloco da varredura de anon (função nova não pode
+    // nascer depois dela), então o baseline não pode TERMINAR no corpo: o que
+    // tem que bater é cada sentença do corpo, na mesma ordem, sem nenhuma
+    // sobrando — a leitura de posição vira ordem.
+    const linhasDoBaseline = baseline.split("\n");
+    let vista = -1;
+    for (const sentenca of corpo.split("\n").filter((l) => l.trim().length > 0)) {
+      const achou = linhasDoBaseline.findIndex((l, i) => i > vista && l === sentenca);
+      expect(achou, `sentença do corpo ausente no baseline: ${sentenca}`).toBeGreaterThan(vista);
+      vista = achou;
+    }
   });
 
   it("a recusa é IF aninhado em tg_op: `old` não é avaliado dentro de INSERT", () => {
@@ -147,6 +157,7 @@ describe("o teto do nome de sessão mora no banco, não só no teste", () => {
     // INSERT dependendo do curto-circuito do executor. Aninhado, cada ramo só
     // roda com o gatilho que lhe cabe.
     expect(corpo).not.toMatch(/> \d+ and tg_op/);
+    // sonda-do-baseline: primeira-de-proposito — o alvo é a FATIA da migration (corpo, recortado em A_CORPO), onde esse literal existe uma vez só.
     expect(corpo.indexOf("if tg_op = 'INSERT' then")).toBeGreaterThan(
       corpo.indexOf("length(coalesce(new.waha_session_name,'')) > 54"),
     );
@@ -156,6 +167,7 @@ describe("o teto do nome de sessão mora no banco, não só no teste", () => {
     // O nome mantido não entra em nenhuma das duas recusas — é o que faz a
     // instalação com `org_<32>_<32>` não depender do backfill para operar.
     expect(corpo).toContain("elsif new.waha_session_name is distinct from old.waha_session_name then");
+    // sonda-do-baseline: primeira-de-proposito — dentro de `corpo` o primeiro `elsif` é o do ramo de rename; o que vem depois é de outro teste.
     const voltaAoInicio = corpo.slice(0, corpo.indexOf("elsif"));
     expect(voltaAoInicio).not.toContain("is distinct from");
   });
