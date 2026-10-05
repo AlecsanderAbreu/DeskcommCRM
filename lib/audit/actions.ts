@@ -240,6 +240,7 @@ export const AUDIT_ACTIONS = [
   "channel.pairing_code_requested",
   "channel.social_configured",
   "channel.ai_access_updated",
+  "channel.acervo_updated",
   "channel.reconnected",
   // Duas ações distintas de propósito: `deleted` apagou a linha (canal virgem),
   // `archived` só a escondeu porque conversas/mensagens ainda a referenciam.

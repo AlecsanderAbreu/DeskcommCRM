@@ -14273,6 +14273,14 @@ export const DICIONARIO: Traducoes = {
   "Aplique etiquetas às conversas ou aumente o período — é por etiqueta que se vê qual assunto ocupa a operação.": { es: "Aplica etiquetas a las conversaciones o amplía el período: es por etiqueta cómo se ve qué asunto ocupa la operación." },
   "O que mais ocupou a operação": { es: "Lo que más ocupó la operación" },
   "O período passou do limite de leitura: os números contam só as conversas mais recentes.": { es: "El período superó el límite de lectura: los números cuentan solo las conversaciones más recientes." },
+  "Guardar o histórico anterior à vinculação": { es: "Guardar el historial anterior al vínculo" },
+  "Acervo ligado: o canal passa a baixar e guardar as conversas que já existiam no aparelho. O acervo fica no servidor do canal, ocupa disco lá e não é apagado quando o CRM anonimiza um contato.": {
+    es: "Acervo activo: el canal empieza a descargar y guardar las conversaciones que ya existían en el aparato. El acervo queda en el servidor del canal, ocupa disco allí y no se borra cuando el CRM anonimiza un contacto.",
+  },
+  "Acervo desligado: só as mensagens novas entram, como sempre.": { es: "Acervo desactivado: solo entran los mensajes nuevos, como siempre." },
+  "Opção de histórico salva.": { es: "Opción de historial guardada." },
+  "Não foi possível guardar esta opção.": { es: "No fue posible guardar esta opción." },
+
 };
 
 /**
