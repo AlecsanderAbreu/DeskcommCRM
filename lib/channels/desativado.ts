@@ -35,14 +35,20 @@ export function canalDesativado(metadata: unknown): boolean {
  * Em erro de leitura, volta vazio e deixa a lista decidir: a inbox é caminho
  * de leitura, e esvaziá-la por falha transitória seria pior que o defeito.
  * (IA, follow-up e envio têm as próprias barreiras, que falham fechadas.)
+ * O try/catch também cobre cliente sem `.filter` (dublês de teste): sem ele,
+ * um stub estreito derrubaria a lista inteira com TypeError.
  */
 export async function idsDosCanaisDesativados(
   db: SupabaseClient,
   organizationId: string,
 ): Promise<string[]> {
-  const { data } = await db.from("channel_sessions").select("id")
-    .eq("organization_id", organizationId)
-    .filter("metadata->>disabled", "eq", "true");
-  if (!Array.isArray(data)) return [];
-  return data.map((r: { id: string }) => r.id);
+  try {
+    const { data } = await db.from("channel_sessions").select("id")
+      .eq("organization_id", organizationId)
+      .filter("metadata->>disabled", "eq", "true");
+    if (!Array.isArray(data)) return [];
+    return data.map((r: { id: string }) => r.id);
+  } catch {
+    return [];
+  }
 }

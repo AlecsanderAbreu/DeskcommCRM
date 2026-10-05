@@ -69,6 +69,11 @@ describe("idsDosCanaisDesativados — a lista da quarentena da inbox", () => {
     } as never;
     await expect(idsDosCanaisDesativados(db, "org-1")).resolves.toEqual([]);
   });
+
+  it("cliente sem .filter (dublê estreito) não derruba a lista", async () => {
+    const db = { from: () => ({ select: () => ({ eq: () => ({}) }) }) } as never;
+    await expect(idsDosCanaisDesativados(db, "org-1")).resolves.toEqual([]);
+  });
 });
 
 const runAgentTurn = vi.fn(async () => undefined);
