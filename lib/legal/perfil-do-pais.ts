@@ -115,6 +115,17 @@ export interface LeiCitada {
    * o documento não cita esta lei (ver cabeçalho).
    */
   revisada: boolean;
+  /**
+   * A revisão foi feita por IA, sem advogado local. A tela de Configurações
+   * declara isso a quem responde pelo documento (ver o cabeçalho).
+   */
+  revisadaPorIa?: true;
+  /**
+   * Como o documento de acesso rotula a citação. Ausente = "Base legal", o
+   * rótulo de sempre — o Brasil não declara este campo, e por isso o
+   * `data.json` brasileiro não ganha chave nova.
+   */
+  rotuloNoDocumento?: string;
 }
 
 export interface CalendarioDeDiasUteis {
@@ -250,6 +261,8 @@ const PERFIL_PT: PerfilDoPais = {
     numero: "Regulamento (UE) 2016/679",
     artigo: "art. 15.º",
     revisada: false,
+    revisadaPorIa: true,
+    rotuloNoDocumento: "Direito exercido",
   },
   calendario: {
     feriados: HOLIDAYS_PT_ISO,
