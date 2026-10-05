@@ -1,5 +1,5 @@
 -- manifest: **Canal desativado pelo operador (`channel_sessions.metadata.disabled`) com gravação atômica.** O toggle da tela precisa trocar só a chave `disabled` sem sobrescrever as demais (`ai_gate`, `ai_gate_mode`, `ai_test_phone_numbers`, `social_webhook_id`) — leitura-modificação-escrita no app perderia corrida contra o `fn_configurar_pre_go_live_canal`. Espelha a 0251: valida, `jsonb_set` com `create_missing=true`, `where archived_at is null` (arquivado não se pausa, se exclui), devolve linhas afetadas. Sem DDL novo, sem backfill (ausente = ligado, o comportamento de hoje).
--- 0543: o toggle de canal desativado grava só a chave disabled no metadata
+-- 0545: o toggle de canal desativado grava só a chave disabled no metadata
 --
 -- ─── O defeito ───────────────────────────────────────────────────────────────
 --
