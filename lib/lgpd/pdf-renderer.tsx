@@ -218,7 +218,14 @@ export function LgpdExportPdf({ data, unsignedWarning }: Props): React.ReactElem
               <Text style={styles.value}>{data.contact.phone_number ?? "—"}</Text>
             </View>
             <View style={styles.row}>
-              <Text style={styles.label}>{data.documento_rotulo}:</Text>
+              {/* O valor "informado na conversa" vem só da pergunta de roteiro
+                  do tipo `cpf`, validada como CPF (`lib/lgpd/campos-personalizados.ts`):
+                  é sempre CPF, mesmo numa organização de fora do Brasil. */}
+              <Text style={styles.label}>
+                {data.contact.cpf_present || !data.contact.cpf_informado_na_conversa
+                  ? data.documento_rotulo
+                  : "CPF"}:
+              </Text>
               <Text style={styles.value}>
                 {data.contact.cpf_present
                   ? "Armazenado (criptografado)"
@@ -513,11 +520,20 @@ export function LgpdExportPdf({ data, unsignedWarning }: Props): React.ReactElem
         {/* Unsigned warning */}
         {unsignedWarning ? (
           <View style={styles.warningBanner}>
-            <Text>
-              ASSINATURA DIGITAL PAdES PENDENTE — chave LGPD_SIGNING_KEY não
-              configurada. A integridade do documento é garantida por hash SHA-256
-              registrado em log auditável.
-            </Text>
+            {/* Fora do Brasil o titular não lê o nome de uma variável que cita a LGPD. */}
+            {data.fuso === undefined && data.lei_rotulo === undefined ? (
+              <Text>
+                ASSINATURA DIGITAL PAdES PENDENTE — chave LGPD_SIGNING_KEY não
+                configurada. A integridade do documento é garantida por hash SHA-256
+                registrado em log auditável.
+              </Text>
+            ) : (
+              <Text>
+                ASSINATURA DIGITAL PAdES PENDENTE — a chave de assinatura não está
+                configurada. A integridade do documento é garantida por hash SHA-256
+                registrado em log auditável.
+              </Text>
+            )}
           </View>
         ) : null}
 
