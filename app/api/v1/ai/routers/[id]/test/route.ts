@@ -21,8 +21,9 @@ import { requireSupportWrite } from "@/lib/impersonate/support";
  * de falha de resposta. Nada disso vira
  * observação (R5): uma frase digitada por quem configura não é concordância de
  * atendimento. O custo dele entra em `llm_calls`, como o do classificador de
- * sempre quando consultado neste clique (R8). A prévia segue o modo salvo;
- * não recebe histórico de uma conversa real.
+ * sempre quando consultado neste clique (R8). A prévia segue o modo salvo, e
+ * o sob demanda só vale onde a empresa tem a IA de sempre; sem ela, vale a
+ * regra de hoje (R2).
  */
 import { randomUUID } from "node:crypto";
 import { type NextRequest } from "next/server";
@@ -33,7 +34,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSkillsPool } from "@/lib/ai/skills/db";
 import { env } from "@/lib/env";
-import { llmEdgeConfigFromEnv } from "@/lib/agent-engine/edge/llm/credentials";
+import { llmEdgeConfigFromEnv, temIaDeSempre } from "@/lib/agent-engine/edge/llm/credentials";
 import { createLogger } from "@/lib/agent-engine/obs/logger";
 import { loadActiveRouter } from "@/lib/agent-engine/agent/router-config";
 import { classifyIntent, type IntentVerdict } from "@/lib/agent-engine/agent/intent-classifier";
@@ -119,7 +120,10 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<Response> {
   const [modo, estadoDoJev] = await Promise.all([
     jev.modo ?? Promise.resolve("comparacao"), jev.estado,
   ]);
-  const independente = modo === "sob_demanda" && estadoDoJev === "decidindo";
+  // A mesma regra do turno (decisão B, doc 89): sem a IA de sempre, o Jev não
+  // decide sozinho nem na prévia — vale a comparação, e a R2.
+  const independente = modo === "sob_demanda" && estadoDoJev === "decidindo" &&
+    await temIaDeSempre(pool, llmCfg, org.orgId, loaded.classifierProvider);
   const classificar = () => classifyIntent(
     pool, llmCfg,
     { tenantId: org.orgId, leadId: null, jobId: null, router: loaded, signal: parsed.data.message },

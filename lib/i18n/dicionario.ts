@@ -14291,6 +14291,7 @@ export const DICIONARIO: Traducoes = {
   "A janela é a da sua IA de sempre. O Jev recebe só a mensagem atual.": { es: "La ventana es la de tu IA de siempre. Jev recibe solo el mensaje actual." },
 
   "O JEV escolhe primeiro. A IA tradicional só entra em caso de falha, baixa confiança ou intenção inválida.": { es: "JEV elige primero. La IA tradicional solo interviene en caso de fallo, baja confianza o intención inválida." },
+  "Sem a sua IA de sempre, o Jev não escolhe o agente sozinho: é ela que cobre quando ele falha ou fica em dúvida. Cadastre uma chave de IA em Agentes IA › Credenciais para usar este modo. Até lá, vale a comparação.": { es: "Sin tu IA de siempre, Jev no elige el agente solo: es ella la que cubre cuando él falla o duda. Registra una clave de IA en Agentes IA › Credenciales para usar este modo. Hasta entonces, vale la comparación." },
   "Editar ritmo": { es: "Editar ritmo" },
   "Ritmo atualizado. A campanha continua pausada.": { es: "Ritmo actualizado. La campaña sigue en pausa." },
   "Só dá para ajustar com a campanha pausada. Ao retomar, o próximo envio já usa o ritmo novo. Limite de 1 a 50 por dia e intervalo de 5 a 1440 minutos.": { es: "Solo se puede ajustar con la campaña en pausa. Al reanudar, el próximo envío ya usa el ritmo nuevo. Límite de 1 a 50 por día e intervalo de 5 a 1440 minutos." },

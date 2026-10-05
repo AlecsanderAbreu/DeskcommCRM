@@ -194,6 +194,12 @@ export const TAREFA_DA_MANIPULACAO = {
  * classifica nada (`tarefaSemRoteador`).
  */
 export const ROTEADOR_SOB_DEMANDA = "O JEV escolhe primeiro. A IA tradicional só entra em caso de falha, baixa confiança ou intenção inválida.";
+/**
+ * Por que o Jev não roteia sozinho nesta empresa (decisão B do doc 89, R2 do
+ * DEC-012): a mesma frase na recusa do PATCH e no cartão.
+ */
+export const ROTEADOR_SOB_DEMANDA_SEM_IA =
+  "Sem a sua IA de sempre, o Jev não escolhe o agente sozinho: é ela que cobre quando ele falha ou fica em dúvida. Cadastre uma chave de IA em Agentes IA › Credenciais para usar este modo. Até lá, vale a comparação.";
 
 export const TAREFA_DO_ROTEADOR = {
   id: "roteador",

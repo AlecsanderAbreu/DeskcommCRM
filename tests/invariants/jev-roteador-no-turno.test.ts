@@ -209,6 +209,27 @@ function turno(c: Cenario, deps: { classifyIntent: ReturnType<typeof iaDeSempre>
   );
 }
 
+/**
+ * O turno numa empresa COM a IA de sempre (decisão B, doc 89): a chave da
+ * instalação, que `temIaDeSempre` resolve pelo banco de verdade — a mesma
+ * resolução que a chamada da IA de sempre faz antes de sair.
+ */
+function turnoComIaDeSempre(c: Cenario, deps: { classifyIntent: ReturnType<typeof iaDeSempre>; jev: ReturnType<typeof jevDuble>["deps"] }) {
+  return resolveConversationTurn(
+    pool,
+    { anthropicApiKey: "chave-da-instalacao-de-teste" } as never,
+    {
+      tenantId: c.org,
+      leadId: c.contato,
+      jobId: c.job,
+      conversationId: c.conversa,
+      channelSessionId: c.sessao,
+      inbound: true,
+    },
+    { log, classifyIntent: deps.classifyIntent as never, jev: deps.jev },
+  );
+}
+
 async function observacoes(org: string) {
   const { rows } = await pool.query(
     `select tarefa, estado, conversation_id, message_id, job_id, rotulo_jev, rotulo_atual, concordou,
@@ -314,7 +335,7 @@ describe("o Jev no roteador, pelo caminho do turno", () => {
     const c = await cenario(settingsDoJev("decidindo", "sob_demanda"));
     const jev = jevDuble("suporte");
     const ia = iaDeSempre({ intentName: "vendas", confidence: 0.99 });
-    const r = await turno(c, { classifyIntent: ia, jev: jev.deps });
+    const r = await turnoComIaDeSempre(c, { classifyIntent: ia, jev: jev.deps });
     expect(r.config?.agentId).toBe(c.agentes.suporte);
     expect(ia).not.toHaveBeenCalled();
     const { rows } = await pool.query(
@@ -329,7 +350,7 @@ describe("o Jev no roteador, pelo caminho do turno", () => {
   it("sob demanda: falha do Jev aciona e registra a reserva tradicional uma vez", async () => {
     const c = await cenario(settingsDoJev("decidindo", "sob_demanda"));
     const ia = iaDeSempre({ intentName: "vendas", confidence: 0.95 });
-    const r = await turno(c, { classifyIntent: ia, jev: jevDuble("suporte", { nuncaResponde: true }).deps });
+    const r = await turnoComIaDeSempre(c, { classifyIntent: ia, jev: jevDuble("suporte", { nuncaResponde: true }).deps });
     expect(r.config?.agentId).toBe(c.agentes.vendas);
     expect(ia).toHaveBeenCalledOnce();
     const { rows } = await pool.query(
@@ -338,6 +359,23 @@ describe("o Jev no roteador, pelo caminho do turno", () => {
       [c.org, c.mensagem],
     );
     expect(rows).toEqual([expect.objectContaining({ modo: "jev_sob_demanda", origem: "reserva", motivo_reserva: "falha_jev" })]);
+  });
+
+  it("sob demanda numa empresa SEM a IA de sempre (decisão B): o modo não liga, a IA de sempre é perguntada, e sem ela vale a regra de hoje", async () => {
+    // Sem credencial e sem chave da instalação: `temIaDeSempre` diz não pelo banco.
+    const c = await cenario(settingsDoJev("decidindo", "sob_demanda"));
+    const ia = iaDeSempre(null);
+    const r = await turno(c, { classifyIntent: ia, jev: jevDuble("suporte").deps });
+    expect(ia).toHaveBeenCalledOnce();
+    expect(r.outcome).toBe("classifier_failed");
+    expect(r.config?.agentId).toBe(c.agentes.reserva);
+    const { rows } = await pool.query(
+      `select modo, origem from public.jev_router_decisions where organization_id=$1 and message_id=$2`,
+      [c.org, c.mensagem],
+    );
+    expect(rows).toEqual([expect.objectContaining({ modo: "jev_comparacao", origem: "tradicional" })]);
+    // O Jev respondeu: a observação fica, sem par (como na R2).
+    await esperarObservacao(c.org);
   });
 
   it("decidindo, e o Jev passa do teto: a IA de sempre cobre, e o turno espera no máximo o teto dele", async () => {

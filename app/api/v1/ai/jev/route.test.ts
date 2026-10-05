@@ -36,6 +36,12 @@ vi.mock("@/lib/ai/gateway-binding", () => ({ resolverModeloDoPonto: vi.fn() }));
 // O portão de quem atende fala `pg`, não o supabase-js: o dublê responde por ele.
 vi.mock("@/lib/agent-engine/db/request-pool", () => ({ getRequestPool: vi.fn(() => ({ query: vi.fn() })) }));
 vi.mock("@/lib/ai/agents/quem-atende-a-sessao", () => ({ haQuemAtendaAOrganizacao: vi.fn() }));
+// "A empresa tem a IA de sempre?" do roteador (decisão B, doc 89). Padrão: tem.
+const { temIaDeSempre } = vi.hoisted(() => ({ temIaDeSempre: vi.fn(async () => true) }));
+vi.mock("@/lib/agent-engine/edge/llm/credentials", async (original) => ({
+  ...(await original<typeof import("@/lib/agent-engine/edge/llm/credentials")>()),
+  temIaDeSempre,
+}));
 
 const ORG = "22222222-2222-4222-8222-222222222222";
 const OUTRA_ORG = "99999999-9999-4999-8999-999999999999";
@@ -1222,6 +1228,30 @@ describe("modo JEV com reserva sob demanda", () => {
     }));
     expect((await mudar({ modo_roteador: "sob_demanda" })).corpo.data.alterado).toBe(false);
     expect((await mudar({ modo_roteador: "comparacao" })).corpo.data.config.modo_roteador).toBe("comparacao");
+  });
+
+  it("sem a IA de sempre (decisão B), o sob demanda é recusado com o porquê, e o GET diz que ela falta", async () => {
+    temIaDeSempre.mockResolvedValue(false);
+    try {
+      estado.settings.jev = { ligado: true, aceite: ACEITE_ANTIGO, tarefas: { roteador: { estado: "decidindo" } } };
+      const antes = structuredClone(estado.settings);
+      const recusado = await mudar({ modo_roteador: "sob_demanda" });
+      expect(recusado.status).toBe(422);
+      expect(recusado.corpo.error.code).toBe("jev_sem_ia_de_sempre");
+      expect(recusado.corpo.error.message).toContain("Sem a sua IA de sempre");
+      expect(estado.settings).toEqual(antes);
+      expect(audit).not.toHaveBeenCalled();
+      expect((await ler()).corpo.data.roteador_tem_ia_de_sempre).toBe(false);
+      // Voltar a comparar nunca depende dela.
+      estado.settings.jev = { ...(estado.settings.jev as Linha), modo_roteador: "sob_demanda" };
+      expect((await mudar({ modo_roteador: "comparacao" })).status).toBe(200);
+    } finally {
+      temIaDeSempre.mockResolvedValue(true);
+    }
+  });
+
+  it("com a IA de sempre, o GET diz que ela existe", async () => {
+    expect((await ler()).corpo.data.roteador_tem_ia_de_sempre).toBe(true);
   });
 
   it("só admin muda o modo, e valor desconhecido não é aceito", async () => {

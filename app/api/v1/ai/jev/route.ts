@@ -39,6 +39,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getRequestPool } from "@/lib/agent-engine/db/request-pool";
+import { llmEdgeConfigFromEnv, temIaDeSempre } from "@/lib/agent-engine/edge/llm/credentials";
 import { camadasEfetivas } from "@/lib/agent-engine/guardrails/camadas-da-org";
 import { haQuemAtendaAOrganizacao } from "@/lib/ai/agents/quem-atende-a-sessao";
 import { credencialEmUsoPeloJev, PROVEDOR_DO_JEV } from "@/lib/ai/decisao/credencial";
@@ -63,6 +64,7 @@ import {
   algumFluxoQueClassifica,
   algumRoteadorQuePergunta,
   INSCRICAO_ENCERRADA,
+  ROTEADOR_SOB_DEMANDA_SEM_IA,
   TAREFA_DA_MANIPULACAO,
   tarefaSemAtendente,
   tarefaSemCamada,
@@ -85,6 +87,7 @@ import { logger } from "@/lib/logger";
 import { aiDispatchModeSchema } from "@/lib/schemas/settings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { env } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -437,7 +440,7 @@ export async function GET(): Promise<Response> {
     }
   };
 
-  const [orgRes, credsRes, semana, comparadasRes, iaDeSempre, percebidasRes, observacoes, percebidos, camadasRes, roteadoresRes, haQuemAtenda, fluxosRes, versoesEmCursoRes] = await Promise.all([
+  const [orgRes, credsRes, semana, comparadasRes, iaDeSempre, percebidasRes, observacoes, percebidos, camadasRes, roteadoresRes, haQuemAtenda, fluxosRes, versoesEmCursoRes, roteadorTemIaDeSempre] = await Promise.all([
     db.from("organizations").select("settings").eq("id", org.orgId).maybeSingle(),
     db
       .from("ai_provider_credentials")
@@ -509,6 +512,11 @@ export async function GET(): Promise<Response> {
       .eq("organization_id", org.orgId)
       .not("inscricoes.status", "in", INSCRICAO_ENCERRADA)
       .limit(1, { referencedTable: "inscricoes" }),
+    // A IA de sempre do ROTEADOR é a pergunta do turno (`temIaDeSempre`), não a
+    // do clima: o cartão só oferece o Jev roteando sozinho onde ele teria a
+    // reserva (decisão B, doc 89). Nunca rejeita: na dúvida (até o pool que não
+    // abre, como em `lerQuemAtende`), diz que não tem — e o turno diz o mesmo.
+    (async () => temIaDeSempre(getRequestPool(), llmEdgeConfigFromEnv(env), org.orgId))().catch(() => false),
   ]);
 
   const erro =
@@ -578,6 +586,7 @@ export async function GET(): Promise<Response> {
         ]),
       ),
       tem_ia_de_sempre: iaDeSempre !== null,
+      roteador_tem_ia_de_sempre: roteadorTemIaDeSempre,
       numeros: {
         ...numeros,
         irritados: irritadosPercebidos(percebidasRes.data ?? []),
@@ -644,6 +653,13 @@ export async function PATCH(req: NextRequest): Promise<Response> {
 
   const mudanca: MudancaDaConfig = {};
   if (corpo.modo_roteador !== undefined && corpo.modo_roteador !== atual.modo_roteador) {
+    // Decisão B (doc 89): sem a IA de sempre, o Jev não roteia sozinho. O turno
+    // confere de novo a cada mensagem; aqui a recusa é para a tela não gravar um
+    // modo que não valeria.
+    if (corpo.modo_roteador === "sob_demanda" &&
+      !(await temIaDeSempre(getRequestPool(), llmEdgeConfigFromEnv(env), org.orgId))) {
+      return fail("jev_sem_ia_de_sempre", t(ROTEADOR_SOB_DEMANDA_SEM_IA), 422, { requestId });
+    }
     mudanca.modo_roteador = corpo.modo_roteador;
   }
   // `modo` é o clima com o nome antigo: os dois pedidos chegam ao mesmo lugar.

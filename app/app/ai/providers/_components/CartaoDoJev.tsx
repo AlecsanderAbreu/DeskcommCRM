@@ -40,7 +40,7 @@ import { useT } from "@/hooks/i18n/useT";
 import { descreverErroDeValidacao } from "@/lib/ai/credenciais/erro-de-validacao";
 import type { EstadoDaTarefa } from "@/lib/ai/decisao/config";
 import { PROVEDOR_DO_JEV } from "@/lib/ai/decisao/credencial";
-import { ROTEADOR_SOB_DEMANDA, TAREFA_DO_CLIMA, TAREFAS_DO_JEV, tarefaPodeDecidir } from "@/lib/ai/decisao/tarefas";
+import { ROTEADOR_SOB_DEMANDA, ROTEADOR_SOB_DEMANDA_SEM_IA, TAREFA_DO_CLIMA, TAREFAS_DO_JEV, tarefaPodeDecidir } from "@/lib/ai/decisao/tarefas";
 import { O_QUE_FAZER_DO_JEV } from "@/lib/ai/decisao/textos";
 
 /** O corpo de `GET /api/v1/ai/jev` (`app/api/v1/ai/jev/route.ts`). */
@@ -67,6 +67,12 @@ export interface DadosDoJev {
    */
   por_tarefa?: TarefaNoCartao[];
   tem_ia_de_sempre: boolean;
+  /**
+   * A IA de sempre do ROTEADOR, a mesma pergunta que o turno faz antes de deixar
+   * o Jev rotear sozinho (`temIaDeSempre`). Ausente (imagem anterior) vale `false`:
+   * sem saber, o cartão não oferece o modo que dispensaria a reserva.
+   */
+  roteador_tem_ia_de_sempre?: boolean;
   numeros: {
     dias: number;
     decisoes: number;
@@ -321,6 +327,14 @@ function fraseDecidindo(d: DadosDoJev, t: (texto: string) => string): string {
  * estado da tarefa dele. Decidindo, a linha é a da tarefa (`aoDecidirNoPonto`):
  * "o modelo abaixo é a reserva" só é verdade no clima.
  */
+/**
+ * O modo do roteador que VALE: sob demanda só onde a empresa tem a IA de sempre
+ * (decisão B do doc 89). Sem ela o turno compara, e o cartão diz o mesmo.
+ */
+function roteadorSobDemanda(d: DadosDoJev): boolean {
+  return d.config.modo_roteador === "sob_demanda" && d.roteador_tem_ia_de_sempre === true;
+}
+
 export function jevNoPonto(
   d: DadosDoJev | null,
   pontoId: string,
@@ -331,7 +345,7 @@ export function jevNoPonto(
   // A IA de sempre é a do clima (`tem_ia_de_sempre`), e só o clima decide sem ela (DEC-012 #5).
   if (!d.tem_ia_de_sempre && tarefa.id === TAREFA_DO_CLIMA.id) return "sozinho";
   if (tarefa.estado !== "decidindo") return "observacao";
-  const frase = tarefa.id === "roteador" && d.config.modo_roteador === "sob_demanda"
+  const frase = tarefa.id === "roteador" && roteadorSobDemanda(d)
     ? ROTEADOR_SOB_DEMANDA : doRegistro(tarefa.id)?.aoDecidirNoPonto;
   return frase === undefined ? null : { decide: frase };
 }
@@ -856,7 +870,7 @@ function Ligado({
       <ul className="divide-y divide-border rounded-md border border-border" data-testid="jev-tarefas">
         {tarefasDoCartao(dados).map((tarefa) => {
           const registro = doRegistro(tarefa.id);
-          const aoDecidir = tarefa.id === "roteador" && dados.config.modo_roteador === "sob_demanda"
+          const aoDecidir = tarefa.id === "roteador" && roteadorSobDemanda(dados)
             ? ROTEADOR_SOB_DEMANDA : registro?.aoDecidir;
           const avisa = avisaAEquipe(tarefa.id);
           const climaSozinho = estado === "sozinho" && tarefa.id === TAREFA_DO_CLIMA.id;
@@ -1075,14 +1089,18 @@ function Ligado({
               <div className="mt-2 space-y-1 text-xs" data-testid="jev-modo-roteador">
                 <label htmlFor="jev-router-mode" className="block font-medium">{t("Como o roteador consulta as IAs")}</label>
                 <select id="jev-router-mode" className="block rounded-md border bg-background p-2 text-sm"
-                  value={dados.config.modo_roteador ?? "comparacao"} disabled={!dados.pode_editar || enviando}
+                  value={roteadorSobDemanda(dados) ? "sob_demanda" : "comparacao"} disabled={!dados.pode_editar || enviando}
                   onChange={(e) => void mudar({ modo_roteador: e.target.value }, t("Modo do roteador salvo."))}>
                   <option value="comparacao">{t("Comparar JEV e IA tradicional")}</option>
-                  <option value="sob_demanda">{t("JEV; IA tradicional só como reserva")}</option>
+                  <option value="sob_demanda" disabled={dados.roteador_tem_ia_de_sempre !== true}>{t("JEV; IA tradicional só como reserva")}</option>
                 </select>
-                <p className="text-muted-foreground">{dados.config.modo_roteador === "sob_demanda"
-                  ? t("A IA tradicional só é chamada se o JEV falhar ou estiver inseguro.")
-                  : t("As duas IAs respondem; a escolha do JEV decide.")}</p>
+                {dados.roteador_tem_ia_de_sempre !== true ? (
+                  <p className="text-muted-foreground" data-testid="jev-modo-roteador-sem-ia">{t(ROTEADOR_SOB_DEMANDA_SEM_IA)}</p>
+                ) : (
+                  <p className="text-muted-foreground">{roteadorSobDemanda(dados)
+                    ? t("A IA tradicional só é chamada se o JEV falhar ou estiver inseguro.")
+                    : t("As duas IAs respondem; a escolha do JEV decide.")}</p>
+                )}
                 <Link href="/app/ai/runs?tab=roteamento" className="underline underline-offset-4">{t("Ver resultados do roteamento")}</Link>
               </div>
             )}
@@ -1169,7 +1187,7 @@ function Ligado({
       </div>
 
       <ConfirmarDecidir
-        modoRoteador={dados.config.modo_roteador}
+        modoRoteador={roteadorSobDemanda(dados) ? "sob_demanda" : "comparacao"}
         pedido={aConfirmar}
         aoFechar={() => setAConfirmar((p) => p && { ...p, aberto: false })}
         aoConfirmar={(tarefa) =>

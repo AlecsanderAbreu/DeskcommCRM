@@ -91,6 +91,7 @@ function makeDeps(overrides: {
   loadPublishedAgentConfig?: ReturnType<typeof vi.fn>;
   classifyIntent?: ReturnType<typeof vi.fn>;
   consultarJev?: ReturnType<typeof vi.fn>;
+  temIaDeSempre?: ReturnType<typeof vi.fn>;
 }) {
   return {
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -99,6 +100,8 @@ function makeDeps(overrides: {
     loadPublishedAgentConfig: overrides.loadPublishedAgentConfig ?? vi.fn(),
     classifyIntent: overrides.classifyIntent ?? vi.fn(),
     consultarJev: overrides.consultarJev ?? jevFalso().consultarJev,
+    // A empresa tem a IA de sempre, salvo o caso que prova o contrário (decisão B).
+    temIaDeSempre: overrides.temIaDeSempre ?? vi.fn().mockResolvedValue(true),
   } as never;
 }
 
@@ -518,6 +521,7 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
     jev: ReturnType<typeof jevFalso>;
     entrada?: Parameters<typeof resolveTurnAgent>[2];
     r?: LoadedRouter;
+    temIaDeSempre?: ReturnType<typeof vi.fn>;
   }) {
     const classifyIntent = vi.fn().mockResolvedValue(opts.daIa);
     const out = await resolveTurnAgent({} as never, {} as never, opts.entrada ?? semSticky, makeDeps({
@@ -525,11 +529,12 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
       loadPublishedAgentConfigById: idAwareLoader(),
       classifyIntent,
       consultarJev: opts.jev.consultarJev,
+      ...(opts.temIaDeSempre ? { temIaDeSempre: opts.temIaDeSempre } : {}),
     }));
     return { out, classifyIntent };
   }
 
-  it('pergunta EM PARALELO: o Jev começa antes de a IA de sempre responder, com o mesmo contexto recente', async () => {
+  it('pergunta EM PARALELO: o Jev começa antes de a IA de sempre responder, com a mensagem sozinha', async () => {
     const jev = jevFalso('observando');
     const classifyIntent = vi.fn(async () => {
       // A IA de sempre ainda não respondeu, e o Jev já foi perguntado.
@@ -544,13 +549,10 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
     }));
     expect(classifyIntent).toHaveBeenCalledOnce();
     const [, entrada] = jev.consultarJev.mock.calls[0]! as unknown as [unknown, Record<string, unknown>];
-    expect((classifyIntent.mock.calls[0] as unknown as [unknown, unknown, { recentMessages: unknown }])[2].recentMessages).toEqual(entrada.recentMessages);
-    // O adaptador do Jev confere o aceite antes de enviar este contexto.
+    // R4: só a última mensagem — o contexto das 4 anteriores fica com a IA de sempre.
     expect(entrada).toEqual({
       organizationId: 'org-1',
       mensagem: 'meu pedido não chegou',
-      recentMessages: [{ direction: 'outbound', body: 'contexto' }],
-      contextMessageCount: 4,
       membros: members,
       contactId: 'lead-1',
       jobId: 'job-1',
@@ -616,6 +618,35 @@ describe('o Jev no roteador (onda 2 do Jev, bloco 2.2)', () => {
       expect(classifyIntent).toHaveBeenCalledOnce();
       expect(jev.jev.observar.mock.calls[0]![0].vereditoDaIa).toBeNull();
     }
+  });
+
+  describe('decisão B (doc 89) — sob demanda só onde a empresa tem a IA de sempre', () => {
+    it('sem a IA de sempre, o sob demanda não liga: compara, e sem resposta dela vale a regra de hoje', async () => {
+      const temIa = vi.fn().mockResolvedValue(false);
+      const jev = jevFalso('decidindo', Promise.resolve(escolha('suporte', 0.99, 'decidindo')), 'sob_demanda');
+      const { out, classifyIntent } = await rodar({ daIa: null, jev, temIaDeSempre: temIa });
+      // A IA de sempre é perguntada (comparação), e sem ela o Jev não decide (R2).
+      expect(classifyIntent).toHaveBeenCalledOnce();
+      expect(out.outcome).toBe('classifier_failed');
+      expect(out.config?.agentId).toBe('agent-reserva');
+      expect(jev.jev.observar.mock.calls[0]![0]).toMatchObject({ decidiu: false });
+      // A pergunta é a do turno, com o provedor do roteador.
+      expect(temIa.mock.calls[0]![2]).toBe(semSticky.tenantId);
+    });
+
+    it('com a IA de sempre, o mesmo pedido roteia pelo Jev sem chamá-la', async () => {
+      const jev = jevFalso('decidindo', Promise.resolve(escolha('suporte', 0.99, 'decidindo')), 'sob_demanda');
+      const { out, classifyIntent } = await rodar({ daIa: null, jev, temIaDeSempre: vi.fn().mockResolvedValue(true) });
+      expect(classifyIntent).not.toHaveBeenCalled();
+      expect(out.config?.agentId).toBe('agent-suporte');
+    });
+
+    it('em comparação, a pergunta nem é feita', async () => {
+      const temIa = vi.fn().mockResolvedValue(true);
+      const jev = jevFalso('decidindo', Promise.resolve(escolha('suporte', 0.99, 'decidindo')));
+      await rodar({ daIa: { intentName: 'vendas', confidence: 0.95 }, jev, temIaDeSempre: temIa });
+      expect(temIa).not.toHaveBeenCalled();
+    });
   });
 
   describe('R2 — sem a IA de sempre, vale a regra de hoje, NUNCA o Jev', () => {
