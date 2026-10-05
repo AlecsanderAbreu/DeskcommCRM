@@ -818,6 +818,13 @@ interface CollectArgs {
    * instalação; resolver mais esta ali não custa visita nenhuma aqui.
    */
   dpoDaInstalacao?: string | null;
+  /**
+   * O país que quem chama JÁ resolveu (o worker, que manda o e-mail com o mesmo
+   * perfil). Quando vem, vale sobre o lido aqui: duas leituras do país divergem
+   * no dia em que só uma falhar e cair no Brasil — e o titular receberia o PDF
+   * com uma lei e o e-mail com outra. Ausente, o país é o lido com o controlador.
+   */
+  pais?: string | null;
 }
 
 const RECENT_MESSAGES_LIMIT = 100;
@@ -920,7 +927,8 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
   const { organizationId, requestId, externalCustomerId } = args;
   // ANTES do primeiro `return`: o caminho "nenhum dado localizado" também gera
   // um relatório entregue ao titular, e ele precisa nomear o controlador igual.
-  const controlador = await lerControlador(admin, organizationId, requestId, args.dpoDaInstalacao ?? null);
+  const lido = await lerControlador(admin, organizationId, requestId, args.dpoDaInstalacao ?? null);
+  const controlador = args.pais === undefined ? lido : { ...lido, country: args.pais };
   let contactId = args.contactId;
 
   // Resolve contact_id when only external customer id is provided.
