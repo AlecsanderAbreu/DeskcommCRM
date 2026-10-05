@@ -341,9 +341,9 @@ async function handleCallStatus(
 }
 
 /**
- * Pedido 1 — bloqueado na ligação é recusado (WaCalls): a linha continua
- * gravada, mas chamada de bloqueado não abre aviso na Central nem carimba a
- * timeline. Fail-open: erro de leitura devolve `false` (segue como hoje) —
+ * Bloqueado na ligação (WaCalls): a linha continua gravada, mas chamada de
+ * bloqueado não abre aviso na Central, e a PERDIDA não carimba a timeline (a
+ * atendida aconteceu e fica). Fail-open: erro de leitura devolve `false` (segue como hoje) —
  * nunca se suprime aviso no escuro.
  */
 async function contatoEstaBloqueado(
@@ -419,14 +419,16 @@ async function handleCallEnded(
   // Chamada de número que não casou com contato nenhum entra sem referência —
   // o telefone está no título, e o aviso continua sendo aviso.
   //
-  // Pedido 1: bloqueado não abre aviso (a linha continua gravada acima).
+  // Bloqueado não abre aviso (a linha continua gravada acima): ligar de volta
+  // para ele já é recusado com 403.
   // SABOTAGEM: remover o `&& !bloqueado` abaixo = teste de bloqueado vermelho.
   const bloqueado = row.contact_id
     ? await contatoEstaBloqueado(pool, sess.organizationId, row.contact_id)
     : false;
   if (bloqueado) {
-    log.info('wacalls: call-ended de bloqueado, sem aviso nem atividade', {
+    log.info('wacalls: call-ended de bloqueado, sem aviso', {
       contact_id: row.contact_id,
+      answered: atendida,
     });
   }
   if (!atendida && recebida && !bloqueado) {
@@ -459,9 +461,12 @@ async function handleCallEnded(
     ],
   );
 
-  // Pedido 1: bloqueado não carimba a timeline (recusar é não-interação).
-  // SABOTAGEM: remover o `&& !bloqueado` abaixo = teste de bloqueado vermelho.
-  if (row.contact_id && !bloqueado) {
+  // Bloqueado: a ligação ATENDIDA aconteceu e fica no histórico; só a
+  // perdida de bloqueado é não-interação e não carimba a timeline.
+  // SABOTAGEM: tirar o `!atendida` = `voz-atendida-de-bloqueado` vermelho;
+  // tirar a guarda inteira = caso bloqueado de `voz-recusa-bloqueado` vermelho.
+  const recusadaDeBloqueado = bloqueado && recebida && !atendida;
+  if (row.contact_id && !recusadaDeBloqueado) {
     const result = await emitAgentActivityForContact({
       pool,
       organizationId: sess.organizationId,
