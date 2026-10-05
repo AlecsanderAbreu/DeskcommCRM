@@ -92,7 +92,7 @@ describe('o classificador semântico de promessa roda FORA da transação do env
     const { pool } = poolFalso(eventos);
     const classifica = vi.fn(async () => {
       eventos.push('classifica');
-      return { isPromise: false, suspectPhrase: null };
+      return { isPromise: false, suspectPhrase: null, prometeuRetornoHumano: false, retornoSoDoAssistente: false };
     });
 
     const r = await runBeforeSend(
@@ -130,7 +130,7 @@ describe('o classificador semântico de promessa roda FORA da transação do env
         // Espera de verdade, curta: é o tempo do modelo que ANTES ficava dentro da posse.
         classifyPromiseSemantic: async () => {
           await new Promise((resolve) => setTimeout(resolve, CLASSIFICADOR_MS));
-          return { isPromise: false, suspectPhrase: null };
+          return { isPromise: false, suspectPhrase: null, prometeuRetornoHumano: false, retornoSoDoAssistente: false };
         },
       }),
     );
@@ -150,7 +150,7 @@ describe('o classificador semântico de promessa roda FORA da transação do env
       argsDoTurno(pool, {
         classifyPromiseSemantic: async (corpo: string) => {
           julgado = corpo;
-          return { isPromise: false, suspectPhrase: null };
+          return { isPromise: false, suspectPhrase: null, prometeuRetornoHumano: false, retornoSoDoAssistente: false };
         },
         send: async (corpo: string) => {
           enviado = corpo;
@@ -172,7 +172,7 @@ describe('o classificador semântico de promessa roda FORA da transação do env
       argsDoTurno(pool, {
         body: 'Pode deixar que eu faço de graça para você.',
         gates: [semanticPromiseGate],
-        classifyPromiseSemantic: async () => ({ isPromise: true, suspectPhrase: 'faço de graça' }),
+        classifyPromiseSemantic: async () => ({ isPromise: true, suspectPhrase: 'faço de graça', prometeuRetornoHumano: false, retornoSoDoAssistente: false }),
         send: envio,
       }),
     );
