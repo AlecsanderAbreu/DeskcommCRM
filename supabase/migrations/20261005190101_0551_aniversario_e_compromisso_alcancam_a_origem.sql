@@ -1,4 +1,4 @@
--- manifest: **O aniversário (`contact.birthday`) e os seis `appointment.*` passam a alcançar a origem do atendimento — nunca a alcançaram desde que existem (issue #2326).** O `fn_service_event_origin` só conhecia seis tipos de evento e o carimbo do `emit_event` só cobria quatro: todo gatilho fora da lista terminava a ação de WhatsApp em `service_boundary_stale`, sem erro em lugar nenhum. As duas pontas agora leem a MESMA tabela `(tipo, entidade) → contato` (`fn_service_event_contact`), que ganha `contact.birthday` e os seis `appointment.*`; `lead.created/stage_changed/tag_added` e `contact.tag_added` passam a ler dela sem mudança de comportamento. Idempotente: `create or replace`; apêndice igual no fim do `baseline.sql`.
+-- manifest: **O aniversário (`contact.birthday`) e os seis `appointment.*` passam a alcançar a origem do atendimento — nunca a alcançaram desde que existem (issue #2326).** O `fn_service_event_origin` só conhecia seis tipos de evento e o carimbo do `emit_event` só cobria quatro: todo gatilho fora da lista terminava a ação de WhatsApp em `service_boundary_stale`, sem erro em lugar nenhum. As duas pontas agora leem a MESMA tabela `(tipo, entidade) → contato` (`fn_service_event_contact`), que ganha `contact.birthday` e os seis `appointment.*`; `lead.created/stage_changed/tag_added` e `contact.tag_added` passam a ler dela sem mudança de comportamento. Como o aniversário agora envia de verdade e só o cron o emite, `contact.birthday` entra na lista de tipos que o `emit_event` recusa a quem chama com sessão (42501), igual ao `appointment.outcome_confirmed`. Idempotente: `create or replace`; apêndice igual no fim do `baseline.sql`.
 
 -- ============================================================================
 -- 0551 — O ANIVERSÁRIO E O COMPROMISSO ALCANÇAM A ORIGEM (#2326)
@@ -195,9 +195,13 @@ begin
   -- `ai.case_opened`/`ai.case_closed` entram pela mesma razão (0279): o caso é
   -- do motor, e um evento de caso forjado por login move o funil e acorda o
   -- agente em nome de uma decisão que ninguém tomou.
+  -- `contact.birthday` entra pela 0551: só o cron (`contact-birthdays`, sem
+  -- sessão) o emite, e a partir desta migration ele alcança a origem e manda
+  -- WhatsApp de verdade — forjado por login, seria envio em nome de um
+  -- aniversário que ninguém fez.
   if auth.uid() is not null and p_event_type in (
     'message.received','appointment.outcome_confirmed',
-    'ai.case_opened','ai.case_closed'
+    'ai.case_opened','ai.case_closed','contact.birthday'
   ) then
     raise exception 'reserved_message_received' using errcode='42501';
   end if;

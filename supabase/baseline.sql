@@ -45029,9 +45029,13 @@ begin
   -- `ai.case_opened`/`ai.case_closed` entram pela mesma razão (0279): o caso é
   -- do motor, e um evento de caso forjado por login move o funil e acorda o
   -- agente em nome de uma decisão que ninguém tomou.
+  -- `contact.birthday` entra pela 0551: só o cron (`contact-birthdays`, sem
+  -- sessão) o emite, e a partir desta migration ele alcança a origem e manda
+  -- WhatsApp de verdade — forjado por login, seria envio em nome de um
+  -- aniversário que ninguém fez.
   if auth.uid() is not null and p_event_type in (
     'message.received','appointment.outcome_confirmed',
-    'ai.case_opened','ai.case_closed'
+    'ai.case_opened','ai.case_closed','contact.birthday'
   ) then
     raise exception 'reserved_message_received' using errcode='42501';
   end if;
