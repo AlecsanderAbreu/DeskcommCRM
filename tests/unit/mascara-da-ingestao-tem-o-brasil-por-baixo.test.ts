@@ -7,6 +7,9 @@
  * `CEP 01310-100` passavam intactos para o índice do RAG — a própria troca de
  * país desligava a máscara que existia antes dela.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { anonymize, padroesDaIngestao, padroesDePii } from "@/lib/ai/anonymize";
@@ -23,5 +26,16 @@ describe("máscara da ingestão para o RAG", () => {
       padroesDaIngestao(perfilDoPais("PT")),
     );
     expect(anonymized).toBe("CPF [CPF], CEP [CEP], NIF [NIF], morada [CODIGO_POSTAL] Lisboa");
+  });
+
+  it("a ingestão de conversas usa este helper, e não a máscara só do país", () => {
+    // Sem esta linha o helper ficaria provado e desligado: voltar a
+    // `padroesDePii([perfil])` em conversations.ts não reprovaria nada.
+    const fonte = readFileSync(
+      join(__dirname, "..", "..", "lib", "ai", "rag", "ingest", "conversations.ts"),
+      "utf8",
+    );
+    expect(fonte).toMatch(/=\s*padroesDaIngestao\(/);
+    expect(fonte).not.toMatch(/padroesDePii\(/);
   });
 });

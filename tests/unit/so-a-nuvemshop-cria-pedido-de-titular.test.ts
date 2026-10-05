@@ -38,7 +38,9 @@ const CHAMADORES_PERMITIDOS = [
 
 const AVISO =
   "caminho novo de pedido de titular: antes, o PDF de acesso precisa cumprir o art. 15.º, n.º 1 " +
-  "(alíneas a) a h)) e a cópia completa do n.º 3 do RGPD — ver o doc 88";
+  "(alíneas a) a h)) e a cópia completa do n.º 3 do RGPD — ver o doc 88. A trava vale para TODOS os " +
+  "países, o Brasil inclusive (decisão do doc 88): um fluxo só de LGPD também espera o PDF; abrir " +
+  "exceção para ele é decisão do dono do produto, não deste teste";
 
 function arquivos(dir: string, acc: string[] = []): string[] {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -55,13 +57,19 @@ const fontes = AREAS.flatMap((area) => arquivos(join(RAIZ, area))).map((caminho)
   texto: readFileSync(caminho, "utf8"),
 }));
 
-/** Quem CHAMA `createLgpdRequest` — pelo AST, para comentário e import não contarem. */
+/**
+ * Quem CHAMA `createLgpdRequest` — pelo AST, para comentário e import não contarem.
+ * Import com outro nome (`createLgpdRequest as criar`) conta como chamador: o
+ * nome novo escaparia da busca pela chamada. Limite conhecido: escrita por
+ * `from(VARIAVEL)` e por função SQL não são vistas.
+ */
 function chamadoresDe(nome: string, arquivosLidos: typeof fontes): string[] {
   const achados = new Set<string>();
   for (const { rel, texto } of arquivosLidos) {
     if (!texto.includes(nome)) continue;
     const fonte = ts.createSourceFile(rel, texto, ts.ScriptTarget.Latest, true);
     const visitar = (no: ts.Node): void => {
+      if (ts.isImportSpecifier(no) && no.propertyName?.text === nome) achados.add(rel);
       if (ts.isCallExpression(no)) {
         const alvo = no.expression;
         const chamado = ts.isPropertyAccessExpression(alvo) ? alvo.name.text : alvo.getText(fonte);
@@ -93,6 +101,14 @@ describe("quem cria pedido de titular (doc 88)", () => {
     const falso = {
       rel: "app/api/v1/lgpd/requests/novo/route.ts",
       texto: 'import { createLgpdRequest } from "@/lib/lgpd/repository";\nawait createLgpdRequest({});',
+    };
+    expect(chamadoresDe("createLgpdRequest", [...fontes, falso])).toContain(falso.rel);
+  });
+
+  it("a sonda enxerga o chamador que importa com outro nome (controle positivo)", () => {
+    const falso = {
+      rel: "lib/lgpd/outro-caminho.ts",
+      texto: 'import { createLgpdRequest as criarPedido } from "@/lib/lgpd/repository";\nawait criarPedido({});',
     };
     expect(chamadoresDe("createLgpdRequest", [...fontes, falso])).toContain(falso.rel);
   });
