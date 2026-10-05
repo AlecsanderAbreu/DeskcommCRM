@@ -1,4 +1,4 @@
--- manifest: **Canal desativado pelo operador (`channel_sessions.metadata.disabled`) com gravação atômica.** O toggle da tela precisa trocar só a chave `disabled` sem sobrescrever as demais (`ai_gate`, `ai_gate_mode`, `ai_test_phone_numbers`, `social_webhook_id`) — leitura-modificação-escrita no app perderia corrida contra o `fn_configurar_pre_go_live_canal`. Espelha a 0251: valida, `jsonb_set` com `create_missing=true`, `where archived_at is null` (arquivado não se pausa, se exclui), devolve linhas afetadas. Sem DDL novo, sem backfill (ausente = ligado, o comportamento de hoje).
+-- manifest: **Canal desativado pelo operador (`channel_sessions.metadata.disabled`) com gravação atômica.** O toggle da tela precisa trocar só a chave `disabled` sem sobrescrever as demais (`ai_gate`, `ai_gate_mode`, `ai_test_phone_numbers`, `social_webhook_id`) — leitura-modificação-escrita no app perderia corrida contra o `fn_configurar_pre_go_live_canal`. Espelha a 0251: valida, `jsonb_set` com `create_missing=true`, `where archived_at is null` (arquivado não se pausa, se exclui), devolve linhas afetadas. Amplia o CHECK de `entregas_de_aviso_de_caso.erro_codigo` com `canal_desativado`: o aviso de caso não sai pela conexão pausada. Sem backfill (ausente = ligado, o comportamento de hoje).
 -- 0545: o toggle de canal desativado grava só a chave disabled no metadata
 --
 -- ─── O defeito ───────────────────────────────────────────────────────────────
@@ -51,5 +51,31 @@ revoke execute on function public.fn_definir_canal_desativado(uuid, uuid, boolea
   from public, anon, authenticated;
 grant execute on function public.fn_definir_canal_desativado(uuid, uuid, boolean)
   to service_role;
+
+-- ─── O aviso à equipe também respeita a pausa ───────────────────────────────
+--
+-- O aviso de caso sai pela conexão da CONFIGURAÇÃO da organização, não pela da
+-- conversa. Se ela está pausada, o motor recusa com `canal_desativado` (esperar
+-- não resolve, só retomar). Código novo sem CHECK seria `23514` no UPDATE que
+-- registra a recusa. Reconstrói o bloco da 0292/0439 com o vocabulário inteiro.
+
+alter table public.entregas_de_aviso_de_caso
+  drop constraint if exists entregas_de_aviso_de_caso_erro_codigo_check;
+alter table public.entregas_de_aviso_de_caso
+  add constraint entregas_de_aviso_de_caso_erro_codigo_check
+  check (erro_codigo is null or erro_codigo in (
+    'canal_desconectado',
+    'canal_arquivado',
+    'canal_nao_aceita_aviso_livre',
+    'transporte_ausente',
+    'destino_invalido',
+    'teto_diario_do_numero',
+    'sem_endereco_publico',
+    'titular_anonimizado',
+    'expirou',
+    'falha_no_envio',
+    'indeterminado',
+    'destino_da_propria_organizacao',
+    'canal_desativado'));
 
 notify pgrst, 'reload schema';
