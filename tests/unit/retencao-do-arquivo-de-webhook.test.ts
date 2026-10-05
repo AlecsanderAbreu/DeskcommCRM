@@ -41,6 +41,8 @@ interface Chamada {
   ate?: string;
   /** As colunas filtradas com `is(coluna, null)`. */
   ehNulo?: string[];
+  /** A coluna e a direção do `order` desta cadeia. */
+  ordem?: { coluna: string; ascending?: boolean };
 }
 
 const linha = (id: string, received_at: string) => ({ id, received_at });
@@ -62,7 +64,10 @@ function fakeAdmin(
         is(coluna: string) { (ctx.ehNulo ??= []).push(coluna); return q; },
         lt() { return q; },
         lte(_c: string, valor: string) { ctx.ate = valor; return q; },
-        order() { return q; },
+        order(coluna: string, o?: { ascending?: boolean }) {
+          ctx.ordem = { coluna, ascending: o?.ascending };
+          return q;
+        },
         in(_c: string, ids: string[]) { ctx.ids = ids; return q; },
         update(valores: Record<string, unknown>) { ctx.op = "update"; ctx.valores = valores; return q; },
         delete() { ctx.op = "delete"; return q; },
@@ -151,6 +156,20 @@ describe("o filtro do update não pode viajar na URL", () => {
     const { admin, chamadas } = fakeAdmin({ alvos: DUAS });
     await podarArquivoDeWebhooks(admin, { diasComCorpo: 7, diasParaApagar: 90 });
     expect(chamadas.find((c) => c.op === "update")?.ehNulo).toEqual(["archived_at"]);
+  });
+
+  it("a escolha ordena por received_at CRESCENTE — é ela que faz o teto do update ser o lote", async () => {
+    // O update corta pela data da ÚLTIMA linha escolhida. Com a escolha em
+    // ordem crescente, essa linha é a mais nova do lote e o update alcança o
+    // lote e só ele. Em ordem decrescente (ou por `id`), a última linha pode
+    // ser a mais nova de TODAS as vencidas, e o update esvazia a fila inteira
+    // de uma vez — a mesma tabela em que todo webhook escreve, sem teto.
+    const { admin, chamadas } = fakeAdmin({ alvos: DUAS });
+    await podarArquivoDeWebhooks(admin, { diasComCorpo: 7, diasParaApagar: 90 });
+    expect(chamadas.find((c) => c.op === "select")?.ordem).toEqual({
+      coluna: "received_at",
+      ascending: true,
+    });
   });
 
   it("conta o que VOLTOU, não o que pediu", async () => {
