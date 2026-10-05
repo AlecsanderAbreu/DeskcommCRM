@@ -96,8 +96,16 @@ export const DIREITOS_DA_ALINEA_E =
  * sobe junto do `report.pdf` no mesmo diretório do bucket
  * (`workers/lgpd-export-worker.ts`), com TODAS as mensagens — ver
  * `messages_completas` em `lib/lgpd/export-collector.ts`.
+ *
+ * As palavras são as do n.º 3 no texto oficial pt-PT ("cópia dos dados pessoais
+ * em fase de tratamento", "formato eletrónico de uso corrente"), conferido no
+ * Jornal Oficial (L 119/1, 4.5.2016) em 2026-10-05. NÃO é "formato
+ * estruturado [...] de leitura automática": essa é a fórmula do art. 20.º
+ * (portabilidade). E NÃO diz "completa": as outras seções do `data.json` têm
+ * teto de linhas, e as que o atingiram vêm listadas em `secoes_no_limite`.
  */
-export const COPIA_COMPLETA_DO_NUMERO_3 =
-  "Cópia completa dos seus dados pessoais em curso de tratamento, em formato " +
-  "estruturado, de uso corrente e legível por máquina, no arquivo data.json que " +
-  "acompanha este relatório (art. 15.º, n.º 3).";
+export const COPIA_DO_NUMERO_3 =
+  "Cópia dos seus dados pessoais em fase de tratamento, em formato eletrónico de " +
+  "uso corrente, no ficheiro data.json que acompanha este relatório (art. 15.º, " +
+  "n.º 3). Cada secção do ficheiro tem um número máximo de registos; as que o " +
+  "atingiram, e podem ter mais, vêm listadas em secoes_no_limite.";

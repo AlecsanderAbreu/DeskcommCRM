@@ -36,7 +36,7 @@ import React from "react";
 
 import { env } from "@/lib/env";
 import {
-  COPIA_COMPLETA_DO_NUMERO_3,
+  COPIA_DO_NUMERO_3,
   DIREITOS_DA_ALINEA_E,
   NAO_INFORMADO_PELO_CONTROLADOR,
 } from "@/lib/legal/art15";
@@ -248,7 +248,7 @@ export function LgpdExportPdf({ data, unsignedWarning }: Props): React.ReactElem
               <Text style={styles.small}>h) Decisões automatizadas</Text>
               <Text>{data.art15.decisoes_automatizadas}</Text>
             </View>
-            <Text style={styles.small}>{COPIA_COMPLETA_DO_NUMERO_3}</Text>
+            <Text style={styles.small}>{COPIA_DO_NUMERO_3}</Text>
           </View>
         ) : null}
 

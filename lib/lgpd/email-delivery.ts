@@ -69,8 +69,7 @@ interface SendArgs {
   /** O país da organização decide a lei e o idioma do texto. */
   perfil: PerfilDoPais;
   /**
-   * A ligação para o `data.json` — a cópia COMPLETA em formato estruturado do
-   * art. 15.º, n.º 3 (issue #2340), que sobe no mesmo diretório do
+   * A ligação para o `data.json` — a cópia do art. 15.º, n.º 3 (issue #2340), que sobe no mesmo diretório do
    * `report.pdf` (`workers/lgpd-export-worker.ts`). Chave obrigatória com
    * valor possivelmente `undefined`, a mesma disciplina do `fuso`: o chamador
    * não a esquece calado. Imprime só no ramo FORA do Brasil — o e-mail
@@ -181,7 +180,7 @@ function mensagemForaDoBrasil(args: SendArgs, shortId: string): Mensagem {
     <a href="${args.signedUrl}" style="background:${args.marca.accent};color:${args.marca.accentFg};padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block;">Descarregar relatório</a>
   </p>${
     args.signedUrlDados
-      ? `\n  <p style="font-size:12px;color:${NEUTROS_DE_SAIDA.suave};">A cópia completa em formato estruturado (data.json) está em <a href="${args.signedUrlDados}" style="color:inherit;">${args.signedUrlDados}</a>.</p>`
+      ? `\n  <p style="font-size:12px;color:${NEUTROS_DE_SAIDA.suave};">A cópia dos seus dados pessoais (data.json) está em <a href="${args.signedUrlDados}" style="color:inherit;">${args.signedUrlDados}</a>.</p>`
       : ""
   }
   <p style="font-size:12px;color:${NEUTROS_DE_SAIDA.suave};">Se não fez este pedido, ignore este e-mail.</p>${
@@ -197,7 +196,7 @@ ${args.signedUrl}${
     args.signedUrlDados
       ? `
 
-A cópia completa em formato estruturado (data.json) está em:
+A cópia dos seus dados pessoais (data.json) está em:
 ${args.signedUrlDados}`
       : ""
   }

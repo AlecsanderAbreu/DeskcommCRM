@@ -15,11 +15,17 @@
  *   vazia;
  * - a alínea f) sai do `autoridadeDeSupervisao` do PERFIL do país (CNPD em
  *   Portugal), e não de texto fixo: país novo troca junto com a lei;
- * - a alínea h) vem dos agentes de IA ATIVOS da organização;
- * - a cópia do n.º 3 é `messages_completas` = TODAS as mensagens, contra as
+ * - a alínea h) vem dos agentes de IA NO AR (`agenteAtende`: publicado, sem
+ *   pausa, não arquivado), NUNCA de `is_active` — a tela cria `mcp_agent` com
+ *   `is_active: false` e publicar não religa, então a fixture principal é
+ *   exatamente esse caso. O modo decide a frase: `automatic` responde sozinho,
+ *   `assisted` sugere e uma pessoa decide;
+ * - a cópia do n.º 3 leva `messages_completas` = TODAS as mensagens, contra as
  *   100 de `RECENT_MESSAGES_LIMIT`, e o e-mail do titular leva a ligação do
  *   `data.json` — um relatório que promete uma cópia a que não dá ligação
- *   entrega a promessa e não a cópia;
+ *   entrega a promessa e não a cópia. As outras seções têm teto de linhas: o
+ *   relatório não diz "completa", e as que bateram no teto vêm em
+ *   `secoes_no_limite`;
  * - o Brasil continua SEM a seção e SEM chave nova no `data.json`, que é o
  *   que os fixtures de `lgpd-brasil-antes-do-doc88/` cobrem byte a byte.
  */
@@ -30,6 +36,7 @@ const banco = vi.hoisted(() => ({
   org: {} as Record<string, unknown>,
   mensagens: [] as Array<Record<string, unknown>>,
   agentes: [] as Array<Record<string, unknown>>,
+  conversas: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@sentry/nextjs", () => ({ captureMessage: vi.fn() }));
@@ -40,7 +47,7 @@ vi.mock("@/lib/email/roteador", () => ({
 
 /**
  * Banco falso com paginação de verdade: `limit` e `range` cortam a lista, e o
- * `head: true` da contagem devolve `count`. Sem isso a cópia completa do n.º 3
+ * `head: true` da contagem devolve `count`. Sem isso a cópia das mensagens do n.º 3
  * passaria num mock que devolve tudo para qualquer pergunta — o teste mediria
  * o mock, não o laço de paginação.
  */
@@ -52,7 +59,9 @@ vi.mock("@/lib/supabase/admin", () => {
         ? banco.mensagens
         : tabela === "ai_agents"
           ? banco.agentes
-          : [];
+          : tabela === "conversations"
+            ? banco.conversas
+            : [];
   const de = (tabela: string) => {
     const rows = linhas(tabela);
     const estado = { offset: 0, size: undefined as number | undefined, head: false };
@@ -134,29 +143,40 @@ beforeEach(() => {
     sent_at: null,
     created_at: `2026-09-${String((i % 28) + 1).padStart(2, "0")}T10:00:00.000Z`,
   }));
+  banco.conversas = [];
   banco.agentes = [
-    {
-      id: "a1",
-      name: "Agente de Atendimento",
-      kind: "rag_bot",
-      is_active: true,
-      archived_at: null,
-      created_at: "2026-01-01T00:00:00.000Z",
-    },
-    {
-      id: "a2",
-      name: "Agente Arquivado",
-      kind: "rag_bot",
-      is_active: false,
-      archived_at: null,
-      created_at: "2026-01-02T00:00:00.000Z",
-    },
+    // O caso COMUM: criado pela tela (`is_active: false`) e publicado.
+    agente({ id: "a1", name: "Agente de Atendimento", operation_mode: "automatic" }),
+    agente({ id: "a2", name: "Agente Assistente", operation_mode: "assisted" }),
+    agente({ id: "a3", name: "Agente Arquivado", archived_at: "2026-02-01T00:00:00.000Z" }),
+    agente({ id: "a4", name: "Agente Pausado", paused_at: "2026-02-01T00:00:00.000Z" }),
+    // `is_active: true` sem versão publicada: não está no ar, não responde.
+    agente({ id: "a5", name: "Agente Rascunho", is_active: true, published_version_id: null }),
   ];
 });
 
 afterEach(() => {
   delete PERFIS_DO_PAIS.XI;
 });
+
+function agente(campos: Record<string, unknown>): Record<string, unknown> {
+  return {
+    kind: "mcp_agent",
+    is_active: false,
+    operation_mode: "automatic",
+    paused_at: null,
+    published_version_id: "v1",
+    archived_at: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    ...campos,
+  };
+}
+
+/** O texto da alínea h) no PDF, sem o resto do documento. */
+function alineaH(payload: ExportPayload): string {
+  expect(payload.art15, "o bloco do art. 15.º sumiu do data.json").toBeDefined();
+  return payload.art15!.decisoes_automatizadas;
+}
 
 async function coleta(country: string | null, settings?: unknown): Promise<ExportPayload> {
   org(country, settings);
@@ -207,14 +227,20 @@ describe("art. 15.º, n.º 1 — alínea a alínea no PDF", () => {
     expect(tudo).toContain("Comissão Nacional de Proteção de Dados (CNPD)");
     expect(tudo).toContain("https://www.cnpd.pt");
 
-    // h) — dos agentes de IA ATIVOS; o arquivado não pode aparecer.
+    // h) — dos agentes de IA NO AR; arquivado, pausado e rascunho ficam fora.
     expect(tudo).toContain("h) Decisões automatizadas");
     expect(tudo).toContain("Agente de Atendimento");
     expect(tudo).not.toContain("Agente Arquivado");
+    expect(tudo).not.toContain("Agente Pausado");
+    expect(tudo).not.toContain("Agente Rascunho");
 
-    // n.º 3 — a promessa da cópia, com o nome do arquivo que a entrega.
+    // n.º 3 — as palavras do n.º 3 (não as do art. 20.º), sem "completa".
     expect(tudo).toContain("data.json");
     expect(tudo).toContain("n.º 3");
+    expect(tudo).toContain("em fase de tratamento, em formato eletrónico de uso corrente");
+    expect(tudo).toContain("secoes_no_limite");
+    expect(tudo).not.toMatch(/c[óo]pia completa/i);
+    expect(tudo).not.toContain("formato estruturado");
   });
 
   it("Portugal: sem o responsável preencher, cada alínea diz que não foi informada", async () => {
@@ -255,7 +281,54 @@ describe("art. 15.º, n.º 1 — alínea a alínea no PDF", () => {
   });
 });
 
-describe("art. 15.º, n.º 3 — a cópia completa", () => {
+describe("art. 15.º, n.º 1, al. h) — só o que o sistema sabe", () => {
+  it("agente publicado com is_active:false em modo automático: diz que responde sozinho", async () => {
+    banco.agentes = [agente({ id: "a1", name: "Agente de Atendimento" })];
+    const h = alineaH(await coleta("PT"));
+    expect(h).toContain("Responde(m) automaticamente às suas mensagens 1 assistente(s) de IA: Agente de Atendimento.");
+    expect(h).not.toContain("Sugere(m)");
+    // A frase que o automático desmente, e a afirmação que o sistema não sabe.
+    expect(h).not.toContain("não decide por si só");
+    expect(h).not.toMatch(/^Sim\./);
+    expect(h).toContain("quem o informa é o controlador");
+  });
+
+  it("só modo assistido: a IA sugere e uma pessoa decide", async () => {
+    banco.agentes = [agente({ id: "a2", name: "Agente Assistente", operation_mode: "assisted" })];
+    const h = alineaH(await coleta("PT"));
+    expect(h).toContain("Sugere(m) respostas que uma pessoa revê e decide enviar 1 assistente(s) de IA: Agente Assistente.");
+    expect(h).not.toContain("automaticamente");
+  });
+
+  it("os dois modos ao mesmo tempo: cada agente na frase do seu modo", async () => {
+    const h = alineaH(await coleta("PT"));
+    expect(h).toContain("automaticamente às suas mensagens 1 assistente(s) de IA: Agente de Atendimento.");
+    expect(h).toContain("decide enviar 1 assistente(s) de IA: Agente Assistente.");
+  });
+
+  it("nenhum agente no ar (pausado, arquivado, rascunho com is_active:true): não há assistente a responder", async () => {
+    banco.agentes = banco.agentes.filter((a) => ["a3", "a4", "a5"].includes(a.id as string));
+    const h = alineaH(await coleta("PT"));
+    expect(h).toBe("Não há assistente de IA a responder às suas mensagens nesta organização.");
+    // Nada de afirmar ausência de definição de perfis ou de decisão: o sistema não sabe.
+    expect(h).not.toMatch(/perfil|decisão/i);
+  });
+});
+
+describe("art. 15.º, n.º 3 — a cópia", () => {
+  it("o data.json declara as seções que bateram no teto de linhas", async () => {
+    banco.conversas = Array.from({ length: 500 }, (_, i) => ({ id: `cv${i}`, is_group: false }));
+    const cheio = await coleta("PT");
+    expect(cheio.secoes_no_limite).toEqual(["conversations"]);
+
+    banco.conversas = [{ id: "cv1", is_group: false }];
+    const folgado = await coleta("PT");
+    expect(folgado.secoes_no_limite, "nenhuma seção no teto é lista vazia, não ausência").toEqual([]);
+
+    // Brasil: a chave não existe (byte a byte do doc 88).
+    expect(Object.keys(await coleta(null))).not.toContain("secoes_no_limite");
+  });
+
   it("o data.json leva TODAS as mensagens, contra as 100 do recorte do PDF", async () => {
     const payload = await coleta("PT");
     expect(payload.messages_recent).toHaveLength(100);
@@ -285,6 +358,10 @@ describe("art. 15.º, n.º 3 — a cópia completa", () => {
       expect(corpo).toContain("data.json");
       expect(corpo).toContain("https://storage.test/data.json?token=abc");
     }
-    expect(enviado.text).toContain("A cópia completa em formato estruturado (data.json) está em:");
+    expect(enviado.text).toContain("A cópia dos seus dados pessoais (data.json) está em:");
+    for (const corpo of [enviado.text, enviado.html]) {
+      expect(corpo).not.toMatch(/c[óo]pia completa/i);
+      expect(corpo).not.toContain("formato estruturado");
+    }
   });
 });

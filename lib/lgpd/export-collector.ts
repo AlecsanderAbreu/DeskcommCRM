@@ -7,6 +7,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { agenteAtende } from "@/lib/ai/agents/no-ar";
 import {
   art15DoControlador,
   type Art15DoControlador,
@@ -555,7 +556,7 @@ export interface Art15NoDocumento {
   autoridade: AutoridadeDeSupervisao;
   /**
    * h) decisões automatizadas: o texto que descreve a lógica e a consequência
-   * prevista, montado a partir dos agentes de IA ATIVOS da organização.
+   * prevista, montado a partir dos agentes de IA NO AR (`agenteAtende`).
    */
   decisoes_automatizadas: string;
 }
@@ -595,19 +596,26 @@ export interface ExportPayload {
   fuso?: string;
   /**
    * As alíneas a), c), d), e), f) e h) do art. 15.º, n.º 1, e a declaração da
-   * cópia completa do n.º 3 (issue #2340). AUSENTE no Brasil e em país sem
+   * cópia do n.º 3 (issue #2340). AUSENTE no Brasil e em país sem
    * autoridade revisada no perfil — mesma régua do `lei_rotulo`: a lista do
    * RGPD não é a da LGPD, e acrescentar a chave ao `data.json` brasileiro
    * mudaria os fixtures byte a byte do doc 88.
    */
   art15?: Art15NoDocumento;
   /**
-   * TODAS as mensagens do titular — a cópia completa do art. 15.º, n.º 3, que
+   * TODAS as mensagens do titular — a parte da cópia do art. 15.º, n.º 3, que
    * `messages_recent` (recorte de 100) não entrega. Sai só junto do `art15`
    * (fora do Brasil, ver `foraDoBrasil`): o `data.json` brasileiro continua o
    * de sempre, byte a byte.
    */
   messages_completas?: MessageRow[];
+  /**
+   * As seções deste `data.json` cuja consulta voltou no teto de linhas — pode
+   * haver mais registros do que os entregues. Lista vazia = nenhuma bateu no
+   * teto. Só fora do Brasil, junto de `messages_completas` (byte a byte do
+   * doc 88); é a ressalva que o PDF cita na linha do n.º 3.
+   */
+  secoes_no_limite?: string[];
   /** O rótulo do documento do titular no país ("CPF", "Documento"). */
   documento_rotulo: string;
   generated_at: string;
@@ -1010,12 +1018,12 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
   }
 
   // O país é lido UMA vez, logo depois do ponto que separa o caminho vazio do
-  // caminho com dado: as alíneas do art. 15.º e a cópia completa do n.º 3
+  // caminho com dado: as alíneas do art. 15.º e a cópia do n.º 3
   // decidem aqui, e o renderizador decide pelo que veio no payload — duas
   // leituras diferentes dariam ao titular um PDF que promete o que o
   // `data.json` não entrega (mesma doutrina da leitura única do worker, doc 88).
   const perfil = perfilDoPais(controlador.country);
-  // Alínea h) do art. 15.º — lida dos agentes de IA ATIVOS da organização,
+  // Alínea h) do art. 15.º — lida dos agentes de IA NO AR da organização,
   // DEPOIS do ponto que devolve o payload vazio: a coleta sem identificador
   // visita só `organizations` (tests/invariants/agenda-meet-export), e é neste
   // caminho que há pedido para entregar.
@@ -1023,6 +1031,17 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     perfil.codigo === PAIS_PADRAO
       ? ""
       : await descreveDecisoesAutomatizadas(admin, organizationId, requestId);
+
+  // Seções cuja consulta voltou no TETO de linhas (`.limit()`): pode haver mais
+  // do que o `data.json` entrega, e o titular tem de saber quais são. É o que
+  // impede o relatório de chamar a cópia de "completa" — ela não é, e paginar
+  // as dezenove seções seria trocar a ressalva por memória sem teto no worker.
+  // Sai só fora do Brasil (`corpoDaCopiaCompleta`): o `data.json` brasileiro é
+  // travado byte a byte pelo doc 88.
+  const secoes_no_limite: string[] = [];
+  const conferirTeto = (secao: string, linhas: readonly unknown[] | null, teto: number) => {
+    if ((linhas?.length ?? 0) >= teto && !secoes_no_limite.includes(secao)) secoes_no_limite.push(secao);
+  };
 
   // Contact snapshot (PII intentionally retained — this report is the data
   // owner's right of access; only logs/metadata stay sanitized).
@@ -1144,6 +1163,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("conversations", data, 500);
       conversations = data.map((c) => ({
         id: c.id,
         status: c.status,
@@ -1183,10 +1203,10 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
   let messages_count_total = 0;
   let messages_recent: MessageRow[] = [];
   /**
-   * A cópia COMPLETA do art. 15.º, n.º 3 — todas as mensagens, em páginas de
+   * As mensagens da cópia do art. 15.º, n.º 3 — TODAS, em páginas de
    * 500, e não as 100 de `RECENT_MESSAGES_LIMIT`. Existe só fora do Brasil:
    * o `data.json` brasileiro é travado byte a byte pelo doc 88 e a LGPD não
-   * pede a cópia em formato estruturado que o n.º 3 pede (issue #2340).
+   * pede a cópia em formato eletrónico que o n.º 3 pede (issue #2340).
    */
   let messages_completas: MessageRow[] | null = null;
   if (contactId) {
@@ -1220,7 +1240,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
       messages_recent = data.map(paraMensagem);
     }
 
-    // Cópia completa do n.º 3 (art. 15.º) — fora do Brasil. Páginas de 500
+    // Mensagens da cópia do n.º 3 (art. 15.º) — fora do Brasil. Páginas de 500
     // até a última vir vazia: limite fixo aqui seria entregar uma amostra com
     // outro nome, que é exatamente o defeito da issue #2340.
     if (perfil.codigo !== PAIS_PADRAO) {
@@ -1266,6 +1286,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("leads", data, 200);
       leads = data;
     }
   }
@@ -1336,6 +1357,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("orders", data, 500);
       orders = data.map((o) => ({
         id: o.id,
         external_id: o.external_id,
@@ -1364,6 +1386,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("activities", data, 500);
       activities = data;
     }
   }
@@ -1384,6 +1407,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("checkpoints", data, 500);
       checkpoints = data;
     }
   }
@@ -1413,6 +1437,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("appointments", data, 500);
       appointments = data;
     }
   }
@@ -1441,6 +1466,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("sales", data, 500);
       sales = data;
     }
   }
@@ -1466,6 +1492,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("proposals", data, 500);
       proposals = data.map(({ pdf_path, ...p }) => ({ ...p, tem_pdf: Boolean(pdf_path) }));
     }
   }
@@ -1503,6 +1530,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         .eq("person_id", personId)
         .limit(500);
       if (eV) throw eV;
+      conferirTeto("b2b.vinculos", v, 500);
       vinculos = v ?? [];
     }
     const { data: linhas, error: eL } = await admin
@@ -1513,6 +1541,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
       .order("created_at", { ascending: false })
       .limit(500);
     if (eL) throw eL;
+    conferirTeto("b2b.linhas_importadas", linhas, 500);
     if (pessoa || vinculos.length > 0 || (linhas ?? []).length > 0) {
       b2b = { pessoa, vinculos, linhas_importadas: linhas ?? [] };
     }
@@ -1538,6 +1567,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("tasks", data, 500);
       tasks = data;
     }
   }
@@ -1564,6 +1594,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("voice_calls", data, 500);
       voice_calls = data as VoiceCallRow[];
     }
   }
@@ -1586,6 +1617,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("campaign_recipients", data, 500);
       campaign_recipients = data as unknown as CampaignRecipientRow[];
     }
   }
@@ -1606,6 +1638,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("campaign_suppressions", data, 100);
       campaign_suppressions = data as unknown as CampaignSuppressionRow[];
     }
   }
@@ -1630,6 +1663,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("channel_session_groups", data, 500);
       channel_session_groups = data;
     }
   }
@@ -1659,6 +1693,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
       });
       continue;
     }
+    conferirTeto("group_messages_authored", data, RECENT_MESSAGES_LIMIT);
     for (const m of data ?? []) {
       porId.set(m.id, {
         id: m.id,
@@ -1694,6 +1729,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("webhook_captures", data, 500);
       webhook_captures = data;
     }
   }
@@ -1740,6 +1776,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("audit_log_extract", data, AUDIT_LIMIT);
       audit_log_extract = data.map((a) => ({
         id: a.id,
         action: a.action,
@@ -1956,6 +1993,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
+      conferirTeto("demandas", data, 500);
       demandas = data;
     }
     // A conversa interna sobre o caso (migration 0281). FK direta para o
@@ -2173,7 +2211,7 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     lei_citada: citacaoDaLei(perfil),
     ...foraDoBrasil(perfil, controlador),
     ...blocoArt15(perfil, controlador, decisoes_automatizadas),
-    ...corpoDaCopiaCompleta(perfil, messages_completas),
+    ...corpoDaCopiaCompleta(perfil, messages_completas, secoes_no_limite),
     documento_rotulo: perfil.documento.rotulo,
     generated_at: new Date().toISOString(),
     no_local_footprint:
@@ -2239,10 +2277,19 @@ function foraDoBrasil(
 }
 
 /**
- * A alínea h) — decisões automatizadas (incluindo perfilamento), descritas a
- * partir dos agentes de IA ATIVOS da organização: a tabela `ai_agents` é a
- * única fonte que diz se a organização TEM agente, e o nome de cada um é o que
- * o titular precisa para ligar o texto ao que ele vê na conversa.
+ * A alínea h) — decisões automatizadas, descritas SÓ com o que o sistema sabe:
+ * quais agentes de IA estão no ar e em que modo.
+ *
+ * "No ar" é `agenteAtende` (`lib/ai/agents/no-ar.ts`), a régua da tela e dos
+ * workers — NUNCA `is_active`: "Novo agente" grava `is_active: false` e
+ * publicar não religa, então filtrar por `is_active` deixava de fora o caso
+ * comum (agente criado pela tela, publicado, respondendo sozinho) e dizia ao
+ * titular que não havia IA nenhuma. Ver `app/api/v1/ai/agents/assignable`.
+ *
+ * O modo é o fato que separa as duas frases: `automatic` responde ao titular
+ * sem passar por uma pessoa; `assisted` propõe e uma pessoa decide. Se há
+ * decisão com efeito jurídico (art. 22.º), o sistema não sabe — quem informa é
+ * o controlador, e o texto diz isso em vez de afirmar que não há.
  *
  * Nunca lança: leitura falhou, a alínea diz que não foi possível determinar —
  * silenciar h) seria entregar um relatório que omite uma alínea que a lei exige.
@@ -2254,7 +2301,7 @@ async function descreveDecisoesAutomatizadas(
 ): Promise<string> {
   const { data, error } = await admin
     .from("ai_agents")
-    .select("id, name, kind, is_active, archived_at, created_at")
+    .select("id, name, operation_mode, paused_at, published_version_id, archived_at, created_at")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: true })
     .limit(100);
@@ -2265,20 +2312,33 @@ async function descreveDecisoesAutomatizadas(
     });
     return "Não foi possível determinar neste relatório: a leitura dos agentes de IA do controlador falhou.";
   }
-  const ativos = (data ?? []).filter((a) => a.is_active && !a.archived_at);
-  if (ativos.length === 0) {
-    return "Não há agente de IA ativo nesta organização: nenhuma decisão automatizada, incluindo perfilamento, é produzida sobre os seus dados por estes sistemas.";
+  const noAr = (data ?? []).filter((a) => agenteAtende(a));
+  if (noAr.length === 0) {
+    return "Não há assistente de IA a responder às suas mensagens nesta organização.";
   }
-  const nomes = ativos.map((a) => a.name).join(", ");
-  return (
-    `Sim. O controlador opera ${ativos.length} agente(s) de IA ativo(s): ${nomes}. ` +
-    "Lógica: modelo de linguagem sobre as suas mensagens, a base de conhecimento da organização e os dados do " +
-    "CRM, com a configuração de cada agente (prompt de sistema, temperatura, limiares de confiança e ferramentas " +
-    "de consulta ao CRM). Significância e consequências previstas: o tratamento cobre as suas mensagens e os dados " +
-    "do atendimento e serve para responder mais depressa e para relatar o que foi tratado; a saída da máquina é " +
-    "texto de apoio ao operador, pode conter erro, e não decide por si só efeito jurídico ou significativo sobre " +
-    "si — essa decisão é de quem atende."
+  const nomes = (modo: string) =>
+    noAr.filter((a) => a.operation_mode === modo).map((a) => a.name);
+  const automaticos = nomes("automatic");
+  const assistidos = nomes("assisted");
+  const frases: string[] = [];
+  if (automaticos.length > 0) {
+    frases.push(
+      `Responde(m) automaticamente às suas mensagens ${automaticos.length} assistente(s) de IA: ${automaticos.join(", ")}.`,
+    );
+  }
+  if (assistidos.length > 0) {
+    frases.push(
+      `Sugere(m) respostas que uma pessoa revê e decide enviar ${assistidos.length} assistente(s) de IA: ${assistidos.join(", ")}.`,
+    );
+  }
+  frases.push(
+    "Lógica: modelo de linguagem sobre as suas mensagens, a base de conhecimento da organização e, conforme a " +
+      "configuração de cada assistente, dados do CRM.",
+    "Se deste tratamento resulta alguma decisão tomada exclusivamente por meios automatizados que produza efeitos " +
+      "na sua esfera jurídica ou que o afete significativamente de forma similar (art. 22.º), quem o informa é o " +
+      "controlador.",
   );
+  return frases.join(" ");
 }
 
 /**
@@ -2310,17 +2370,22 @@ function blocoArt15(
 }
 
 /**
- * A cópia completa do n.º 3: as mensagens TODAS, e não as 100 de
- * `RECENT_MESSAGES_LIMIT`. `null` (não coletado) não vira chave — só o Brasil
- * e o caminho sem contato ficam sem ela, e o fixture brasileiro continua byte a
- * byte.
+ * A cópia do n.º 3: as mensagens TODAS, e não as 100 de
+ * `RECENT_MESSAGES_LIMIT`, e a lista das seções que bateram no teto. `null`
+ * (não coletado) não vira chave — o caminho sem contato fica sem
+ * `messages_completas`; o Brasil fica sem as duas, e o fixture brasileiro
+ * continua byte a byte.
  */
 function corpoDaCopiaCompleta(
   perfil: PerfilDoPais,
   mensagens: MessageRow[] | null,
-): Pick<ExportPayload, "messages_completas"> {
-  if (perfil.codigo === PAIS_PADRAO || mensagens === null) return {};
-  return { messages_completas: mensagens };
+  secoesNoLimite: string[],
+): Pick<ExportPayload, "messages_completas" | "secoes_no_limite"> {
+  if (perfil.codigo === PAIS_PADRAO) return {};
+  return {
+    ...(mensagens === null ? {} : { messages_completas: mensagens }),
+    secoes_no_limite: secoesNoLimite,
+  };
 }
 
 function emptyPayload(
@@ -2342,7 +2407,7 @@ function emptyPayload(
     ...blocoArt15(
       perfilDoPais(controlador.country),
       controlador,
-      "Nenhum dado pessoal seu foi localizado nos sistemas internos; não há, nestes sistemas, decisão automatizada que lhe diga respeito.",
+      "Nenhum dado pessoal seu foi localizado nos sistemas internos, pelo que este relatório não tem tratamento automatizado de dados seus a descrever.",
     ),
     documento_rotulo: perfilDoPais(controlador.country).documento.rotulo,
     generated_at: new Date().toISOString(),
