@@ -52,8 +52,9 @@ import { normalizarTermoDeBusca } from "@/lib/inbox/termo-de-busca";
  *
  * É uma TABELA e não um laço por code point de propósito: a classe tem de ser
  * curta e legível no log do `.or()`, e o que interessa é o que se digita num
- * nome de cliente. `å`/`õ` de outro idioma entram pelo que a base cobre; o que
- * não está aqui simplesmente continua sem casar — como casa hoje.
+ * nome de cliente. Letra acentuada FORA da tabela (`ñ`, `ë`, `å`, `ò`) não vira
+ * classe nem perde o acento: sai literal, e o `~*` resolve a caixa — então
+ * "Peña" continua achando "Peña", como o `ilike` achava.
  */
 const GRAFIAS: Record<string, string> = {
   a: "áàâãä",
@@ -92,13 +93,16 @@ function escapar(caractere: string): string {
  *
  * 1. `normalizarTermoDeBusca` — espaço duplo, vírgula e ponto e vírgula viram
  *    UM curinga; é a régua única da #1892 (`lib/inbox/termo-de-busca.ts`).
- * 2. `semAcento` — "João" e "Joao" viram o mesmo termo; a classe do passo 3
- *    então casa a grafia QUE ESTÁ NO BANCO em qualquer uma das duas direções.
- * 3. laço por caractere — `*` vira `.*` (curinga do PostgREST), letra com
- *    grafias vira classe (`a` → `[aáàâãäAÁÀÂÃÄ]`), o resto é literal escapado
- *    (`100%` e `a_b` continuam literais, como no `ilike` que este padrão
- *    substitui).
- * 4. `.*` nas pontas — "contém", a mesma semântica do `%…%` do `ilike`.
+ * 2. laço por caractere (em NFC) — `*` vira `.*`, e `*` seguidos viram UM
+ *    `.*` só (`a***b` → `a.*b`: sem o colapso, 400 asteriscos viravam
+ *    `.*.*.*…`, 28 s por coluna, e com 3000 o Postgres recusava com
+ *    `regular expression is too complex` — o `ilike` também colapsava os `%`).
+ *    Letra cuja base está na tabela E cuja grafia a tabela admite vira classe
+ *    (`a`/`á`/`Ã` → `[aáàâãäAÁÀÂÃÄ]`): é ela que faz "João" e "Joao" casarem a
+ *    grafia QUE ESTÁ NO BANCO nos dois sentidos. O resto é literal escapado —
+ *    `100%` e `a_b`, como no `ilike`, e a letra acentuada fora da tabela, que
+ *    perder o acento faria deixar de achar a própria grafia ("Peña").
+ * 3. `.*` nas pontas — "contém", a mesma semântica do `%…%` do `ilike`.
  *
  * ⛔ O termo tem de chegar com os PARÊNTESES removidos (`termoDeTexto`, no
  * handler): `(` e `)` são o agrupamento do DSL do `.or()` do PostgREST, e um
@@ -110,17 +114,18 @@ function escapar(caractere: string): string {
  * que recusa antes; um padrão vazio vira `.*.*`, que casa tudo.
  */
 export function padraoRegexDeBusca(bruto: string): string {
-  const termo = semAcento(normalizarTermoDeBusca(bruto));
+  const termo = normalizarTermoDeBusca(bruto).normalize("NFC");
 
   let corpo = "";
   for (const caractere of termo) {
     if (caractere === "*") {
-      corpo += ".*";
+      if (!corpo.endsWith(".*")) corpo += ".*";
       continue;
     }
-    const base = caractere.toLowerCase();
+    const base = semAcento(caractere).toLowerCase();
     const grafias = GRAFIAS[base];
-    if (grafias !== undefined) {
+    const baixo = caractere.toLowerCase();
+    if (grafias !== undefined && (baixo === base || grafias.includes(baixo))) {
       // As duas caixas entram na classe: `imatch` já dobra a caixa do texto
       // solto, mas a classe é montada aqui e não depende de dobramento nenhum
       // para casar — a prova está no teste, não nesta frase.

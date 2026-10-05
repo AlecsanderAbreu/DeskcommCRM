@@ -388,3 +388,70 @@ describe("CONTROLE: o emulador mede o que diz medir", () => {
     expect(padraoCasa("%Paulo  Lima%", PAULO_LIMA_JR)).toBe(false);
   });
 });
+
+/**
+ * ─── O ESCAPE e os dois defeitos que a troca para regex podia trazer ────────
+ *
+ * Os termos dos blocos de cima não têm metacaractere nenhum, então nenhum deles
+ * exercita o `escapar` — tirá-lo deixava tudo verde. Este bloco mede o escape,
+ * o colapso dos `*` (sem ele, `a` + 400 `*` + `b` vira `.*.*.*…`: 28 s por
+ * coluna, e com 3000 o Postgres recusa com `regular expression is too complex`)
+ * e a letra acentuada FORA da tabela, que o `ilike` achava pela grafia exata.
+ */
+describe("busca de contatos: escape, colapso de * e acento fora da tabela (#2310)", () => {
+  it('"a.*" é ponto LITERAL seguido de curinga — não vira o regex `.*`', () => {
+    const padrao = padraoRegexDeBusca("a.*");
+    expect(regexCasa(padrao, "a.x"), padrao).toBe(true);
+    expect(regexCasa(padrao, "aXYZ"), padrao).toBe(false);
+  });
+
+  it.each([
+    ["a[b", "a[b", "ab"],
+    ["a\\b", "a\\b", "ab"],
+    ["x{2}", "x{2}", "xx"],
+    ["a+b", "a+b", "aab"],
+    ["a|b", "a|b", "b"],
+    ["^a$", "^a$", "a"],
+  ])('"%s" casa só o literal', (termo, literal, metacaractere) => {
+    const padrao = padraoRegexDeBusca(termo);
+    expect(regexCasa(padrao, `Cliente ${literal}`), padrao).toBe(true);
+    expect(regexCasa(padrao, `Cliente ${metacaractere}`), padrao).toBe(false);
+  });
+
+  it.each(["Peña", "Muñoz", "Zoë", "Ångela", "Lòpez"])(
+    '"%s" acha a própria grafia — letra fora da tabela sai literal, como no ilike',
+    (nome) => {
+      const padrao = padraoRegexDeBusca(nome);
+      expect(regexCasa(padrao, `${nome} Silva`), padrao).toBe(true);
+      expect(regexCasa(padrao, `${nome.toUpperCase()} SILVA`), padrao).toBe(true);
+    },
+  );
+
+  it("a letra DA tabela continua virando classe nos dois sentidos", () => {
+    expect(regexCasa(padraoRegexDeBusca("Conceição"), "Conceicao")).toBe(true);
+    expect(regexCasa(padraoRegexDeBusca("Conceicao"), "CONCEIÇÃO")).toBe(true);
+  });
+
+  it('"a***b" gera UM `.*` só — e 3000 asteriscos também', () => {
+    expect(padraoRegexDeBusca("a***b").match(/\.\*/g)).toHaveLength(3);
+    const longo = padraoRegexDeBusca(`a${"*".repeat(3000)}b`);
+    expect(longo.match(/\.\*/g)).toHaveLength(3);
+    expect(regexCasa(longo, "aXYZb")).toBe(true);
+  });
+
+  it("nenhum caractere digitado chega ao or= como , ( ou ) — pelo caminho do handler", async () => {
+    // A função sozinha emite `\(` e `\)`: quem os tira é o handler, ANTES dela.
+    // Por isso a varredura passa pelo handler, que é o que vai ao PostgREST.
+    const amostra = [
+      ...Array.from({ length: 0x7f - 0x20 }, (_, i) => String.fromCharCode(0x20 + i)),
+      " ", " ", "（", "）", "，", "،", "、", "ñ", "Å", "👍",
+    ];
+    for (const ch of amostra) {
+      const { filtro, execucoes } = await busca(`ab${ch}cd`);
+      expect(execucoes, JSON.stringify(ch)).toBe(1);
+      expect(filtro, JSON.stringify(ch)).not.toMatch(/[()]/);
+      const colunas = filtro.split(",").map((cond) => cond.split(".")[0]);
+      expect(colunas, JSON.stringify(ch)).toEqual(["name", "display_name", "email", "phone_number"]);
+    }
+  });
+});
