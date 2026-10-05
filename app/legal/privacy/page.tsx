@@ -97,6 +97,11 @@ export default async function PrivacyPage() {
               "quando o operador liga o Jev (desligado por padrão), a TypeSafe AI, nos Estados Unidos, recebe cada mensagem do cliente para avaliar o clima, tentativas de manipulação, qual agente deve atender, pedidos para falar com uma pessoa ou parar de receber mensagens e respostas a follow-ups. Com autorização separada, o roteador também envia até 16 mensagens anteriores da conversa, conforme o limite configurado, incluindo respostas de atendentes. Autorizações anteriores para até quatro mensagens permanecem nesse limite até renovação. CPF, telefone e e-mail reconhecidos são ocultados em cada texto;",
             )}
           </li>
+          <li>
+            {t(
+              "quando o operador cadastra uma chave de Mapas (desligado por padrão), o Google, que recebe as coordenadas da localização que o cliente compartilhou, para devolver a rua e a cidade aproximadas;",
+            )}
+          </li>
           <li>{t("o provedor de infraestrutura onde o servidor está hospedado.")}</li>
         </ul>
         <p>{t("Os dados não são vendidos nem cedidos para publicidade de terceiros.")}</p>
