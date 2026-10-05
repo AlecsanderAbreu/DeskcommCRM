@@ -42,6 +42,8 @@ const barra: Array<[string, string]> = [
   ['diagnostico', 'Presenta una infección en la zona.'],
   // a pergunta condicional em espanhol não pode desarmar o diagnóstico que vem junto
   ['diagnostico', 'Si tienes picazón, tienes hongos.'],
+  // "que" não é "si": a guarda condicional não alcança a opinião do agente
+  ['diagnostico', 'Creo que tiene hongos.'],
   ['prescricao', 'Puede aplicar una pomada de corticoide dos veces al día.'],
   ['prescricao', 'Tome el antibiótico hasta la consulta.'],
   ['prescricao', 'Lo ideal es 500 mg al día.'],
@@ -55,6 +57,9 @@ const barra: Array<[string, string]> = [
   ['afirmacao_oncologica', 'Tranquila, no es cáncer.'],
   ['afirmacao_oncologica', 'Eso tiene cara de carcinoma.'],
   ['afirmacao_oncologica', 'Se trata de un melanoma.'],
+  // a locução negada não abre brecha para a ordem de NÃO parar o remédio
+  ['prescricao', 'Você não pode deixar de tomar o antibiótico.'],
+  ['prescricao', 'Usted no puede dejar de usar la crema.'],
 ];
 
 const passa: string[] = [
@@ -111,6 +116,16 @@ const passa: string[] = [
   'Use el cupón BIENVENIDO en el carrito.',
   'Garantizo la entrega para el viernes.',
   'El sérum de 30 ml cuesta 120 pesos.',
+  // terceira pessoa genérica com "si"/"quien": serviço, não diagnóstico
+  'Si usted tiene alergia a algún medicamento, avísenos antes.',
+  'Si tú tienes alergia, avisa antes.',
+  'Para saber si usted tiene una infección, necesita la consulta.',
+  'Quien tiene acné puede hacer el peeling.',
+  'Si el paciente tiene herpes, el procedimiento se reprograma.',
+  'Si su hijo tiene alergia, avise en recepción.',
+  'El láser no se recomienda para quien tiene herpes activo.',
+  'Usted tiene cita mañana a las 9.',
+  'La consulta incluye una crema hidratante de regalo.',
 ];
 
 describe('detectarAfirmacaoClinica', () => {
@@ -154,5 +169,6 @@ describe('renderVetoDeAfirmacaoClinica', () => {
     expect(texto).toContain('não diga o que a pessoa tem');
     expect(texto).toContain('não indique remédio, pomada nem dose');
     expect(texto).toContain('quem avalia é o médico');
+    expect(texto).toContain('ofereça o agendamento');
   });
 });

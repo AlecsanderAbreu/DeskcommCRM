@@ -131,11 +131,15 @@ const REGRAS: ReadonlyArray<{ categoria: CategoriaClinica; padrao: RegExp; hipot
         // Espanhol com sujeito explícito: "Si usted tiene…" / "Tú tienes…" — a MESMA
         // guarda condicional do "se": "Si tiene alergia, avise" é recepção, não diagnóstico.
         String.raw`(?<!${INICIO}si\s+)${palavra(String.raw`t[uú]|usted|ustedes|vos`)}\s+` +
-          String.raw`(?:tiene|tienes|tienen|est[aá]s?\s+con|presenta|padece|debe\s+tener|probablemente\s+tiene|certamente\s+tiene)\s+` +
+          String.raw`(?:tiene|tienes|tienen|est[aá]s?\s+con|presenta|padece|debe\s+tener|probablemente\s+tiene|ciertamente\s+tiene)\s+` +
           `${ARTIGO}${palavra(DOENCAS)}`,
         // Espanhol sem sujeito explícito: "Tienes hongos", "Presenta una infección",
         // "Estás con una infección" — e "Si tiene alergia…" cai na mesma guarda condicional.
-        String.raw`(?<!${INICIO}si\s+)${palavra(String.raw`tiene|tienes|presenta|padece(?:\s+de)?|est[aá]s?\s+con|debe\s+tener|probablemente\s+tiene`)}\s+` +
+        // A guarda aceita até duas palavras entre "si"/"quien" e o verbo: sem sujeito escrito,
+        // a regra também casa a terceira pessoa genérica ("Si usted tiene alergia, avísenos",
+        // "Quien tiene acné puede…", "Si el paciente tiene herpes…"), que é serviço, não
+        // diagnóstico. Vírgula quebra a janela: "Si tienes picazón, tienes hongos" segue barrada.
+        String.raw`(?<!${INICIO}(?:si|quien|quienes)\s+(?:[\p{L}]+\s+){0,2})${palavra(String.raw`tiene|tienes|presenta|padece(?:\s+de)?|est[aá]s?\s+con|debe\s+tener|probablemente\s+tiene`)}\s+` +
           `${ARTIGO}${palavra(DOENCAS)}`,
         String.raw`${palavra(String.raw`seu\s+diagn[oó]stico\s+(?:[eé]|seria)|su\s+diagn[oó]stico\s+(?:es|ser[ií]a)`)}`,
         String.raw`${palavra(String.raw`isso|esto|eso|essa\s+(?:mancha|pinta|les[aã]o|ferida)|esa\s+(?:mancha|pinta|lesi[oó]n|herida)`)}\s+` +
