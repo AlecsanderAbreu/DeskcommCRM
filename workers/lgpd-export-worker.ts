@@ -220,6 +220,16 @@ export async function processLgpdExport(event: EventRow): Promise<HandlerResult>
       throw new Error(`signed_url_failed: ${signedErr?.message ?? "no_url"}`);
     }
 
+    // A cópia COMPLETA do art. 15.º, n.º 3 (issue #2340): o `data.json` já
+    // subia no mesmo diretório, mas só o PDF tinha ligação — o titular recebia
+    // um relatório que prometia uma cópia inacessível. Mesma validade do PDF.
+    const { data: signedDados, error: signedDadosErr } = await admin.storage
+      .from(BUCKET)
+      .createSignedUrl(jsonPath, expiresInSec);
+    if (signedDadosErr || !signedDados) {
+      throw new Error(`signed_url_json_failed: ${signedDadosErr?.message ?? "no_url"}`);
+    }
+
     // 8. Resolve delivery email.
     const deliveryFromPayload = (req.request_payload as Record<string, unknown>)?.delivery as
       | Record<string, unknown>
@@ -278,6 +288,7 @@ export async function processLgpdExport(event: EventRow): Promise<HandlerResult>
         to: deliveryEmail,
         requestId,
         signedUrl: signed.signedUrl,
+        signedUrlDados: signedDados.signedUrl,
         expiresAt,
         marca: await marcaDaSaida(orgId),
         // O país decide a lei e o idioma do e-mail — o MESMO perfil que o coletor

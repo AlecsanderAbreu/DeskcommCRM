@@ -8,9 +8,14 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  art15DoControlador,
+  type Art15DoControlador,
+} from "@/lib/legal/art15";
+import {
   citacaoDaLei,
   PAIS_PADRAO,
   perfilDoPais,
+  type AutoridadeDeSupervisao,
   type PerfilDoPais,
 } from "@/lib/legal/perfil-do-pais";
 import { logger } from "@/lib/logger";
@@ -534,6 +539,27 @@ export interface CampaignSuppressionRow {
   created_at: string;
 }
 
+/**
+ * O que o relatório entrega além do corpo do documento — o art. 15.º, n.º 1
+ * alínea a alínea (issue #2340). Os valores VARIÁVEIS moram aqui; o texto fixo
+ * da lei (al. e) e a linha do n.º 3 vêm de `lib/legal/art15.ts` no render.
+ */
+export interface Art15NoDocumento {
+  /** a) finalidades do tratamento — preenchido pelo responsável. */
+  finalidades: string | null;
+  /** c) destinatários ou categorias de destinatários — idem. */
+  destinatarios: string | null;
+  /** d) prazo de conservação — idem. */
+  prazo_conservacao: string | null;
+  /** f) a quem reclamar: vem do `autoridadeDeSupervisao` do perfil do país. */
+  autoridade: AutoridadeDeSupervisao;
+  /**
+   * h) decisões automatizadas: o texto que descreve a lógica e a consequência
+   * prevista, montado a partir dos agentes de IA ATIVOS da organização.
+   */
+  decisoes_automatizadas: string;
+}
+
 export interface ExportPayload {
   request_id: string;
   organization_id: string;
@@ -567,6 +593,21 @@ export interface ExportPayload {
    * que segue no formato de sempre (`America/Sao_Paulo`, sem nome de fuso).
    */
   fuso?: string;
+  /**
+   * As alíneas a), c), d), e), f) e h) do art. 15.º, n.º 1, e a declaração da
+   * cópia completa do n.º 3 (issue #2340). AUSENTE no Brasil e em país sem
+   * autoridade revisada no perfil — mesma régua do `lei_rotulo`: a lista do
+   * RGPD não é a da LGPD, e acrescentar a chave ao `data.json` brasileiro
+   * mudaria os fixtures byte a byte do doc 88.
+   */
+  art15?: Art15NoDocumento;
+  /**
+   * TODAS as mensagens do titular — a cópia completa do art. 15.º, n.º 3, que
+   * `messages_recent` (recorte de 100) não entrega. Sai só junto do `art15`
+   * (fora do Brasil, ver `foraDoBrasil`): o `data.json` brasileiro continua o
+   * de sempre, byte a byte.
+   */
+  messages_completas?: MessageRow[];
   /** O rótulo do documento do titular no país ("CPF", "Documento"). */
   documento_rotulo: string;
   generated_at: string;
@@ -828,6 +869,12 @@ interface CollectArgs {
 }
 
 const RECENT_MESSAGES_LIMIT = 100;
+/**
+ * Página da cópia COMPLETA do art. 15.º, n.º 3 (`messages_completas`). Só o
+ * tamanho da requisição: o laço vai até a página vir vazia, então isto não é
+ * teto — teto aqui seria a amostra de 100 com outro nome.
+ */
+const MENSAGENS_POR_PAGINA = 500;
 const AUDIT_LIMIT = 200;
 
 /** A identidade JURÍDICA da organização — quem responde pelos dados. */
@@ -845,6 +892,12 @@ interface Controlador {
   country: string | null;
   /** `organizations.timezone` (NOT NULL no schema); só sai no documento fora do BR. */
   timezone: string | null;
+  /**
+   * As alíneas a), c) e d) do art. 15.º que o RESPONSÁVEL preencheu em
+   * `organizations.settings.art15`. `null` em quem não preencheu — o
+   * documento imprime "não informado pelo controlador" (issue #2340).
+   */
+  art15: Art15DoControlador;
 }
 
 /**
@@ -865,10 +918,11 @@ async function lerControlador(
     dpo_email: dpoDaInstalacao,
     country: null,
     timezone: null,
+    art15: { finalidades: null, destinatarios: null, prazo_conservacao: null },
   };
   const { data, error } = await admin
     .from("organizations")
-    .select("legal_name, display_name, dpo_email, country, timezone")
+    .select("legal_name, display_name, dpo_email, country, timezone, settings")
     .eq("id", organizationId)
     .maybeSingle();
   if (error || !data) {
@@ -884,6 +938,7 @@ async function lerControlador(
     dpo_email: data.dpo_email?.trim() || dpoDaInstalacao,
     country: (data as { country?: string | null }).country ?? null,
     timezone: (data as { timezone?: string | null }).timezone ?? null,
+    art15: art15DoControlador((data as { settings?: unknown }).settings),
   };
 }
 
@@ -953,6 +1008,21 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
   if (!contactId && !externalCustomerId) {
     return emptyPayload(requestId, organizationId, controlador);
   }
+
+  // O país é lido UMA vez, logo depois do ponto que separa o caminho vazio do
+  // caminho com dado: as alíneas do art. 15.º e a cópia completa do n.º 3
+  // decidem aqui, e o renderizador decide pelo que veio no payload — duas
+  // leituras diferentes dariam ao titular um PDF que promete o que o
+  // `data.json` não entrega (mesma doutrina da leitura única do worker, doc 88).
+  const perfil = perfilDoPais(controlador.country);
+  // Alínea h) do art. 15.º — lida dos agentes de IA ATIVOS da organização,
+  // DEPOIS do ponto que devolve o payload vazio: a coleta sem identificador
+  // visita só `organizations` (tests/invariants/agenda-meet-export), e é neste
+  // caminho que há pedido para entregar.
+  const decisoes_automatizadas =
+    perfil.codigo === PAIS_PADRAO
+      ? ""
+      : await descreveDecisoesAutomatizadas(admin, organizationId, requestId);
 
   // Contact snapshot (PII intentionally retained — this report is the data
   // owner's right of access; only logs/metadata stay sanitized).
@@ -1087,8 +1157,38 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
   }
 
   // Messages — count total + sample recent.
+  const paraMensagem = (m: {
+    id: string;
+    conversation_id: string;
+    direction: string;
+    type: string;
+    status: string;
+    body: string | null;
+    media_url: string | null;
+    media_derived_text: string | null;
+    sent_at: string | null;
+    created_at: string;
+  }): MessageRow => ({
+    id: m.id,
+    conversation_id: m.conversation_id,
+    direction: m.direction,
+    type: m.type,
+    status: m.status,
+    body: m.body,
+    has_media: Boolean(m.media_url),
+    media_derived_text: m.media_derived_text ?? null,
+    sent_at: m.sent_at,
+    created_at: m.created_at,
+  });
   let messages_count_total = 0;
   let messages_recent: MessageRow[] = [];
+  /**
+   * A cópia COMPLETA do art. 15.º, n.º 3 — todas as mensagens, em páginas de
+   * 500, e não as 100 de `RECENT_MESSAGES_LIMIT`. Existe só fora do Brasil:
+   * o `data.json` brasileiro é travado byte a byte pelo doc 88 e a LGPD não
+   * pede a cópia em formato estruturado que o n.º 3 pede (issue #2340).
+   */
+  let messages_completas: MessageRow[] | null = null;
   if (contactId) {
     const { count, error: countErr } = await admin
       .from("messages")
@@ -1117,18 +1217,36 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
         error: error.message,
       });
     } else if (data) {
-      messages_recent = data.map((m) => ({
-        id: m.id,
-        conversation_id: m.conversation_id,
-        direction: m.direction,
-        type: m.type,
-        status: m.status,
-        body: m.body,
-        has_media: Boolean(m.media_url),
-        media_derived_text: m.media_derived_text ?? null,
-        sent_at: m.sent_at,
-        created_at: m.created_at,
-      }));
+      messages_recent = data.map(paraMensagem);
+    }
+
+    // Cópia completa do n.º 3 (art. 15.º) — fora do Brasil. Páginas de 500
+    // até a última vir vazia: limite fixo aqui seria entregar uma amostra com
+    // outro nome, que é exatamente o defeito da issue #2340.
+    if (perfil.codigo !== PAIS_PADRAO) {
+      const completas: MessageRow[] = [];
+      for (let de = 0; ; de += MENSAGENS_POR_PAGINA) {
+        const { data, error } = await admin
+          .from("messages")
+          .select(
+            "id, conversation_id, direction, type, status, body, media_url, media_derived_text, sent_at, created_at",
+          )
+          .eq("organization_id", organizationId)
+          .eq("contact_id", contactId)
+          .order("created_at", { ascending: false })
+          .range(de, de + MENSAGENS_POR_PAGINA - 1);
+        if (error) {
+          logger.warn("[lgpd-export-worker] messages completas load failed", {
+            request_id: requestId,
+            error: error.message,
+          });
+          break;
+        }
+        const linhas = data ?? [];
+        completas.push(...linhas.map(paraMensagem));
+        if (linhas.length < MENSAGENS_POR_PAGINA) break;
+      }
+      messages_completas = completas;
     }
   }
 
@@ -2046,8 +2164,6 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     }
   }
 
-  const perfil = perfilDoPais(controlador.country);
-
   return {
     request_id: requestId,
     organization_id: organizationId,
@@ -2056,6 +2172,8 @@ export async function collectExportData(args: CollectArgs): Promise<ExportPayloa
     dpo_email: controlador.dpo_email,
     lei_citada: citacaoDaLei(perfil),
     ...foraDoBrasil(perfil, controlador),
+    ...blocoArt15(perfil, controlador, decisoes_automatizadas),
+    ...corpoDaCopiaCompleta(perfil, messages_completas),
     documento_rotulo: perfil.documento.rotulo,
     generated_at: new Date().toISOString(),
     no_local_footprint:
@@ -2120,6 +2238,91 @@ function foraDoBrasil(
   };
 }
 
+/**
+ * A alínea h) — decisões automatizadas (incluindo perfilamento), descritas a
+ * partir dos agentes de IA ATIVOS da organização: a tabela `ai_agents` é a
+ * única fonte que diz se a organização TEM agente, e o nome de cada um é o que
+ * o titular precisa para ligar o texto ao que ele vê na conversa.
+ *
+ * Nunca lança: leitura falhou, a alínea diz que não foi possível determinar —
+ * silenciar h) seria entregar um relatório que omite uma alínea que a lei exige.
+ */
+async function descreveDecisoesAutomatizadas(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  requestId: string,
+): Promise<string> {
+  const { data, error } = await admin
+    .from("ai_agents")
+    .select("id, name, kind, is_active, archived_at, created_at")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: true })
+    .limit(100);
+  if (error) {
+    logger.warn("[lgpd-export-worker] ai_agents load failed", {
+      request_id: requestId,
+      error: error.message,
+    });
+    return "Não foi possível determinar neste relatório: a leitura dos agentes de IA do controlador falhou.";
+  }
+  const ativos = (data ?? []).filter((a) => a.is_active && !a.archived_at);
+  if (ativos.length === 0) {
+    return "Não há agente de IA ativo nesta organização: nenhuma decisão automatizada, incluindo perfilamento, é produzida sobre os seus dados por estes sistemas.";
+  }
+  const nomes = ativos.map((a) => a.name).join(", ");
+  return (
+    `Sim. O controlador opera ${ativos.length} agente(s) de IA ativo(s): ${nomes}. ` +
+    "Lógica: modelo de linguagem sobre as suas mensagens, a base de conhecimento da organização e os dados do " +
+    "CRM, com a configuração de cada agente (prompt de sistema, temperatura, limiares de confiança e ferramentas " +
+    "de consulta ao CRM). Significância e consequências previstas: o tratamento cobre as suas mensagens e os dados " +
+    "do atendimento e serve para responder mais depressa e para relatar o que foi tratado; a saída da máquina é " +
+    "texto de apoio ao operador, pode conter erro, e não decide por si só efeito jurídico ou significativo sobre " +
+    "si — essa decisão é de quem atende."
+  );
+}
+
+/**
+ * O bloco do art. 15.º para o `data.json` e o PDF (issue #2340).
+ *
+ * Sai FORA do Brasil, com lei revisada e com autoridade declarada no perfil —
+ * três condições para uma: o Brasil segue a LGPD (art. 18, II), cuja lista não
+ * é esta, e o `data.json` brasileiro é travado byte a byte pelo doc 88; país sem
+ * citação revisada não ganha a de um outro (mesma régua de `citacaoDaLei`).
+ */
+function blocoArt15(
+  perfil: PerfilDoPais,
+  controlador: Controlador,
+  decisoes: string,
+): Pick<ExportPayload, "art15"> {
+  const autoridade = perfil.autoridadeDeSupervisao;
+  if (perfil.codigo === PAIS_PADRAO || !autoridade || !perfil.lei?.revisada || !decisoes) {
+    return {};
+  }
+  return {
+    art15: {
+      finalidades: controlador.art15.finalidades,
+      destinatarios: controlador.art15.destinatarios,
+      prazo_conservacao: controlador.art15.prazo_conservacao,
+      autoridade,
+      decisoes_automatizadas: decisoes,
+    },
+  };
+}
+
+/**
+ * A cópia completa do n.º 3: as mensagens TODAS, e não as 100 de
+ * `RECENT_MESSAGES_LIMIT`. `null` (não coletado) não vira chave — só o Brasil
+ * e o caminho sem contato ficam sem ela, e o fixture brasileiro continua byte a
+ * byte.
+ */
+function corpoDaCopiaCompleta(
+  perfil: PerfilDoPais,
+  mensagens: MessageRow[] | null,
+): Pick<ExportPayload, "messages_completas"> {
+  if (perfil.codigo === PAIS_PADRAO || mensagens === null) return {};
+  return { messages_completas: mensagens };
+}
+
 function emptyPayload(
   requestId: string,
   organizationId: string,
@@ -2133,6 +2336,14 @@ function emptyPayload(
     dpo_email: controlador.dpo_email,
     lei_citada: citacaoDaLei(perfilDoPais(controlador.country)),
     ...foraDoBrasil(perfilDoPais(controlador.country), controlador),
+    // Sem identificador não há como ler `ai_agents` (o invariant de coleta
+    // vaza é só `organizations`); o que a alínea h) pode dizer com verdade é
+    // que não existe dado localizado — e portanto não existe decisão sobre ele.
+    ...blocoArt15(
+      perfilDoPais(controlador.country),
+      controlador,
+      "Nenhum dado pessoal seu foi localizado nos sistemas internos; não há, nestes sistemas, decisão automatizada que lhe diga respeito.",
+    ),
     documento_rotulo: perfilDoPais(controlador.country).documento.rotulo,
     generated_at: new Date().toISOString(),
     no_local_footprint: true,
