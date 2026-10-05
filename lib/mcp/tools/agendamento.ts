@@ -951,10 +951,16 @@ export const crmFindAndBookAppointment: McpToolDefinition<typeof consultarEMarca
       // modelo precisa para não encerrar a conversa com o cliente na mão.
       //
       // ⚠️ A lista vai SEM o horário recusado: ele acabou de ser recusado, e
-      // oferecê-lo de volta ao cliente é o começo de um laço.
+      // oferecê-lo de volta ao cliente é o começo de um laço. Exceção: a recusa
+      // do CONVIDADO (#2077) não é do horário — ele segue livre, e a instrução é
+      // marcar de novo sem `guest_email`; tirá-lo da lista empurraria o agente a
+      // oferecer outro horário ao cliente.
+      const motivoDaRecusa = (resultado as { motivo?: unknown }).motivo;
       const payload = payloadDeHorarios(
         consulta,
-        slotsDoDia.filter((s) => s !== achado),
+        motivoDaRecusa === "convidado_fora_da_equipe"
+          ? slotsDoDia
+          : slotsDoDia.filter((s) => s !== achado),
         HORARIOS_PADRAO,
       );
       // ⚠️ E o ensino só é REESCRITO quando a recusa é o horário que ficou
@@ -967,7 +973,6 @@ export const crmFindAndBookAppointment: McpToolDefinition<typeof consultarEMarca
       // ofereça horários", `agenda_tipo_desativado` diz "pergunte que outro
       // atendimento serve" — e as duas passavam a mandar oferecer um horário da
       // lista. E sem opção no dia, consultar outro dia é mesmo o próximo passo.
-      const motivoDaRecusa = (resultado as { motivo?: unknown }).motivo;
       const ofereceDaLista =
         motivoDaRecusa === "agenda_horario_indisponivel" && payload.horarios.length > 0;
       return {

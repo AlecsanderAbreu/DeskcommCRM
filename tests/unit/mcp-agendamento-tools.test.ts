@@ -520,6 +520,11 @@ describe("guest_email nas ferramentas de marcação (#2062)", () => {
     );
     expect(r).toMatchObject({ marcado: false, motivo: "convidado_fora_da_equipe" });
     expect(handlers.marcarAgendamentoHandler).not.toHaveBeenCalled();
+    // O horário segue LIVRE — a recusa foi do convidado. Sem ele na lista, o
+    // agente ofereceria outro horário ao cliente em vez de remarcar sem o campo.
+    expect((r as { horarios: Array<{ inicio: string }> }).horarios.map((h) => h.inicio)).toContain(
+      "2026-09-01T14:00:00.000Z",
+    );
   });
 
   it("crm_book_appointment SEM guest_email não pede o campo ao handler — e não é erro", async () => {

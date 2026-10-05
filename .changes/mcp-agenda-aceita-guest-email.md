@@ -12,6 +12,6 @@ Agora as duas ferramentas aceitam `guest_email` opcional, com uma regra:
 - e-mail de cliente ou de terceiro é recusado e nada é marcado — o agente escreve o que o cliente dita, e um convite em nome do negócio não sai para quem o negócio não escolheu. A recusa é a mesma para e-mail desconhecido e para usuário de outra empresa;
 - sem `guest_email`, a marcação continua funcionando como antes.
 
-A tela da Agenda e a rota da API não mudam: lá quem digita o convidado é uma pessoa da equipe. Nenhuma ação é necessária para receber a correção.
+A tela da Agenda e a rota da API não mudam: lá o convidado é escolhido por quem opera o sistema (pela tela ou por uma integração), não ditado por um cliente na conversa. Nenhuma ação é necessária para receber a correção.
 
 Contribuição de @webtecnica (#2077, issue #2062); a regra de "só da equipe" foi decisão do mantenedor, aplicada sobre o trabalho dele.
