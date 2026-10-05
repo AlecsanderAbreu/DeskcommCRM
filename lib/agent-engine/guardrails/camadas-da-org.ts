@@ -4,7 +4,7 @@
  * Duas custam dinheiro (`promessa_semantica`, `jailbreak`: consultam um modelo por
  * mensagem). A terceira, `afirmacao_clinica`, não custa nada e é escolha por outra
  * razão: ela só faz sentido em negócio de saúde, e fora dele barraria frases normais
- * ("use o cupom", "você tem 10% de desconto"). Por isso nasce desligada e não tem
+ * (numa loja de cosméticos, "passe o creme hidratante"). Por isso nasce desligada e não tem
  * variável de ambiente — quem é de saúde liga em Segurança. O detector está em
  * `./afirmacao-clinica.ts`.
  *

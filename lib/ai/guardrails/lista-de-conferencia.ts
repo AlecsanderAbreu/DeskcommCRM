@@ -169,8 +169,8 @@ export const CONFERENCIAS_DE_SAIDA: readonly ConferenciaDeSaida[] = [
       "garante resultado ou afirma que uma lesão é câncer.",
     escolha: {
       custo:
-        "Não custa nada, mas só serve para saúde: em outros negócios pode barrar frases " +
-        "normais, como \"use o cupom\".",
+        "Não custa nada e, por enquanto, só reconhece frases em português. Só serve para " +
+        "saúde: em outros negócios pode barrar frases normais, como \"passe o creme hidratante\".",
       consultaModelo: false,
     },
     porQueNaoSeDesliga: "",

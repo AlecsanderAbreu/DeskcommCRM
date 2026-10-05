@@ -234,8 +234,8 @@ export interface GateContext {
    *  - no caminho determinístico (follow-up, template, resposta aprovada) o texto não é
    *    do modelo e veto ali é drop silencioso;
    *  - a camada é OPCIONAL por organização (`afirmacao_clinica` em
-   *    `org_guardrail_layers`, padrão desligado): fora da saúde, "use o creme" e "você
-   *    tem 10% de desconto" são frases normais. Quem arma é o turno do agente, e só
+   *    `org_guardrail_layers`, padrão desligado): fora da saúde, "passe o creme
+   *    hidratante" é frase normal de loja de cosméticos. Quem arma é o turno do agente, e só
    *    quando a organização ligou a camada.
    */
   clinicalClaimEnforced?: boolean;

@@ -3244,7 +3244,7 @@
   "Conferir promessas em texto livre": "检查自由文本中的承诺",
   "Não fazer afirmação clínica": "不做临床断言",
   "Barra a mensagem em que o assistente diz o que a pessoa tem, indica remédio ou dose, garante resultado ou afirma que uma lesão é câncer.": "拦截助手说出对方患有什么、推荐药物或剂量、保证效果或断言病变是癌症的消息。",
-  "Não custa nada, mas só serve para saúde: em outros negócios pode barrar frases normais, como \"use o cupom\".": "不产生费用，但只适用于医疗健康：在其他行业可能会拦截“使用优惠券”之类的普通语句。",
+  "Não custa nada e, por enquanto, só reconhece frases em português. Só serve para saúde: em outros negócios pode barrar frases normais, como \"passe o creme hidratante\".": "不产生费用，目前只能识别葡萄牙语句子。仅适用于医疗健康：在其他行业可能会拦截“涂抹保湿霜”之类的普通语句。",
   "Não prometer atendimento humano que não existe": "不要承诺不存在的人工客服",
   "Não falar a nossa língua com o seu cliente": "不要用我们的行话跟客户说话",
   "Dizer que é um assistente quando perguntam": "被问及时说明自己是助手",

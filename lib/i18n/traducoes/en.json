@@ -4709,7 +4709,7 @@
   "Conferir promessas em texto livre": "Check promises made in free text",
   "Não fazer afirmação clínica": "Make no clinical claims",
   "Barra a mensagem em que o assistente diz o que a pessoa tem, indica remédio ou dose, garante resultado ou afirma que uma lesão é câncer.": "Blocks a message in which the assistant says what the person has, recommends a medication or a dose, guarantees a result, or states that a lesion is cancer.",
-  "Não custa nada, mas só serve para saúde: em outros negócios pode barrar frases normais, como \"use o cupom\".": "Costs nothing, but it only makes sense for healthcare: in other businesses it may block ordinary phrases, such as \"use the coupon\".",
+  "Não custa nada e, por enquanto, só reconhece frases em português. Só serve para saúde: em outros negócios pode barrar frases normais, como \"passe o creme hidratante\".": "Costs nothing and, for now, only recognizes sentences in Portuguese. It only makes sense for healthcare: in other businesses it may block ordinary phrases, such as \"apply the moisturizing cream\".",
   "Não prometer atendimento humano que não existe": "Not promise human support that doesn't exist",
   "Não falar a nossa língua com o seu cliente": "Not use our internal language with your client",
   "Dizer que é um assistente quando perguntam": "Say it's an assistant when asked",
