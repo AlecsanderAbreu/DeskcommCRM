@@ -108,7 +108,7 @@ const ALARMES: ReadonlyArray<readonly [AlarmThreshold, string]> = [
   ["redact_d10", "2026-10-20"],
 ];
 
-async function alarmesPara(country: string | null) {
+async function alarmesPara(country: string | null, tipo?: string) {
   const saida = [];
   for (const [threshold, due] of ALARMES) {
     enviados.length = 0;
@@ -116,7 +116,7 @@ async function alarmesPara(country: string | null) {
       request: {
         id: "22222222-2222-4222-8222-222222222222",
         organization_id: "org-1",
-        request_type: threshold === "data_request_d5" ? "data_request" : "redact",
+        request_type: tipo ?? (threshold === "data_request_d5" ? "data_request" : "redact"),
         status: "pending",
         attempts: 0,
         received_at: "2026-09-20T12:00:00.000Z",
@@ -134,7 +134,7 @@ async function alarmesPara(country: string | null) {
   return saida;
 }
 
-async function dataJson(country: string | null, timezone: string) {
+async function dataJson(country: string | null, timezone: string, pais?: string | null) {
   banco.org = {
     legal_name: "Bem Viver LTDA",
     display_name: "Bem Viver",
@@ -142,7 +142,12 @@ async function dataJson(country: string | null, timezone: string) {
     country,
     timezone,
   };
-  const pedido = { organizationId: "org-1", requestId: "r1", externalCustomerId: null };
+  const pedido = {
+    organizationId: "org-1",
+    requestId: "r1",
+    externalCustomerId: null,
+    ...(pais === undefined ? {} : { pais }),
+  };
   const vazio = await collectExportData({ ...pedido, contactId: null });
   const cheio = await collectExportData({ ...pedido, contactId: "c1" });
   return { vazio, cheio };
@@ -161,9 +166,13 @@ function textos(no: ReactNode): string[] {
   return [];
 }
 
-function pdfDe(base: ExportPayload): string[] {
+function pdfDe(
+  base: ExportPayload,
+  extra: { contato?: Record<string, unknown>; unsignedWarning?: boolean } = {},
+): string[] {
   return textos(
     LgpdExportPdf({
+      unsignedWarning: extra.unsignedWarning,
       data: {
         ...base,
         generated_at: "2026-10-05T12:34:56.000Z",
@@ -176,6 +185,7 @@ function pdfDe(base: ExportPayload): string[] {
           source: "whatsapp",
           created_at: "2026-01-02T03:04:05.000Z",
           is_anonymized: false,
+          ...extra.contato,
         } as never,
         consents: [{ scope: "marketing", granted: true, granted_at: "2026-02-03T04:05:06.000Z" } as never],
       },
@@ -236,6 +246,23 @@ describe("alarme ao encarregado", () => {
     }
   });
 
+  it("Brasil: o apagamento da loja sai igual, byte a byte, ao de antes", async () => {
+    expect(JSON.stringify(await alarmesPara(null, "store_redact"), null, 2)).toBe(
+      fixture("alarmes-store-redact.json"),
+    );
+  });
+
+  it("Portugal: o apagamento da loja não é pedido de titular nem leva o prazo do RGPD", async () => {
+    // `store_redact` é a Nuvemshop avisando que o lojista desinstalou o app; o
+    // art. 12.º, n.º 3 rege só os pedidos dos arts. 15.º a 22.º.
+    for (const { subject, html, text } of await alarmesPara("PT", "store_redact")) {
+      const tudo = `${subject}\n${html}\n${text}`;
+      expect(subject).toMatch(/^\[Apagamento da loja\] /);
+      expect(tudo).not.toMatch(/Pedido de titular|RGPD|LGPD|13\.709/);
+      expect(text).toContain("Prazo interno do sistema.");
+    }
+  });
+
   it("país sem lei revisada: o prazo é interno e nenhuma lei é afirmada", async () => {
     for (const { subject, html, text } of await alarmesPara("XI")) {
       const tudo = `${subject}\n${html}\n${text}`;
@@ -268,6 +295,47 @@ describe("data.json e PDF de acesso", () => {
   it("Brasil: o texto do PDF é o de antes, com \"Base legal\"", async () => {
     const { cheio } = await dataJson(null, "America/Sao_Paulo");
     expect(pdfDe(cheio).join("\u0001")).toBe(fixture("pdf-textos.txt"));
+  });
+
+  it("Brasil: CPF informado na conversa e aviso de assinatura saem como antes", async () => {
+    const { cheio } = await dataJson(null, "America/Sao_Paulo");
+    const pdf = pdfDe(cheio, { contato: { cpf_informado_na_conversa: true }, unsignedWarning: true });
+    expect(pdf.join("\u0001")).toBe(fixture("pdf-textos-cpf-da-conversa-e-aviso.txt"));
+  });
+
+  it("Portugal: o CPF que veio da conversa é chamado de CPF, não de NIF", async () => {
+    // O valor só vem da pergunta de roteiro do tipo `cpf`, validada como CPF.
+    const { cheio } = await dataJson("PT", "Europe/Lisbon");
+    const pdf = pdfDe(cheio, { contato: { cpf_informado_na_conversa: true } });
+    const i = pdf.indexOf("Informado na conversa (valor no arquivo de dados)");
+    expect(pdf.slice(i - 2, i)).toEqual(["CPF", ":"]);
+    // O que está guardado na coluna, numa organização portuguesa, é o NIF.
+    const guardado = pdfDe(cheio, { contato: { cpf_present: true } });
+    const j = guardado.indexOf("Armazenado (criptografado)");
+    expect(guardado.slice(j - 2, j)).toEqual(["NIF", ":"]);
+  });
+
+  it("Portugal: o aviso de assinatura pendente não nomeia a LGPD", async () => {
+    const { cheio } = await dataJson("PT", "Europe/Lisbon");
+    const tudo = pdfDe(cheio, { unsignedWarning: true }).join(" ");
+    expect(tudo).toContain("ASSINATURA DIGITAL PAdES PENDENTE");
+    expect(tudo).not.toMatch(/LGPD/);
+  });
+
+  it("o país resolvido pelo worker vale sobre o lido no coletor: PDF e e-mail têm a mesma lei", async () => {
+    // A linha da organização diz Brasil; o worker já resolveu Portugal.
+    const { cheio } = await dataJson("BR", "Europe/Lisbon", "PT");
+    expect(cheio.lei_citada).toBe("RGPD art. 15.º (Regulamento (UE) 2016/679)");
+    expect(cheio.documento_rotulo).toBe("NIF");
+    const { cheio: semPais } = await dataJson("BR", "America/Sao_Paulo");
+    expect(comoGravado(semPais)).toBe(fixture("data-cheio.json"));
+  });
+
+  it("o worker lê o país uma vez e passa o mesmo perfil ao coletor e ao e-mail", () => {
+    const fonte = readFileSync(join(__dirname, "..", "..", "workers", "lgpd-export-worker.ts"), "utf8");
+    expect(fonte.match(/perfilDaOrganizacao\(/g)).toHaveLength(1);
+    expect(fonte).toMatch(/pais:\s*perfil\.codigo/);
+    expect(fonte).toMatch(/sendExportEmail\(\{[^}]*\bperfil,/);
   });
 
   it("Portugal: o PDF diz \"Direito exercido\" e as datas saem no fuso de Lisboa", async () => {
