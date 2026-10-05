@@ -258,6 +258,16 @@ export const crmCreateLead: McpToolDefinition<typeof createInputShape> = {
       tags: input.tags ?? [],
       source: input.source ?? "ai_agent",
     });
+    // #2234 na CRIAÇÃO (#2302): a mesma conferência do `crm_update_lead`. Sem
+    // ela, a chave nova deixava a IA cumprir a régua da etapa com um valor que
+    // o cliente não disse. O campo recusado sai do insert; se a etapa o exige,
+    // a régua devolve o 422 — coerente: o cliente não disse.
+    const conferencia = await conferirCamposPersonalizados(
+      ctx,
+      { pipelineId: input.pipeline_id },
+      input.custom_fields,
+    );
+    const custom_fields = conferencia.custom_fields ?? input.custom_fields;
     const lead = await createLeadHandler(
       ctx.supabase,
       {
@@ -273,10 +283,18 @@ export const crmCreateLead: McpToolDefinition<typeof createInputShape> = {
       // (#2297, caminho 2).
       {
         ...parsed,
-        ...(input.custom_fields === undefined ? {} : { custom_fields: input.custom_fields }),
+        ...(custom_fields === undefined ? {} : { custom_fields }),
       },
     );
-    return { lead };
+    return {
+      lead,
+      ...(conferencia.recusados.length > 0
+        ? {
+            campos_nao_gravados: conferencia.recusados,
+            erro_de_ensino: conferencia.recusados.map((r) => r.mensagem).join(" "),
+          }
+        : {}),
+    };
   },
 };
 
@@ -333,7 +351,7 @@ export const crmUpdateLead: McpToolDefinition<typeof updateInputShape> = {
     // dinheiro em código, o degrau 2 pergunta ao Jev o que sobrou, e o que o
     // cliente não disse volta como ERRO DE ENSINO para o modelo, com os outros
     // campos da mesma chamada seguindo gravando (`lib/mcp/conferencia-de-campos`).
-    const conferencia = await conferirCamposPersonalizados(ctx, lead_id, parsed.custom_fields);
+    const conferencia = await conferirCamposPersonalizados(ctx, { leadId: lead_id }, parsed.custom_fields);
     const lead = await updateLeadHandler(
       ctx.supabase,
       {
