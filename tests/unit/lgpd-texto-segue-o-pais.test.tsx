@@ -12,6 +12,10 @@
  * rodando ESTAS mesmas entradas contra o código anterior à mudança (origin/main
  * @ c85293f05). Comparar com eles, e não com uma lista de trechos, é o que
  * prova "byte a byte": um trecho conferido deixa passar o resto do texto.
+ *
+ * Exceção deliberada: `pdf-textos-cpf-da-conversa-e-aviso.txt` foi REGRAVADO
+ * no PR #2355 (issue #2341), que troca no Brasil também o ponteiro "valor no
+ * arquivo de dados" pelo CPF mascarado. Essa linha não é mais a de antes.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -300,7 +304,7 @@ describe("data.json e PDF de acesso", () => {
     expect(pdfDe(cheio).join("\u0001")).toBe(fixture("pdf-textos.txt"));
   });
 
-  it("Brasil: CPF informado na conversa e aviso de assinatura saem como antes", async () => {
+  it("Brasil: CPF informado na conversa sai mascarado (#2341) e o aviso de assinatura sai como antes", async () => {
     const { cheio } = await dataJson(null, "America/Sao_Paulo");
     const pdf = pdfDe(cheio, { contato: { cpf_informado_na_conversa: true }, unsignedWarning: true });
     expect(pdf.join("\u0001")).toBe(fixture("pdf-textos-cpf-da-conversa-e-aviso.txt"));

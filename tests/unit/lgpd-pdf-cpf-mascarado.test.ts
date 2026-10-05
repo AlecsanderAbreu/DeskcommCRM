@@ -158,3 +158,26 @@ it("mascaraCpf: 4 últimos dígitos, e o bruto nunca", () => {
   expect(mascaraCpf(null)).toBeNull();
   expect(mascaraCpf(CPF)).not.toContain(CPF);
 });
+
+/** Outro CPF válido (111.444.777-35): o de um responsável, ou de um paciente. */
+const OUTRO_CPF = "11144477735";
+
+it("duas chaves de CPF com valores diferentes: não imprime dígito de ninguém (#2355)", async () => {
+  // A chave é o operador que escolhe; numa clínica, `cpf_responsavel` e `cpf`
+  // convivem e o relatório não sabe qual delas é do titular.
+  const data = payload();
+  data.contact = contato({ cpf_responsavel: OUTRO_CPF, cpf: CPF }) as ExportPayload["contact"];
+  const pdf = await rendered(data);
+
+  expect(pdf.text).toContain("Informado na conversa (valor não disponível neste relatório)");
+  expect(pdf.text).not.toContain("47-25");
+  expect(pdf.text).not.toContain("77-35");
+});
+
+it("um campo sem dígitos (`tem_cpf: sim`) não esconde o CPF verdadeiro (#2355)", async () => {
+  const data = payload();
+  data.contact = contato({ tem_cpf: "sim", cpf: CPF }) as ExportPayload["contact"];
+  const pdf = await rendered(data);
+
+  expect(pdf.text).toContain(`Informado na conversa (${CPF_MASCARADO})`);
+});

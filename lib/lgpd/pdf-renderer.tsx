@@ -160,17 +160,27 @@ const noticeStatus: Record<string, string> = {
  * — ficaria de fora porque esse arquivo também carrega campo interno
  * (`reply_drafts`, `conversation_notes`, `audit_log_extract`).
  *
- * A chave é a mesma que `camposLegiveis` aceita sem grafo
- * (`lib/lgpd/campos-personalizados.ts`): a pergunta do tipo `cpf` grava em
- * `cpf`. Sem valor achado, a frase sai SEM ponteiro: nunca o texto antigo.
+ * QUAL chave: o coletor reconhece o CPF pelo TIPO da pergunta (`cpf`), mas a
+ * chave onde ela grava é o operador que escolhe, e este relatório só enxerga o
+ * nome da chave. Então: das chaves que contêm "cpf", valem as que trazem um
+ * CPF de verdade (`tem_cpf: "sim"` não conta). Com UMA, sai a máscara. Com
+ * duas ou mais valores diferentes (mesmo que uma se chame `cpf`, como
+ * `cpf_responsavel` numa clínica), não há como saber qual é do titular, e sai
+ * a frase sem dígito de ninguém. O conserto de verdade é o coletor expor a
+ * chave que reconheceu. Sem valor achado, a frase sai SEM ponteiro: nunca o
+ * texto antigo.
  */
 function cpfMascarado(contact: ExportPayload["contact"]): string {
   const campos = contact?.custom_fields ?? {};
-  const bruto = Object.entries(campos)
-    .filter(([chave]) => chave.toLowerCase().includes("cpf"))
-    .map(([, valor]) => (typeof valor === "number" ? String(valor) : valor))
-    .find((valor): valor is string => typeof valor === "string" && valor.trim() !== "");
-  return mascaraCpf(bruto) ?? "valor não disponível neste relatório";
+  const candidatos = new Set(
+    Object.entries(campos)
+      .filter(([chave]) => chave.toLowerCase().includes("cpf"))
+      .map(([, valor]) => (typeof valor === "number" ? String(valor) : valor))
+      .filter((valor): valor is string => typeof valor === "string" && mascaraCpf(valor) !== null)
+      .map((valor) => valor.replace(/\D/g, "")),
+  );
+  const [unico] = candidatos;
+  return (candidatos.size === 1 ? mascaraCpf(unico) : null) ?? "valor não disponível neste relatório";
 }
 
 export function LgpdExportPdf({ data, unsignedWarning }: Props): React.ReactElement {
