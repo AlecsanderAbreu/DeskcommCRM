@@ -44887,6 +44887,7 @@ create trigger trg_teto_nome_de_sessao_waha before insert or update on public.ch
 
 notify pgrst,'reload schema';
 
+-- ---- as decisões do roteador do Jev (migration 0547, #2061) ----
 -- Uma decisão por mensagem do roteador, sem conteúdo da conversa. Mantém a
 -- distinção entre comparação integral e reserva acionada sob demanda.
 alter table public.jev_observacoes add column if not exists intencao_jev text;

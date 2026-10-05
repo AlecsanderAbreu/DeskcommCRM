@@ -1,3 +1,5 @@
+-- manifest: **O roteador do Jev registra cada decisão (PR #2061, de @vitorlacerdadigital).** `jev_router_decisions` guarda uma linha por mensagem roteada — modo (comparação ou Jev sob demanda), origem (Jev, reserva ou IA de sempre), motivo da reserva, custos conhecidos, tempo e a revisão de uma pessoa —, sem texto da conversa. RLS de leitura por organização; só o servidor escreve. `jev_observacoes` ganha `intencao_jev`/`intencao_atual`. A poda diária das observações do Jev (`fn_expurgar_observacoes_do_jev`, 90 dias, piso 30) passa a podar também as decisões, no mesmo lote. Renumerada de 0504 (o número foi tomado pela chave de Mapas) para 0547 pela triagem. Idempotente; apêndice igual no `baseline.sql`.
+
 -- Uma decisão por mensagem do roteador, sem conteúdo da conversa. Mantém a
 -- distinção entre comparação integral e reserva acionada sob demanda.
 alter table public.jev_observacoes add column if not exists intencao_jev text;
