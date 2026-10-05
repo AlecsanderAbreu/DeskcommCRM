@@ -9,7 +9,7 @@
  * que uma chamada não tem.
  *
  * Devolve `{ id, is_blocked }`: o bloqueio viaja junto porque a recusa da
- * ligação (pedido 1) decide pelo `is_blocked` positivo. O nome pra exibir é
+ * ligação decide pelo `is_blocked` positivo. O nome pra exibir é
  * decisão de tela (`rotuloDoContato`, lido direto de `contacts` via join em
  * `GET /api/v1/calls`), não deste resolvedor.
  */

@@ -1,12 +1,12 @@
 /**
  * workers/voice-agent/recusa-bloqueado.ts
  *
- * A DECISÃO "bloqueado na ligação é recusado" (pedido 1), pura e exportada de
+ * A DECISÃO "bloqueado na ligação é recusado", pura e exportada de
  * propósito: o teste ao lado mede cada caso, e o teste do fio
  * (`fio-recusa-bloqueado.test.ts`) prova que `handleStasisStart` USA esta
  * função — função pura órfã não conta como implementação.
  *
- * Fail-open (item 3 do plano): só `is_blocked === true` positivo recusa.
+ * Fail-open: só `is_blocked === true` positivo recusa.
  * `null`/erro (`false`, `null`, `undefined`) segue como hoje — recusar no
  * escuro derrubaria ligação legítima por instabilidade transitória.
  */

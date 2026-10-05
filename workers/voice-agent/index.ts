@@ -66,7 +66,7 @@ const AUDIOSOCKET_PORT = parseInt(process.env.AUDIOSOCKET_PORT ?? "9092", 10);
 /**
  * Exportada para o teste do fio (`fio-recusa-bloqueado.test.ts`) provar que
  * este caminho USA `deveRecusarChamada` — função pura órfã não conta como
- * implementação (item 6 do plano).
+ * implementação.
  */
 export async function handleStasisStart(event: AriEvent) {
   const channel = event.channel;
@@ -86,7 +86,7 @@ export async function handleStasisStart(event: AriEvent) {
   // Identificador de ligações: acha (ou cria) o contato pelo número de quem
   // liga, com o bloqueio lido na mesma consulta. Não bloqueia a chamada se
   // falhar — o pior caso é a tela mostrar só o número, igual antes desta
-  // função existir. Fail-open (item 3 do plano): erro de leitura loga e segue,
+  // função existir. Fail-open: erro de leitura loga e segue,
   // nunca recusa no escuro.
   let contatoDeQuemLiga: ContatoDaChamada | null = null;
   try {
@@ -100,7 +100,7 @@ export async function handleStasisStart(event: AriEvent) {
   }
   const callerContactId = contatoDeQuemLiga?.id ?? null;
 
-  // BLOQUEADO NA LIGAÇÃO É RECUSADO (pedido 1): depois do contato resolvido,
+  // BLOQUEADO NA LIGAÇÃO É RECUSADO: depois do contato resolvido,
   // antes do insert, antes do dialplan e antes da IA. Grava a linha já
   // encerrada (rastreável no histórico como Cancelada) e
   // desliga — sem negócio, sem IA, sem tocar, sem alerta.

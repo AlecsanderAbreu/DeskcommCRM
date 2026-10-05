@@ -99,7 +99,7 @@ export async function encontrarContatoPorTelefone(
 
 /**
  * Como `encontrarContatoPorTelefone`, mas trazendo `is_blocked` NA MESMA
- * consulta (pedido 1: bloqueado na ligação é recusado). Sem consulta extra:
+ * consulta (bloqueado na ligação é recusado). Sem consulta extra:
  * só a coluna a mais no `select` de `buscarPorVariantes`.
  */
 export async function encontrarContatoPorTelefoneComBloqueio(

@@ -1,5 +1,5 @@
 /**
- * A recusada de bloqueado na tela SIP e no histórico — pedido 1, item 5.
+ * A recusada de bloqueado na tela SIP e no histórico.
  *
  * - `GET /api/v1/calls` lê `end_reason` mas não o expõe: a recusada
  *   (`ended` + `contact_blocked`) sai como `canceled` ("Cancelada", rótulo

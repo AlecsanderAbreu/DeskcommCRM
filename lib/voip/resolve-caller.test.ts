@@ -44,7 +44,7 @@ describe("resolveOrCreateCallerContact", () => {
     expect(result).toEqual({ id: "contato-1", is_blocked: false });
   });
 
-  it("contato existente bloqueado viaja com is_blocked true (pedido 1)", async () => {
+  it("contato existente bloqueado viaja com is_blocked true", async () => {
     const supabase = fakeSupabase({
       existente: { id: "contato-bloq", phone_number: "+5532984793302", is_blocked: true },
     });

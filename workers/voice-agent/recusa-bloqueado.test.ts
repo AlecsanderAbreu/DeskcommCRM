@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { deveRecusarChamada, END_REASON_CONTACT_BLOCKED } from "./recusa-bloqueado";
 
 /**
- * A decisão pura "bloqueado na ligação é recusado" (pedido 1, item 6).
+ * A decisão pura "bloqueado na ligação é recusado".
  *
  * SABOTAGEM (prova no CI, sem rodar nada local):
  * - remover a checagem (`return false` sempre) = caso 1 vermelho (1 caso cai);

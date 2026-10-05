@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { deveAvisarChamadaEntrante } from "./useInboundCallAlerts";
 
 /**
- * O alerta não toca para a recusada de bloqueado — pedido 1, item 6.
+ * O alerta não toca para a recusada de bloqueado.
  *
  * SABOTAGEM (prova no CI, sem rodar nada local): tirar a guarda do
  * `end_reason` em `deveAvisarChamadaEntrante` = caso "recusada" vermelho

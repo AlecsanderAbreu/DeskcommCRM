@@ -1,5 +1,5 @@
 /**
- * PEDIDO 1 — PONTE WACALLS: chamada de bloqueado não abre aviso nem carimba
+ * PONTE WACALLS: chamada de bloqueado não abre aviso nem carimba
  * a timeline (a linha continua gravada).
  *
  * Mesmo padrão de `voz-ponte-de-eventos.test.ts`: a função REAL

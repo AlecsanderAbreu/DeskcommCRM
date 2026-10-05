@@ -1,5 +1,5 @@
 /**
- * TESTE DO FIO DO ALERTA (pedido 1, item 6).
+ * TESTE DO FIO DO ALERTA (recusada de bloqueado).
  *
  * Prova que o `onChange` do `useInboundCallAlerts` USA `deveAvisarChamadaEntrante`:
  * linha recusada (`ended` + `contact_blocked`) não chama `entregarAviso`;

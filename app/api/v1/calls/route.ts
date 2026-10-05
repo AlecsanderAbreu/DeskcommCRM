@@ -46,7 +46,7 @@ const LIST_COLS =
  * — feito aqui, não no banco, porque o CHECK de `status` em `voice_calls` é
  * vocabulário de terceiro (não é nosso pra estender).
  *
- * Exportada para o teste provar o mapeamento da recusada (pedido 1).
+ * Exportada para o teste provar o mapeamento da recusada de bloqueado.
  */
 export function mapStatusParaApi(status: string, endReason: string | null): string {
   if (status === "connected") return "in_progress";
@@ -60,7 +60,7 @@ export function mapStatusParaApi(status: string, endReason: string | null): stri
       return "failed";
     case "cancelled":
       return "canceled";
-    // Pedido 1: bloqueado na ligação é recusado — a recusada (contato
+    // Bloqueado na ligação é recusado — a recusada (contato
     // "privado") cai em "Cancelada", o rótulo existente mais próximo de
     // recusa, sem inventar vocabulário novo e sem expor `end_reason`.
     // SABOTAGEM: remover este case = recusada volta a "completed" (vermelho).

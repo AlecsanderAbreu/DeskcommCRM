@@ -1,5 +1,5 @@
 /**
- * TESTE DO FIO (pedido 1, item 6 — obrigatório, além da função pura).
+ * TESTE DO FIO (obrigatório, além da função pura).
  *
  * Prova que `handleStasisStart` (workers/voice-agent/index.ts) USA
  * `deveRecusarChamada`, com dublês para `hangupChannel`, `continueDialplan`
@@ -7,7 +7,7 @@
  * - bloqueado → `hangupChannel` UMA vez, `continueDialplan` e
  *   `garantirLeadDaConversa` NUNCA;
  * - não bloqueado → fluxo idêntico ao de hoje;
- * - falha ao resolver o contato → segue + log (fail-open, item 3).
+ * - falha ao resolver o contato → segue + log (fail-open).
  *
  * SABOTAGEM DO FIO (prova no CI, sem rodar nada local): remover a chamada a
  * `deveRecusarChamada` dentro do worker (manter a função pura existindo mas
