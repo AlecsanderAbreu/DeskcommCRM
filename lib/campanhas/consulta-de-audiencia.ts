@@ -17,6 +17,10 @@ import { CAMPANHAS_VIVAS, limiteDeSilencio, usaNegocio, type FiltroDeAudiencia }
 import { nomeDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { recusouMarketing, type CandidatoDaAudiencia } from "./elegibilidade";
 import { camposUsadosNoTexto, type CamposPersonalizados } from "./renderizador";
+import { buscaEmLotes } from "@/lib/supabase/em-lotes";
+
+/** O teto de linhas por resposta do PostgREST (`max_rows` em `supabase/config.toml`). */
+const PAGINA_DE_NEGOCIOS = 1000;
 
 /** Teto de ids que um filtro de negócio devolve antes de virar `in (...)`. */
 const TETO_DE_IDS_DE_NEGOCIO = 20_000;
@@ -192,8 +196,16 @@ export async function camposDoDestinatario(
  * renderizador marca FALTA: a pessoa sai da lista com `variavel_ausente`,
  * visível na prévia, em vez de receber o texto pela metade.
  *
- * O teto é por segurança de payload (o mesmo cuidado de `TETO_DE_IDS_DE_NEGOCIO`).
- * Passar dele deixa o campo sem valor — exclusão visível, nunca texto quebrado.
+ * Os ids viajam NA URL (`contact_id=in.(…)`), e o gateway na frente do
+ * PostgREST (Kong 2.8.1 no stack Supabase e no kit single-server) devolve `414`
+ * acima de ~8.192 B — ver `tests/unit/busca-do-inbox-nao-estoura-a-url.test.ts`.
+ * Todos de uma vez, a audiência padrão de 500 contatos dava ~19,7 KB e a
+ * preparação INTEIRA caía. Por isso `buscaEmLotes` (100 uuids ≈ 3,7 KB por URL).
+ *
+ * Dentro do lote vêm TODAS as linhas, paginadas pelo `max_rows`: um `.limit`
+ * global cortava quem tem o negócio mais antigo, e o contato saía da lista com
+ * o campo preenchido. Cada contato cai num lote só, então a ordem decrescente
+ * dele sobrevive à concatenação.
  */
 async function leadsMaisRecentes(
   admin: SupabaseClient,
@@ -202,17 +214,25 @@ async function leadsMaisRecentes(
 ): Promise<Map<string, CamposPersonalizados | null>> {
   const mapa = new Map<string, CamposPersonalizados | null>();
   if (contactIds.length === 0) return mapa;
-  const { data, error } = await admin
-    .from("crm_leads")
-    .select("contact_id, custom_fields")
-    .eq("organization_id", organizationId)
-    .in("contact_id", [...contactIds])
-    .not("contact_id", "is", null)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(Math.max(500, contactIds.length * 4));
+  const { data, error } = await buscaEmLotes(contactIds, async (lote) => {
+    const linhas: Array<{ contact_id: string; custom_fields: unknown }> = [];
+    for (let de = 0; ; de += PAGINA_DE_NEGOCIOS) {
+      const { data: pagina, error: erro } = await admin
+        .from("crm_leads")
+        .select("contact_id, custom_fields")
+        .eq("organization_id", organizationId)
+        .in("contact_id", lote)
+        .not("contact_id", "is", null)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(de, de + PAGINA_DE_NEGOCIOS - 1);
+      if (erro) return { data: null, error: erro };
+      linhas.push(...((pagina ?? []) as typeof linhas));
+      if ((pagina ?? []).length < PAGINA_DE_NEGOCIOS) return { data: linhas, error: null };
+    }
+  });
   if (error) throw new Error(`audiência: negócios dos contatos — ${error.message}`);
-  for (const linha of (data ?? []) as Array<{ contact_id: string; custom_fields: unknown }>) {
+  for (const linha of data) {
     if (mapa.has(linha.contact_id)) continue; // ordem decrescente: o primeiro é o mais novo
     mapa.set(linha.contact_id, mapaDeJson(linha.custom_fields));
   }
