@@ -219,6 +219,18 @@ const createInputShape = {
     .optional(),
   tags: z.array(z.string()).optional(),
   source: z.string().optional(),
+  /**
+   * Os campos que o DONO declarou em `pipeline.settings.fields` (#2297).
+   *
+   * Sem esta chave a ferramenta não tem como criar um negócio numa etapa
+   * exigente nem quando o agente JÁ SABE o valor: `z.object` descarta a chave
+   * que não declarou, o valor morria antes do `createLeadHandler` — quem
+   * pergunta a régua —, e a recusa (422 `required_fields_missing`) acontecia
+   * sem que houvesse como evitá-la. Mesmo desenho do `crm_update_lead`, que já
+   * declarava a chave; o schema de criação do REST continua sem ela porque lá
+   * ela é gerida pelo servidor (o valor entra por fora do `parse`, no handler).
+   */
+  custom_fields: z.record(z.string(), z.unknown()).optional(),
 };
 
 export const crmCreateLead: McpToolDefinition<typeof createInputShape> = {
@@ -253,7 +265,16 @@ export const crmCreateLead: McpToolDefinition<typeof createInputShape> = {
         actor: ctx.actor,
         requestId: ctx.requestId,
       },
-      parsed,
+      // `custom_fields` entra POR FORA do `createLeadSchema.parse`, que é o
+      // mesmo lugar de onde ele sairia: o schema de criação não declara a chave
+      // (server-managed no REST) e o `parse` descarta o que não declara. É a
+      // interseção que o webhook de captação também monta. Sem isto o argumento
+      // do agente morria aqui dentro, antes da régua que ele precisa satisfazer
+      // (#2297, caminho 2).
+      {
+        ...parsed,
+        ...(input.custom_fields === undefined ? {} : { custom_fields: input.custom_fields }),
+      },
     );
     return { lead };
   },

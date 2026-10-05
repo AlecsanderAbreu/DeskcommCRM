@@ -1,12 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { HandlerCtx } from "@/lib/api/handlers/types";
+import { ApiError } from "@/lib/api/types";
 import { resolveActiveLeadForContact, type LeadCandidate } from "@/lib/leads/active-lead";
 import {
   COLUNAS_DA_ORIGEM,
   transfereParaOFunil,
   type OrigemDaTransferencia,
 } from "@/lib/leads/transfere-para-o-funil";
+import { abreAvisoDeDestinoRecusado } from "./aviso-de-destino-recusado";
 
 export type StatusDoDestino =
   /** A intenção não declarou funil — o roteamento de sempre (#2155). */
@@ -57,6 +59,12 @@ export interface DestinoDaIntencaoDeps {
  * (não duplica o card do cliente), sem negócio aberto e alvo ambíguo — a única
  * coisa visível ao cliente final que este caminho pode causar é mover o card
  * errado.
+ *
+ * A QUINTA — `recusado`, quando a transferência é barrada (a régua de campos
+ * obrigatórios do destino, entre outras) — NÃO é silenciosa desde o #2297: ela
+ * abre um aviso na Central apontando para o negócio de origem, que continua
+ * aberto. Silenciar uma recusa é diferente de não mover nada: aqui o card não
+ * foi para onde a intenção mandou, e alguém precisa saber.
  */
 export async function aplicaDestinoDaIntencao(
   deps: DestinoDaIntencaoDeps,
@@ -101,8 +109,28 @@ export async function aplicaDestinoDaIntencao(
     deps.destinoPipelineId,
     deps.destinoStageId,
     "Levado para outro funil pelo roteador de intenção",
+  ).catch(
+    // A régua LANÇA (#2297, caminho 1): `createLeadHandler` joga o 422
+    // `required_fields_missing` para cima, `transfereParaOFunil` não o captura e
+    // a exceção subia até o `catch` de `inbound-turn.ts` — que faz certo em não
+    // derrubar a resposta ao lead, mas só conseguia registrar em `runLog`. Aqui
+    // o negócio de ORIGEM é conhecido, então a recusa vira o MESMO `{ok:false}`
+    // de sempre e o aviso da Central nasce junto. Origem intacta por construção:
+    // a recusa acontece antes do clone e antes de `encerraDemanda`.
+    (err: unknown): { ok: false; error: string } => ({
+      ok: false,
+      error:
+        err instanceof ApiError
+          ? err.code
+          : (err instanceof Error ? err.message : String(err)).slice(0, 160),
+    }),
   );
   if (!transferencia.ok) {
+    await abreAvisoDeDestinoRecusado(deps.admin, {
+      organizationId: deps.organizationId,
+      leadId: origem.id,
+      motivo: transferencia.error,
+    });
     return { status: "recusado", error: transferencia.error, origemId: origem.id };
   }
   return {
