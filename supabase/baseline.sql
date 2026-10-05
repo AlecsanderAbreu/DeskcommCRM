@@ -44849,6 +44849,8 @@ drop trigger if exists trg_teto_nome_de_sessao_waha on public.channel_sessions;
 create trigger trg_teto_nome_de_sessao_waha before insert or update on public.channel_sessions
  for each row execute function public.fn_teto_nome_de_sessao_waha();
 
+notify pgrst,'reload schema';
+
 -- ---- VARREDURA anon: função nova nasce exposta em quem ATUALIZA (migration 0116) ----
 --
 -- ⚠️ DE PROPÓSITO, NENHUMA FUNÇÃO É CRIADA DEPOIS DESTE BLOCO. Apêndice que cria
@@ -46817,5 +46819,3 @@ comment on column public.ai_router_members.pipeline_id is
   'Funil de DESTINO quando esta intenção casa (#2155). NULL = só roteia o agente, como antes.';
 comment on column public.ai_router_members.stage_id is
   'Etapa de destino dentro de pipeline_id (#2155). NULL = a primeira etapa aberta do funil.';
-
-notify pgrst,'reload schema';
