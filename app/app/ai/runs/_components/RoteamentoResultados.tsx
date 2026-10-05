@@ -106,7 +106,7 @@ export function RoteamentoResultados() {
         <div className="mb-2 flex gap-3 text-sm"><Link href="/app/ai/runs" className="underline">{t("Execuções")}</Link><span aria-current="page" className="font-medium">{t("Roteamento")}</span></div>
         <h1 className="text-2xl font-semibold">{t("Resultados do roteamento")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("Compare os modos e revise decisões reais. Concordância entre IAs não é prova de acerto.")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("A janela indica o histórico disponível. O JEV só recebe o que foi autorizado em Provedores.")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("A janela é a da sua IA de sempre. O Jev recebe só a mensagem atual.")}</p>
       </header>
       <Card className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
         <label className="text-xs">{t("Período")}

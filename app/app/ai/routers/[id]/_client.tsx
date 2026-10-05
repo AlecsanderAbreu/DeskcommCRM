@@ -365,7 +365,7 @@ export function RouterEditorClient({
                 onChange={(e) => setContextMessageCount(Math.max(0, Math.min(16, Number(e.target.value) || 0)))} />
               <p className="text-xs text-muted-foreground">{t("Além da mensagem atual; inclui cliente e atendente.")}</p>
               <details className="text-xs text-muted-foreground"><summary className="cursor-pointer">{t("Como funciona")}</summary>
-                {t("A mesma janela vale para os modelos em comparação e para a reserva. O JEV só recebe histórico com autorização específica em Provedores de IA. Mais mensagens podem aumentar custo e demora.")}
+                {t("Vale para a sua IA de sempre, que classifica com estas mensagens anteriores. O Jev recebe só a mensagem atual. Mais mensagens podem aumentar custo e demora.")}
               </details>
             </div>
           </Card>

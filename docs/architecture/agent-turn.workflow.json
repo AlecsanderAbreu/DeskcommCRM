@@ -781,7 +781,7 @@
       "id": "cartao-jevroteador",
       "from": "jevCartaoRoteador",
       "to": "jevRoteador",
-      "label": "Deixar o Jev decidir / Pausar; comparação ou sob demanda (settings.jev.modo_roteador); autorizar/revogar histórico",
+      "label": "Deixar o Jev decidir / Pausar; comparação ou sob demanda (settings.jev.modo_roteador), só com a IA de sempre",
       "variant": "emphasis"
     },
     {
