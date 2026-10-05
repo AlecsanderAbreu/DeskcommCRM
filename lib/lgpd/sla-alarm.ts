@@ -46,8 +46,10 @@ export interface TriggerSlaAlarmArgs {
    * `organizations.country`, lido na MESMA consulta do watcher que já traz o
    * encarregado — nenhuma leitura a mais por pedido. `null`/ausente = Brasil,
    * com o texto de sempre. Fora do Brasil o alarme não afirma a LGPD (doc 88).
+   * Obrigatória de propósito: quem esquecer de passá-la recebe erro de tipo, e
+   * não o alarme brasileiro calado numa organização de Portugal.
    */
-  country?: string | null;
+  country: string | null;
 }
 
 export interface TriggerSlaAlarmResult {
@@ -140,12 +142,17 @@ export async function triggerSlaAlarm(
       const requestUrl = `${appUrl}/lgpd/pedido/${request.id}`;
 
       // O Brasil fica byte a byte igual; fora dele, o rótulo não nomeia lei.
-      const etiqueta = noBrasil ? "[LGPD]" : "[Pedido de titular]";
+      // `store_redact` é a Nuvemshop avisando que o lojista desinstalou o app
+      // (`webhooks/nuvemshop/store-redact`): não é pedido de titular, e o prazo
+      // do art. 12.º, n.º 3 do RGPD não o rege.
+      const daLoja = !noBrasil && request.request_type === "store_redact";
+      const etiqueta = noBrasil ? "[LGPD]" : daLoja ? "[Apagamento da loja]" : "[Pedido de titular]";
       const solicitacao = noBrasil ? "A solicitação LGPD" : "A solicitação";
+      const rodapeForaDoBrasil = daLoja ? "Prazo interno do sistema." : prazoInternoForaDoBrasil(perfil);
       const rodapeHtml = noBrasil
         ? "Base legal: LGPD Lei nº 13.709/2018, Art. 18. SLA obrigatório conforme regulamentação vigente."
-        : prazoInternoForaDoBrasil(perfil);
-      const rodapeTexto = noBrasil ? "Base legal: LGPD Lei nº 13.709/2018, Art. 18." : prazoInternoForaDoBrasil(perfil);
+        : rodapeForaDoBrasil;
+      const rodapeTexto = noBrasil ? "Base legal: LGPD Lei nº 13.709/2018, Art. 18." : rodapeForaDoBrasil;
 
       const subject = `${etiqueta} Solicitação ${shortId} próxima do vencimento`;
 

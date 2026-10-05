@@ -68,8 +68,11 @@ interface SendArgs {
   marca: MarcaDeSaida;
   /** O país da organização decide a lei e o idioma do texto. */
   perfil: PerfilDoPais;
-  /** Fuso IANA da organização; só é lido fora do Brasil. */
-  fuso?: string;
+  /**
+   * Fuso IANA da organização; só é lido fora do Brasil. A chave é obrigatória
+   * (o valor pode ser `undefined`) para quem chama não a esquecer calado.
+   */
+  fuso: string | undefined;
 }
 
 interface Mensagem {
