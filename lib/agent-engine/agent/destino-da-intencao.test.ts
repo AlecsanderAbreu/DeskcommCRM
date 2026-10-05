@@ -13,7 +13,7 @@ vi.mock("@/lib/leads/transfere-para-o-funil", () => ({
 
 import { transfereParaOFunil } from "@/lib/leads/transfere-para-o-funil";
 
-import { TITULO_AVISO_DE_DESTINO_RECUSADO } from "./aviso-de-destino-recusado";
+import { TITULO_AVISO_DE_DESTINO_RECUSADO, tituloDoAvisoDeDestinoRecusado } from "./aviso-de-destino-recusado";
 import { aplicaDestinoDaIntencao } from "./destino-da-intencao";
 
 const transferir = vi.mocked(transfereParaOFunil);
@@ -146,9 +146,17 @@ describe("aplicaDestinoDaIntencao (#2155 — o card vai para o funil da intenç�
 // transferência que PASSA transformaria a Central em ruído.
 
 /** Supabase com as duas superfícies: leitura de negócio E escrita de aviso. */
-function adminComAvisos(linhas: unknown[], { jaAberto = false }: { jaAberto?: boolean } = {}) {
+function adminComAvisos(
+  linhas: unknown[],
+  { jaAberto = false, locale = null }: { jaAberto?: boolean; locale?: string | null } = {},
+) {
   const inseridos: Record<string, unknown>[] = [];
   const from = (tabela: string) => {
+    if (tabela === "organizations") {
+      return {
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { locale }, error: null }) }) }),
+      };
+    }
     if (tabela !== "agent_inbox_items") {
       return {
         select: () => ({
@@ -224,5 +232,29 @@ describe("recusa da transferência abre o aviso na Central (#2297, caminho 1)", 
     expect(r.status).toBe("transferido");
     expect(inseridos).toHaveLength(0);
   });
-});
 
+  it("organização em espanhol → título e corpo em espanhol, e a dedup compara o título traduzido", async () => {
+    transferir.mockRejectedValueOnce(
+      new ApiError(422, "required_fields_missing", { faltando: [] }, "job-1", "Preencha os campos"),
+    );
+    const { cliente, inseridos } = adminComAvisos([negocio("lead-1", "pipe-entrada")], { locale: "es" });
+
+    await aplicaDestinoDaIntencao(deps(cliente));
+
+    expect(tituloDoAvisoDeDestinoRecusado("es")).not.toBe(TITULO_AVISO_DE_DESTINO_RECUSADO);
+    expect(inseridos[0]!.title).toBe(tituloDoAvisoDeDestinoRecusado("es"));
+    expect(String(inseridos[0]!.body)).toContain("campos obligatorios");
+  });
+
+  it("falha que NÃO é a régua (ex.: `encerraDemanda`, depois do clone) volta ao chamador, sem aviso", async () => {
+    // O clone já existe quando `encerraDemanda` lança: um aviso dizendo "não
+    // move nada" seria falso. A falha sobe ao `catch` de `inbound-turn.ts`.
+    transferir.mockRejectedValueOnce(
+      new ApiError(422, "lost_reason_invalid", undefined, "job-1", "Motivo fora da lista"),
+    );
+    const { cliente, inseridos } = adminComAvisos([negocio("lead-1", "pipe-entrada")]);
+
+    await expect(aplicaDestinoDaIntencao(deps(cliente))).rejects.toMatchObject({ code: "lost_reason_invalid" });
+    expect(inseridos).toHaveLength(0);
+  });
+});

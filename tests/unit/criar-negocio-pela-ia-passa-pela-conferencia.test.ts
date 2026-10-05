@@ -18,7 +18,7 @@ import type { McpContext } from "@/lib/mcp/types";
 const criados = vi.hoisted(() => [] as Array<Record<string, unknown>>);
 
 vi.mock("@/app/api/v1/leads/_handler", async (original) => ({
-  ...(await original<typeof import("@/app/api/v1/leads/_handler")>()),
+  ...(await original<object>()),
   createLeadHandler: vi.fn(async (_sb: unknown, _ctx: unknown, input: Record<string, unknown>) => {
     criados.push(input);
     return { id: "lead-novo", ...input };
@@ -26,7 +26,7 @@ vi.mock("@/app/api/v1/leads/_handler", async (original) => ({
 }));
 
 vi.mock("@/lib/mcp/conferencia-de-campos", async (original) => ({
-  ...(await original<typeof import("@/lib/mcp/conferencia-de-campos")>()),
+  ...(await original<object>()),
   conferirCamposPersonalizados: vi.fn(),
 }));
 

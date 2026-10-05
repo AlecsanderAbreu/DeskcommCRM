@@ -115,15 +115,21 @@ export async function aplicaDestinoDaIntencao(
     // a exceção subia até o `catch` de `inbound-turn.ts` — que faz certo em não
     // derrubar a resposta ao lead, mas só conseguia registrar em `runLog`. Aqui
     // o negócio de ORIGEM é conhecido, então a recusa vira o MESMO `{ok:false}`
-    // de sempre e o aviso da Central nasce junto. Origem intacta por construção:
-    // a recusa acontece antes do clone e antes de `encerraDemanda`.
-    (err: unknown): { ok: false; error: string } => ({
-      ok: false,
-      error:
-        err instanceof ApiError
-          ? err.code
-          : (err instanceof Error ? err.message : String(err)).slice(0, 160),
-    }),
+    // de sempre e o aviso da Central nasce junto.
+    //
+    // SÓ a recusa da régua (#2302): `encerraDemanda` roda DEPOIS do clone e
+    // lança por conta própria (motivo inválido, falha de banco). Capturar tudo
+    // fazia o aviso dizer "não move nada" com o card já criado no destino —
+    // essas falhas voltam ao `catch` de `inbound-turn.ts`, como antes.
+    // Resíduo conhecido: a etapa de PERDA da origem com campo exigido também
+    // lança `required_fields_missing`, depois do clone, e cai aqui — o código
+    // não distingue de onde ele veio.
+    (err: unknown): { ok: false; error: string } => {
+      if (err instanceof ApiError && err.code === "required_fields_missing") {
+        return { ok: false, error: err.code };
+      }
+      throw err;
+    },
   );
   if (!transferencia.ok) {
     await abreAvisoDeDestinoRecusado(deps.admin, {

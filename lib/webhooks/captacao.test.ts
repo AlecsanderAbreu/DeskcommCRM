@@ -14,9 +14,12 @@
 // Sabotagem esperada: voltar `motivoDaRecusaDaCriacao` para um
 // `return "erro_ao_criar_lead"` deixa os três primeiros casos vermelhos.
 
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "@/lib/api/types";
+import { DICIONARIO } from "@/lib/i18n/dicionario";
 
 import { MOTIVO_DA_RECUSA_LABEL, motivoDaRecusaDaCriacao, type MotivoDaRecusa } from "./captacao";
 
@@ -58,5 +61,14 @@ describe("motivoDaRecusaDaCriacao (#2297, caminho 4)", () => {
     expect(MOTIVO_DA_RECUSA_LABEL.recusa_da_regra).toContain("régua de campos obrigatórios");
     expect(MOTIVO_DA_RECUSA_LABEL.erro_inesperado).toContain("não é nem o funil nem a etapa");
     expect(MOTIVO_DA_RECUSA_LABEL.erro_ao_criar_lead).toContain("funil e a etapa da fonte");
+  });
+
+  it("todo rótulo tem tradução em es, en e zh-CN — chega ao `t()` por variável e nenhum varredor de tela o vê", () => {
+    const en = JSON.parse(readFileSync("lib/i18n/traducoes/en.json", "utf8")) as Record<string, string>;
+    const zh = JSON.parse(readFileSync("lib/i18n/traducoes/zh-CN.json", "utf8")) as Record<string, string>;
+    const semTraducao = Object.values(MOTIVO_DA_RECUSA_LABEL).filter(
+      (rotulo) => !DICIONARIO[rotulo]?.es || !en[rotulo] || !zh[rotulo],
+    );
+    expect(semTraducao).toEqual([]);
   });
 });
