@@ -27,6 +27,8 @@ import { createClient } from "@/lib/supabase/server";
 
 import { GET, PATCH } from "./route";
 
+import type * as Credenciais from "@/lib/agent-engine/edge/llm/credentials";
+
 vi.mock("@/lib/auth/require-role", () => ({ requireRole: vi.fn() }));
 vi.mock("@/lib/impersonate/support", () => ({ requireSupportWrite: vi.fn(async () => null) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
@@ -39,7 +41,7 @@ vi.mock("@/lib/ai/agents/quem-atende-a-sessao", () => ({ haQuemAtendaAOrganizaca
 // "A empresa tem a IA de sempre?" do roteador (decisão B, doc 89). Padrão: tem.
 const { temIaDeSempre } = vi.hoisted(() => ({ temIaDeSempre: vi.fn(async () => true) }));
 vi.mock("@/lib/agent-engine/edge/llm/credentials", async (original) => ({
-  ...(await original<typeof import("@/lib/agent-engine/edge/llm/credentials")>()),
+  ...(await original<typeof Credenciais>()),
   temIaDeSempre,
 }));
 
