@@ -1,4 +1,4 @@
--- manifest: **O aniversário (`contact.birthday`) e os seis `appointment.*` voltam a alcançar a origem do atendimento (issue #2326).** O `fn_service_event_origin` só conhecia seis tipos de evento e o carimbo do `emit_event` só cobria quatro: todo gatilho fora da lista terminava a ação de WhatsApp em `service_boundary_stale`, sem erro em lugar nenhum. As duas pontas agora leem a MESMA tabela `(tipo, entidade) → contato` (`fn_service_event_contact`), que ganha `contact.birthday` e os seis `appointment.*`; `lead.created/stage_changed/tag_added` e `contact.tag_added` passam a ler dela sem mudança de comportamento. Idempotente: `create or replace`; apêndice igual no fim do `baseline.sql`.
+-- manifest: **O aniversário (`contact.birthday`) e os seis `appointment.*` passam a alcançar a origem do atendimento — nunca a alcançaram desde que existem (issue #2326).** O `fn_service_event_origin` só conhecia seis tipos de evento e o carimbo do `emit_event` só cobria quatro: todo gatilho fora da lista terminava a ação de WhatsApp em `service_boundary_stale`, sem erro em lugar nenhum. As duas pontas agora leem a MESMA tabela `(tipo, entidade) → contato` (`fn_service_event_contact`), que ganha `contact.birthday` e os seis `appointment.*`; `lead.created/stage_changed/tag_added` e `contact.tag_added` passam a ler dela sem mudança de comportamento. Idempotente: `create or replace`; apêndice igual no fim do `baseline.sql`.
 
 -- ============================================================================
 -- 0551 — O ANIVERSÁRIO E O COMPROMISSO ALCANÇAM A ORIGEM (#2326)
@@ -27,7 +27,7 @@
 -- ─── O desenho ───────────────────────────────────────────────────────────────
 --
 -- `fn_service_event_contact` é agora a única tabela de `(tipo, entidade) →
--- contato`, com três consumidores: o carimbo no instante da emissão
+-- contato`, com dois consumidores: o carimbo no instante da emissão
 -- (`emit_event`) e a resolução na leitura da origem
 -- (`fn_service_event_origin`). Acrescentar um gatilho de contato vira uma
 -- linha nela — sem a segunda cadeia que precisa andar junto.
